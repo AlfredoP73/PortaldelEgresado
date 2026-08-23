@@ -27,7 +27,7 @@ services:
     container_name: portaldel_egresado_auth
     command: uvicorn app.auth.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
-      - ./backend/.env
+      - .env
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/auth_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}

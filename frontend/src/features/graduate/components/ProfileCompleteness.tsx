@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle, ArrowRight, Zap } from 'lucide-react';
+import { useTranslation } from '../../../context/LanguageContext';
 
 interface Graduate {
   first_name?: string;
@@ -18,14 +19,15 @@ interface ProfileCompletenessProps {
 }
 
 export default function ProfileCompleteness({ profile, onAction }: ProfileCompletenessProps) {
+  const { t } = useTranslation();
   if (!profile) return null;
 
   const checks = [
-    { id: 'basic', label: 'Datos Básicos', points: 20, isComplete: !!(profile.first_name && profile.last_name && profile.phone && profile.profile_summary), action: 'Completa tu información personal y un resumen profesional.' },
-    { id: 'photo', label: 'Foto de Perfil', points: 15, isComplete: !!profile.profile_picture_url, action: 'Sube una foto de perfil profesional para destacar.' },
-    { id: 'cv', label: 'Hoja de Vida (CV)', points: 20, isComplete: !!profile.cv_url, action: 'Sube tu CV en formato PDF para que las empresas lo vean.' },
-    { id: 'skills', label: 'Habilidades', points: 25, isComplete: !!(profile.skills && profile.skills.length > 0), action: 'Añade al menos una habilidad técnica o blanda.' },
-    { id: 'exp', label: 'Experiencia y Academia', points: 20, isComplete: !!((profile.experiences && profile.experiences.length > 0) || (profile.academic_histories && profile.academic_histories.length > 0)), action: 'Agrega tu experiencia laboral o historial académico.' },
+    { id: 'basic', label: t('graduate_profile.basic_data'), points: 20, isComplete: !!(profile.first_name && profile.last_name && profile.phone && profile.profile_summary), action: 'Completa tu información personal y un resumen profesional.' },
+    { id: 'photo', label: t('graduate_profile.profile_pic'), points: 15, isComplete: !!profile.profile_picture_url, action: t('graduate_profile.next_step_desc') },
+    { id: 'cv', label: t('graduate_profile.cv'), points: 20, isComplete: !!profile.cv_url, action: 'Sube tu CV en formato PDF para que las empresas lo vean.' },
+    { id: 'skills', label: t('graduate_profile.skills'), points: 25, isComplete: !!(profile.skills && profile.skills.length > 0), action: 'Añade al menos una habilidad técnica o blanda.' },
+    { id: 'exp', label: t('graduate_profile.experience_and_acad'), points: 20, isComplete: !!((profile.experiences && profile.experiences.length > 0) || (profile.academic_histories && profile.academic_histories.length > 0)), action: 'Agrega tu experiencia laboral o historial académico.' },
   ];
 
   const totalPoints = checks.reduce((acc, curr) => acc + (curr.isComplete ? curr.points : 0), 0);
@@ -33,7 +35,7 @@ export default function ProfileCompleteness({ profile, onAction }: ProfileComple
 
   const getStrengthLabel = (pct: number) => {
     if (pct < 30) return { label: 'Perfil débil', color: '#ef4444' };
-    if (pct < 60) return { label: 'En progreso', color: '#f59e0b' };
+    if (pct < 60) return { label: t('graduate_profile.in_progress'), color: '#f59e0b' };
     if (pct < 90) return { label: 'Perfil sólido', color: '#22a86e' };
     return { label: '¡Perfil estelar!', color: '#10b981' };
   };
@@ -56,7 +58,7 @@ export default function ProfileCompleteness({ profile, onAction }: ProfileComple
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-ink leading-none">Fuerza del Perfil</h3>
+              <h3 className="text-lg font-bold text-ink leading-none">{t('graduate_profile.strength')}</h3>
               <p className="text-xs mt-0.5 font-semibold" style={{ color: strengthColor }}>{strengthLabel}</p>
             </div>
           </div>
@@ -109,14 +111,12 @@ export default function ProfileCompleteness({ profile, onAction }: ProfileComple
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(34,168,110,0.08), rgba(21,138,88,0.05))'; }}>
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full"
                 style={{ background: 'radial-gradient(circle, rgba(34,168,110,0.15), transparent)', filter: 'blur(20px)' }} />
-              <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#158a58' }}>
-                Siguiente Paso Sugerido
-              </p>
+              <h4 className="text-[10px] font-bold text-ink-secondary tracking-widest uppercase mb-1">{t('graduate_profile.next_step')}</h4>
               <p className="text-sm font-semibold leading-relaxed mb-4" style={{ color: 'var(--text-main)' }}>
                 {nextStep.action}
               </p>
               <div className="flex items-center gap-1.5 text-sm font-bold group-hover:gap-2.5 transition-all" style={{ color: '#22a86e' }}>
-                Completar ahora <ArrowRight className="w-4 h-4" />
+                {t('graduate_profile.complete_now')} <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </div>
             </div>
           ) : (

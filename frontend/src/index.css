@@ -32,16 +32,16 @@
 
 /* ── CSS custom props (light) ── */
 :root {
-  --bg-main: #F8FAFC;
+  --bg-main: #f3f4f6;
   --bg-surface: #FFFFFF;
   --bg-muted: #F8FAFC;
   --bg-sidebar: #064E3B;
-  --bg-header: rgba(255,255,255,0.9);
+  --bg-header: #FFFFFF;
   --bg-modal: #FFFFFF;
   --bg-input: #FFFFFF;
   --border-color: #E4E7EC;
   --border-input: #D0D5DD;
-  --pattern-dot: rgba(0,0,0,0.03);
+  --pattern-dot: rgba(0,0,0,0.02);
   --text-main: #172033;
   --text-secondary: #667085;
   --text-muted: #98A2B3;
@@ -64,7 +64,7 @@ body.dark {
   --bg-surface: #131A26;
   --bg-muted: #1A2332;
   --bg-sidebar: #08111A;
-  --bg-header: rgba(19, 26, 38, 0.9);
+  --bg-header: #131A26;
   --bg-modal: #131A26;
   --bg-input: #101620;
   --border-color: #1E293B;
@@ -181,8 +181,8 @@ body.dark .form-label { color: #94A3B8; }
 
 /* ── Buttons ── */
 .btn-primary {
-  background-color: #087443;
-  color: #FFFFFF;
+  background-color: var(--accent-primary, #087443);
+  color: var(--text-inverse, #FFFFFF);
   font-weight: 600;
   padding: 10px 20px;
   border-radius: 8px;
@@ -195,14 +195,13 @@ body.dark .form-label { color: #94A3B8; }
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
   letter-spacing: 0.01em;
   font-size: 14px;
-  border: 1px solid #087443;
+  border: 1px solid var(--accent-primary, #087443);
 }
 .btn-primary:hover {
-  background-color: #065F37;
-  border-color: #065F37;
+  filter: brightness(0.9);
 }
 .btn-primary:active {
-  background-color: #054C2C;
+  filter: brightness(0.8);
 }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
 
@@ -213,9 +212,9 @@ body.dark .form-label { color: #94A3B8; }
   gap: 0.5rem;
   padding: 10px 20px;
   border-radius: 8px;
-  border: 1px solid #D0D5DD;
-  color: #344054;
-  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  background: var(--bg-surface);
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
@@ -223,16 +222,10 @@ body.dark .form-label { color: #94A3B8; }
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
 .btn-outline:hover {
-  background: #F8FAFC;
-  border-color: #D0D5DD;
-  color: #172033;
-}
-body.dark .btn-outline {
-  border-color: #334155;
+  background: var(--bg-muted);
+  border-color: var(--border-color);
   color: var(--text-main);
-  background: var(--bg-surface);
 }
-body.dark .btn-outline:hover { background: var(--bg-muted); }
 
 .btn-ghost {
   color: var(--text-secondary);
@@ -248,30 +241,23 @@ body.dark .btn-outline:hover { background: var(--bg-muted); }
 
 /* ── Tables ── */
 table thead th {
-  background-color: #f9fafb !important;
-  color: #6b7280 !important;
+  background-color: var(--bg-muted) !important;
+  color: var(--text-secondary) !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.08em !important;
-  border-bottom: 2px solid #e5e7eb !important;
+  border-bottom: 1px solid var(--border-color) !important;
   padding: 12px 24px !important;
-}
-body.dark table thead th {
-  background-color: var(--bg-muted) !important;
-  color: var(--text-secondary) !important;
-  border-bottom-color: var(--border-color) !important;
 }
 table tbody td {
   padding: 16px 24px !important;
 }
 table tbody tr {
-  border-bottom: 1px solid #f3f4f6 !important;
+  border-bottom: 1px solid var(--border-color) !important;
   transition: background-color 150ms ease;
 }
-body.dark table tbody tr { border-bottom-color: var(--border-color) !important; }
-table tbody tr:hover { background-color: #f9fafb !important; }
-body.dark table tbody tr:hover { background-color: rgba(34,168,110,0.06) !important; }
+table tbody tr:hover { background-color: var(--bg-hover) !important; }
 
 /* ── Badges ── */
 .badge-pending  { background: #fef9c3; color: #a16207; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
@@ -282,9 +268,8 @@ body.dark table tbody tr:hover { background-color: rgba(34,168,110,0.06) !import
 .page-header {
   padding-bottom: 24px;
   margin-bottom: 32px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 }
-body.dark .page-header { border-bottom-color: var(--border-color); }
 
 /* ── Glass panel ── */
 .glass-panel {

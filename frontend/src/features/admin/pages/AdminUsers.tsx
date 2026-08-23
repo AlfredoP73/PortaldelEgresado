@@ -1,8 +1,10 @@
 import toast from 'react-hot-toast';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authApi } from '../../../api';
-import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2 } from 'lucide-react';
+import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2, Download, Upload } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
+import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
+import { useTranslation } from '../../../context/LanguageContext';
 
 interface User {
   id: number;
@@ -26,9 +28,58 @@ export default function AdminUsers() {
   const [roleId, setRoleId] = useState(2); // Default to COMPANY
   const [saving, setSaving] = useState(false);
 
+  const [importing, setImporting] = useState(false);
+  const { t } = useTranslation();
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleExportExcel = () => {
+    const dataToExport = filteredUsers.map(u => ({
+      'ID Usuario': u.id,
+      'Email': u.email,
+      'Rol': u.role_name,
+      'ID Rol': u.role_id
+    }));
+    exportToExcel(dataToExport, 'Usuarios');
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImporting(true);
+      const requiredCols = ['Email', 'Contraseña', 'ID Rol'];
+      const data = await importFromExcel(file, requiredCols);
+      
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const row of data) {
+        try {
+          await authApi.post('/register', {
+            email: row['Email'],
+            password: row['Contraseña'],
+            role_id: Number(row['ID Rol'])
+          });
+          successCount++;
+        } catch (err) {
+          errorCount++;
+          console.error('Error importando usuario:', row, err);
+        }
+      }
+
+      toast.success(`Importación completa: ${successCount} exitosos, ${errorCount} errores.`);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error(error.message || 'Error al importar Excel');
+    } finally {
+      setImporting(false);
+      e.target.value = ''; // Reset input
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -98,29 +149,49 @@ export default function AdminUsers() {
       <div className="page-header">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="page-title">Gestión de Usuarios</h2>
-            <p className="text-sm mt-1 text-ink-secondary">Administra todos los accesos al sistema.</p>
+            <h2 className="page-title">{t('users.title')}</h2>
+            <p className="text-sm mt-1 text-ink-secondary">{t('users.subtitle')}</p>
           </div>
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Nuevo Usuario
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={handleExportExcel} 
+              className="btn-outline flex items-center gap-2"
+              disabled={loading || users.length === 0}
+            >
+              <Download className="w-4 h-4" /> {t('common.export')}
+            </button>
+            <label className={`btn-outline flex items-center gap-2 cursor-pointer ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {importing ? t('common.importing') : t('common.import')}
+              <input 
+                type="file" 
+                accept=".xlsx,.xls" 
+                className="hidden" 
+                onChange={handleImportExcel}
+                disabled={importing}
+              />
+            </label>
+            <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> {t('users.new')}
+            </button>
+          </div>
         </div>
       </div>
 
       {showForm && (
         <div className="card p-6 animate-fade-in border-l-4 border-brand-500">
-          <h3 className="text-lg font-bold text-ink mb-4">Registrar Nuevo Usuario</h3>
+          <h3 className="text-lg font-bold text-ink mb-4">{t('users.register_title')}</h3>
           <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Correo Electrónico</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.email_label')}</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input w-full" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Contraseña</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.password_label')}</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input w-full" required minLength={6} />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Rol</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.role_label')}</label>
               <select value={roleId} onChange={e => setRoleId(Number(e.target.value))} className="input w-full">
                 <option value={1}>ADMIN</option>
                 <option value={2}>COMPANY</option>
@@ -129,7 +200,7 @@ export default function AdminUsers() {
             </div>
             <div>
               <button type="submit" disabled={saving} className="btn-primary w-full flex justify-center items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear'}
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.create')}
               </button>
             </div>
           </form>
@@ -143,7 +214,7 @@ export default function AdminUsers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
               <input
                 type="text"
-                placeholder="Buscar por email..."
+                placeholder={t('users.search_placeholder')}
                 className="input w-full pl-9"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -155,7 +226,7 @@ export default function AdminUsers() {
                 value={roleFilter} 
                 onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
               >
-                <option value="ALL">Todos los Roles</option>
+                <option value="ALL">{t('users.all_roles')}</option>
                 <option value="ADMIN">Admin</option>
                 <option value="COMPANY">Company</option>
                 <option value="GRADUATE">Graduate</option>
@@ -173,10 +244,10 @@ export default function AdminUsers() {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">ID</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Email</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Rol</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Acciones</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('common.id')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('users.col_email')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('users.col_role')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -202,7 +273,7 @@ export default function AdminUsers() {
                           onClick={() => handleImpersonate(user.id)}
                           className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-brand-200"
                         >
-                          <PlayCircle className="w-4 h-4" /> Actuar Como
+                          <PlayCircle className="w-4 h-4" /> {t('users.impersonate')}
                         </button>
                       )}
                     </td>
@@ -211,7 +282,7 @@ export default function AdminUsers() {
                 {filteredUsers.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-8 text-center text-ink-secondary italic">
-                      No se encontraron usuarios
+                      {t('users.no_results')}
                     </td>
                   </tr>
                 )}

@@ -3,6 +3,7 @@ import { graduatesApi } from '../../../api';
 import { FileText, Building2, UserCircle, Search } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
+import { useTranslation } from '../../../context/LanguageContext';
 
 interface Application {
   id: number;
@@ -19,6 +20,7 @@ interface Application {
 export default function AdminApplications() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
   
   // Filters and Pagination
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,8 +48,8 @@ export default function AdminApplications() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Reporte Global de Postulaciones</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Todas las postulaciones de todos los egresados a nivel del sistema.</p>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>{t('applications.title')}</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{t('applications.subtitle')}</p>
         </div>
       </div>
 
@@ -68,7 +70,7 @@ export default function AdminApplications() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
                 <input
                   type="text"
-                  placeholder="Buscar por vacante o empresa..."
+                  placeholder={t('applications.search')}
                   className="input w-full pl-9"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -80,11 +82,11 @@ export default function AdminApplications() {
                   value={statusFilter} 
                   onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                 >
-                  <option value="ALL">Todos los Estados</option>
-                  <option value="POSTULADO">Postulado</option>
+                  <option value="ALL">{t('jobs.all_states')}</option>
+                  <option value="POSTULADO">{t('applications.status_applied')}</option>
                   <option value="EN_EVALUACION">En Evaluación</option>
-                  <option value="CONTRATADO">Contratado</option>
-                  <option value="RECHAZADO">Rechazado</option>
+                  <option value="CONTRATADO">{t('applications.status_hired')}</option>
+                  <option value="RECHAZADO">{t('applications.status_rejected')}</option>
                 </select>
               </div>
             </div>
@@ -94,10 +96,10 @@ export default function AdminApplications() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Vacante / Empresa</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">ID Egresado</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Fecha</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Estado</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('applications.col_vacancy')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('applications.col_graduate_id')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('applications.col_date')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">{t('applications.col_status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -138,7 +140,11 @@ export default function AdminApplications() {
                         app.status.toUpperCase() === 'CONTRATADO' ? "bg-green-50 text-green-600 border border-green-200" :
                         "bg-red-50 text-red-600 border border-red-200"
                       )}>
-                        {app.status}
+                        {app.status.toUpperCase() === 'POSTULADO' ? t('applications.status_applied') :
+                         app.status.toUpperCase() === 'EN_EVALUACION' ? 'En Evaluación' :
+                         app.status.toUpperCase() === 'CONTRATADO' ? t('applications.status_hired') :
+                         app.status.toUpperCase() === 'ENTREVISTADO' ? t('applications.status_interviewed') :
+                         t('applications.status_rejected')}
                       </span>
                     </td>
                   </tr>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { matchmakingApi } from '../../../api';
 import toast from 'react-hot-toast';
-import { Settings, Save, AlertCircle, BookOpen, Wrench, Briefcase } from 'lucide-react';
+import { useTranslation } from '../../../context/LanguageContext';
+import { Settings, Save, AlertCircle, BookOpen, Wrench, Briefcase, Sliders } from 'lucide-react';
 
 interface MatchmakingWeights {
   program_weight: number;
@@ -17,6 +18,7 @@ export default function AdminMatchmaking() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchWeights();
@@ -35,7 +37,7 @@ export default function AdminMatchmaking() {
       }
     } catch (error) {
       console.error('Error fetching weights:', error);
-      toast.error('No se pudieron cargar los pesos actuales.');
+      toast.error(t('matchmaking.error_fetch'));
     } finally {
       setLoading(false);
     }
@@ -44,20 +46,19 @@ export default function AdminMatchmaking() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const total = weights.program_weight + weights.skills_weight + weights.experience_weight;
-    
-    // Allow a small floating point tolerance
+
     if (Math.abs(total - 1.0) > 0.01) {
-      toast.error(`La suma de los pesos debe ser 100%. Actualmente es ${(total*100).toFixed(0)}%`);
+      toast.error(t('matchmaking.error_sum', { total: (total * 100).toFixed(0) }));
       return;
     }
 
     try {
       setSaving(true);
       await matchmakingApi.put('/criteria', weights);
-      toast.success('Ponderaciones actualizadas exitosamente');
+      toast.success(t('matchmaking.success_save'));
     } catch (error) {
       console.error('Error saving weights:', error);
-      toast.error('Error al guardar ponderaciones');
+      toast.error(t('matchmaking.error_save'));
     } finally {
       setSaving(false);
     }
@@ -77,48 +78,45 @@ export default function AdminMatchmaking() {
     <div className="space-y-6">
       <div className="page-header flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
         <div>
-          <h2 className="page-title flex items-center gap-2">
-            <Settings className="w-6 h-6 text-brand-600" />
-            Configuración del Algoritmo
+          <h2 className="page-title text-[var(--text-main)] flex items-center gap-2">
+            <Sliders className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            {t('matchmaking.title')}
           </h2>
-          <p className="text-sm mt-1 text-ink-secondary max-w-2xl">
-            Ajusta el peso de cada criterio para calcular el porcentaje de afinidad. La suma total debe ser exactamente 100%.
+          <p className="text-sm mt-1 text-[var(--text-ink-secondary)]">
+            {t('matchmaking.subtitle')}
           </p>
         </div>
-        <button 
+        <button
           onClick={handleSave}
           disabled={saving}
           className="btn-primary flex items-center gap-2 px-6 py-2.5"
         >
           <Save className="w-5 h-5" />
-          {saving ? 'Guardando...' : 'Guardar Cambios'}
+          {saving ? t('common.saving') : t('matchmaking.save')}
         </button>
       </div>
 
-      {/* Info Card - Full width but compact */}
       <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl p-4 flex items-start sm:items-center gap-3">
         <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 sm:mt-0" />
-        <p className="text-sm text-blue-800 dark:text-blue-300">
-          El motor suma el puntaje de los 3 criterios multiplicados por su peso. Además, asigna un <strong>bonus adicional</strong> automático a egresados sin empleo.
+        <p className="text-sm text-dark-800 dark:text-dark-300">
+          {t('matchmaking.info_text')}
         </p>
       </div>
 
-      {/* Configuration List */}
       <div className="card p-0 overflow-hidden divide-y divide-[var(--border-color)]">
-        
-        {/* Row 1 */}
+
         <div className="p-5 flex flex-col md:flex-row items-start md:items-center gap-6 hover:bg-[var(--bg-muted)] transition-colors">
           <div className="flex items-center gap-3 md:w-1/3 shrink-0">
             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-sm">Programa Académico</h3>
-              <p className="text-xs text-ink-secondary mt-0.5">Evalúa si el egresado pertenece a la carrera solicitada.</p>
+              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.program')}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.program_desc')}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
-            <input 
+            <input
               type="range" min="0" max="1" step="0.05"
               className="w-full accent-indigo-600"
               value={weights.program_weight}
@@ -128,19 +126,18 @@ export default function AdminMatchmaking() {
           </div>
         </div>
 
-        {/* Row 2 */}
         <div className="p-5 flex flex-col md:flex-row items-start md:items-center gap-6 hover:bg-[var(--bg-muted)] transition-colors">
           <div className="flex items-center gap-3 md:w-1/3 shrink-0">
             <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
               <Wrench className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-sm">Habilidades Técnicas</h3>
-              <p className="text-xs text-ink-secondary mt-0.5">Cruce entre las competencias y requerimientos.</p>
+              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.skills')}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.skills_desc')}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
-            <input 
+            <input
               type="range" min="0" max="1" step="0.05"
               className="w-full accent-emerald-600"
               value={weights.skills_weight}
@@ -150,19 +147,18 @@ export default function AdminMatchmaking() {
           </div>
         </div>
 
-        {/* Row 3 */}
         <div className="p-5 flex flex-col md:flex-row items-start md:items-center gap-6 hover:bg-[var(--bg-muted)] transition-colors">
           <div className="flex items-center gap-3 md:w-1/3 shrink-0">
             <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400">
               <Briefcase className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-ink text-sm">Experiencia Laboral</h3>
-              <p className="text-xs text-ink-secondary mt-0.5">Proporción de años trabajados según lo exigido.</p>
+              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.experience')}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.experience_desc')}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
-            <input 
+            <input
               type="range" min="0" max="1" step="0.05"
               className="w-full accent-amber-600"
               value={weights.experience_weight}
@@ -177,12 +173,11 @@ export default function AdminMatchmaking() {
       {/* Summary Footer */}
       <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-6">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Suma Total</span>
-          <span className={`text-2xl font-black ${
-            Math.abs(totalSum - 1.0) < 0.01 
-              ? 'text-green-600 dark:text-green-400' 
-              : 'text-red-500 dark:text-red-400'
-          }`}>
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('matchmaking.total_sum')}</span>
+          <span className={`text-2xl font-black ${Math.abs(totalSum - 1.0) < 0.01
+            ? 'text-green-600 dark:text-green-400'
+            : 'text-red-500 dark:text-red-400'
+            }`}>
             {(totalSum * 100).toFixed(0)}%
           </span>
         </div>

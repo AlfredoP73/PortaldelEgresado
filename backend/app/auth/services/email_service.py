@@ -7,8 +7,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-# Asegurar que se cargue el .env correcto desde la raíz del backend
-env_path = os.path.join(os.path.dirname(__file__), "../../../../.env")
+# Asegurar que se cargue el .env correcto desde la raíz del proyecto
+env_path = os.path.join(os.path.dirname(__file__), "../../../../../.env")
 load_dotenv(dotenv_path=os.path.abspath(env_path))
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

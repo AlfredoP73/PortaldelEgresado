@@ -6,6 +6,8 @@ import { Search, Building2, AlertCircle, Trash2, Edit2, Check, X, Plus, MapPin, 
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
+import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
+import { useTranslation } from '../../../context/LanguageContext';
 
 interface Sector { id: number; name: string }
 interface City { id: number; name: string }
@@ -38,6 +40,7 @@ export default function Companies() {
   const [isCreating, setIsCreating] = useState(false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const { t } = useTranslation();
   
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
@@ -512,17 +515,17 @@ export default function Companies() {
 
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-bold font-heading text-ink tracking-tight">Directorio de Empresas</h2>
-          <p className="text-ink-secondary mt-1">Gestiona las empresas aliadas y aprueba sus registros.</p>
+          <h2 className="text-3xl font-bold font-heading tracking-tight" style={{ color: 'var(--text-main)' }}>{t('companies.title')}</h2>
+          <p className="mt-1" style={{ color: 'var(--text-ink-secondary)' }}>{t('companies.subtitle')}</p>
         </div>
         <button 
           onClick={() => {
             setEditingCompany(null);
             setAdminModalOpen(true);
           }}
-          className="btn-primary shadow-lg shadow-brand-500/20"
+          className="btn-primary"
         >
-          <Plus className="w-5 h-5" /> Nueva Empresa
+          <Plus className="w-5 h-5" /> {t('companies.new_company')}
         </button>
       </div>
 
@@ -606,17 +609,18 @@ export default function Companies() {
         const paginatedCompanies = filteredCompanies.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
         return (
-          <div className="card overflow-hidden">
-            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
+          <div className="overflow-hidden rounded-2xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+            <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-ink-secondary)' }} />
                   <input
                     type="text"
-                    placeholder="Buscar empresa o correo..."
-                    className="input w-full pl-9"
+                    placeholder={t('companies.search_placeholder')}
+                    className="input w-full pl-10"
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    style={{ backgroundColor: 'transparent' }}
                   />
                 </div>
                 <div className="flex flex-wrap sm:flex-nowrap gap-4 w-full md:w-auto">
@@ -624,8 +628,9 @@ export default function Companies() {
                     className="input w-full sm:w-48" 
                     value={sectorFilter} 
                     onChange={(e) => { setSectorFilter(e.target.value); setCurrentPage(1); }}
+                    style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">Todos los Sectores</option>
+                    <option value="ALL">{t('companies.all_sectors')}</option>
                     {sectors.map(s => (
                       <option key={s.id} value={s.id.toString()}>{s.name}</option>
                     ))}
@@ -635,8 +640,9 @@ export default function Companies() {
                     className="input w-full sm:w-40" 
                     value={cityFilter} 
                     onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
+                    style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">Todas las Ciudades</option>
+                    <option value="ALL">{t('companies.all_cities')}</option>
                     {cities.map(c => (
                       <option key={c.id} value={c.id.toString()}>{c.name}</option>
                     ))}
@@ -646,11 +652,12 @@ export default function Companies() {
                     className="input w-full sm:w-36" 
                     value={statusFilter} 
                     onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                    style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">Estados</option>
-                    <option value="APPROVED">Aprobada</option>
-                    <option value="PENDING">Pendiente</option>
-                    <option value="REJECTED">Rechazada</option>
+                    <option value="ALL">{t('companies.states')}</option>
+                    <option value="APPROVED">{t('companies.status_approved')}</option>
+                    <option value="PENDING">{t('companies.status_pending')}</option>
+                    <option value="REJECTED">{t('companies.status_rejected')}</option>
                   </select>
                 </div>
               </div>
@@ -658,16 +665,16 @@ export default function Companies() {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-            <thead className="text-ink-secondary text-[12px] font-bold uppercase tracking-wider" style={{ borderBottom: '1px solid var(--color-border)' }}>
+            <thead className="text-[12px] font-bold uppercase tracking-wider" style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-ink-secondary)', backgroundColor: 'var(--bg-muted)' }}>
               <tr>
-                <th className="px-6 py-4">Empresa</th>
-                <th className="px-6 py-4">Sector</th>
-                <th className="px-6 py-4">Ubicación</th>
-                <th className="px-6 py-4 text-center">Estado</th>
-                <th className="px-6 py-4 text-right">Acciones</th>
+                <th className="px-6 py-4">{t('companies.col_company')}</th>
+                <th className="px-6 py-4">{t('companies.col_sector')}</th>
+                <th className="px-6 py-4">{t('companies.col_location')}</th>
+                <th className="px-6 py-4 text-center">{t('companies.col_status')}</th>
+                <th className="px-6 py-4 text-right">{t('companies.col_actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+            <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
               {paginatedCompanies.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-ink-tertiary">
@@ -679,22 +686,22 @@ export default function Companies() {
                 </tr>
               ) : (
                 paginatedCompanies.map((company) => (
-                  <tr key={company.user_id} className="hover:bg-brand-50/30 transition-colors group">
+                  <tr key={company.user_id} className="hover:bg-[var(--bg-muted)] transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--text-inverse)' }}>
                           {company.name.charAt(0)}
                         </div>
                         <div>
-                          <div className="font-semibold text-ink">{company.name}</div>
-                          <div className="text-sm text-ink-tertiary">{company.contact_email}</div>
+                          <div className="font-semibold" style={{ color: 'var(--text-main)' }}>{company.name}</div>
+                          <div className="text-sm" style={{ color: 'var(--text-ink-secondary)' }}>{company.contact_email}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-ink-secondary font-medium">
+                    <td className="px-6 py-4 font-medium" style={{ color: 'var(--text-ink-secondary)' }}>
                       {company.sector?.name}
                     </td>
-                    <td className="px-6 py-4 text-ink-secondary font-medium">
+                    <td className="px-6 py-4 font-medium" style={{ color: 'var(--text-ink-secondary)' }}>
                       {company.city?.name}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -704,7 +711,7 @@ export default function Companies() {
                         company.status.toUpperCase() === 'REJECTED' ? 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]' :
                         'bg-[#FFFAEB] text-[#B54708] border-[#FEDF89]'
                       )}>
-                        {company.status.toUpperCase() === 'APPROVED' ? 'APROBADA' : company.status.toUpperCase() === 'REJECTED' ? 'RECHAZADA' : 'PENDIENTE'}
+                        {company.status.toUpperCase() === 'APPROVED' ? t('companies.status_approved') : company.status.toUpperCase() === 'REJECTED' ? t('companies.status_rejected') : t('companies.status_pending')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
