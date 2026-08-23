@@ -17,7 +17,7 @@ interface WorkExperience {
 }
 
 export default function GraduateExperience() {
-  const [experiences, setExperiences] = useState<WorkExperience[]>([]);
+    const [experiences, setExperiences] = useState<WorkExperience[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [uploadingId, setUploadingId] = useState<number | null>(null);
@@ -43,7 +43,7 @@ export default function GraduateExperience() {
     const form = e.currentTarget;
     const fd = new FormData(form);
     const certFile = fd.get('certificate') as File;
-    
+
     if (certFile && certFile.size > 0 && certFile.type !== 'application/pdf') {
       toast.error('El certificado debe ser un archivo PDF');
       return;
@@ -57,7 +57,7 @@ export default function GraduateExperience() {
         end_date: fd.get('end_date') || null,
         description: fd.get('description') || null,
       });
-      
+
       const newExp = res.data;
       if (certFile && certFile.size > 0) {
         const fileData = new FormData();
@@ -75,7 +75,7 @@ export default function GraduateExperience() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar esta experiencia?')) return;
+    if (!confirm('¿Está seguro de eliminar este registro?')) return;
     try {
       await graduatesApi.delete(`/experiences/${id}`);
       fetchData();
@@ -114,11 +114,15 @@ export default function GraduateExperience() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Experiencia Laboral</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Registra tu trayectoria profesional y adjunta tus certificados.</p>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>
+            {'Experiencia Laboral'}
+          </h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            {'Registra tu historial profesional.'}
+          </p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Agregar Experiencia
+          <Plus className="w-4 h-4" /> {'Agregar Experiencia'}
         </button>
       </div>
 
@@ -129,8 +133,8 @@ export default function GraduateExperience() {
       ) : experiences.length === 0 ? (
         <div className="card p-12 text-center">
           <Briefcase className="w-12 h-12 text-ink-tertiary mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-bold text-ink">Sin experiencia registrada</h3>
-          <p className="text-ink-secondary mt-2 max-w-md mx-auto">Añade tu experiencia laboral para destacar tu perfil ante las empresas.</p>
+          <h3 className="text-lg font-bold text-ink">{'Sin experiencia registrada'}</h3>
+          <p className="text-ink-secondary mt-2 max-w-md mx-auto">{'Registra tu historial profesional.'}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -142,38 +146,45 @@ export default function GraduateExperience() {
                 <div className="text-sm font-medium bg-ink-50 text-ink-secondary inline-block px-3 py-1 rounded-full mb-3">
                   {new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}
                 </div>
-                {exp.description && <p className="text-sm text-ink-secondary bg-[var(--bg-muted)] p-3 rounded-xl border border-[var(--border-color)]">{exp.description}</p>}
+                {exp.description && (
+                  <p className="text-sm text-ink-secondary bg-[var(--bg-muted)] p-3 rounded-xl border border-[var(--border-color)]">
+                    {exp.description}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-3 min-w-[200px] shrink-0">
                 {exp.certificate_url ? (
                   <div className="flex flex-col gap-2">
-                    <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="block relative w-full h-32 rounded-xl overflow-hidden border border-[var(--border-color)] hover:border-brand-500 transition-colors group bg-white shadow-sm">
-                      {/* PDF Thumbnail Hack using iframe scaling */}
-                      <iframe 
-                        src={`${GRADUATES_URL}${exp.certificate_url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                    <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer"
+                      className="block relative w-full h-32 rounded-xl overflow-hidden border border-[var(--border-color)] hover:border-brand-500 transition-colors group bg-white shadow-sm">
+                      <iframe
+                        src={`${GRADUATES_URL}${exp.certificate_url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                         className="absolute top-0 left-0 w-[200%] h-[200%] origin-top-left scale-50 pointer-events-none"
                         tabIndex={-1}
                       />
-                      {/* Overlay */}
                       <div className="absolute inset-0 bg-brand-900/0 group-hover:bg-brand-900/10 transition-colors flex items-center justify-center backdrop-blur-[0px] group-hover:backdrop-blur-[2px]">
                         <FileText className="w-8 h-8 text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity transform scale-75 group-hover:scale-100 duration-300" />
                       </div>
                     </a>
-                    <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl font-bold text-sm transition-colors">
-                      <FileText className="w-4 h-4" /> Ver Documento
+                    <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer"
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl font-bold text-sm transition-colors">
+                      <FileText className="w-4 h-4" /> {'Ver PDF'}
                     </a>
                   </div>
                 ) : (
                   <div>
-                    <input type="file" id={`cert-${exp.id}`} className="hidden" accept=".pdf" onChange={(e) => handleUploadCert(exp.id, e)} disabled={uploadingId === exp.id} />
-                    <label htmlFor={`cert-${exp.id}`} className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-ink-50 text-ink hover:bg-ink-100 rounded-xl font-bold text-sm transition-colors cursor-pointer border border-ink-200">
+                    <input type="file" id={`cert-${exp.id}`} className="hidden" accept=".pdf"
+                      onChange={(e) => handleUploadCert(exp.id, e)} disabled={uploadingId === exp.id} />
+                    <label htmlFor={`cert-${exp.id}`}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-ink-50 text-ink hover:bg-ink-100 rounded-xl font-bold text-sm transition-colors cursor-pointer border border-ink-200">
                       {uploadingId === exp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      Subir Certificado PDF
+                      {'Certificado (PDF)'}
                     </label>
                   </div>
                 )}
-                <button onClick={() => handleDelete(exp.id)} className="flex items-center justify-center gap-2 w-full px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl font-bold text-sm transition-colors">
-                  <Trash2 className="w-4 h-4" /> Eliminar
+                <button onClick={() => handleDelete(exp.id)}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl font-bold text-sm transition-colors">
+                  <Trash2 className="w-4 h-4" /> {'Eliminar'}
                 </button>
               </div>
             </div>
@@ -182,46 +193,63 @@ export default function GraduateExperience() {
       )}
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-3xl">
-        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
-          <h3 className="text-xl font-bold text-ink font-heading">Agregar Experiencia Laboral</h3>
-          <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+        <div className="flex justify-between items-center p-6 border-b shrink-0"
+          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+          <h3 className="text-xl font-bold text-ink font-heading">{'Agregar Experiencia Laboral'}</h3>
+          <button onClick={() => setShowModal(false)}
+            className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleAdd} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Cargo / Posición *</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">
+              {'Cargo / Posición'} *
+            </label>
             <input name="position" className="input w-full" required />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Empresa *</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">
+              {'Nombre de la Empresa'} *
+            </label>
             <input name="company_name" className="input w-full" required />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Inicio *</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">
+                {'Fecha Inicio'} *
+              </label>
               <input name="start_date" type="date" className="input w-full" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Fin</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">
+                {'Fecha Fin'}
+              </label>
               <input name="end_date" type="date" className="input w-full" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Descripción</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">
+              {'Descripción'}
+            </label>
             <textarea name="description" className="input w-full min-h-[80px]" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Certificado (PDF)</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">
+              {'Certificado (PDF)'}
+            </label>
             <input type="file" name="certificate" accept=".pdf" className="input w-full p-2" />
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">Cancelar</button>
-            <button type="submit" className="btn-primary flex items-center gap-2"><Save className="w-4 h-4" /> Guardar</button>
+            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">
+              {'Cancelar'}
+            </button>
+            <button type="submit" className="btn-primary flex items-center gap-2">
+              <Save className="w-4 h-4" /> {'Guardar'}
+            </button>
           </div>
         </form>
       </Modal>
     </div>
   );
 }
-

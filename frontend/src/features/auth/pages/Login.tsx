@@ -6,7 +6,6 @@ import {
     Building2, CheckCircle2, ArrowRight, Shield, TrendingUp, Sparkles
 } from 'lucide-react';
 import { authApi } from '../../../api';
-import { useTranslation } from '../../../context/LanguageContext';
 
 interface ApiError {
     response?: { data?: { detail?: string } };
@@ -36,8 +35,7 @@ export default function Login() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
-    const { t } = useTranslation();
-
+    
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
@@ -235,19 +233,19 @@ export default function Login() {
                                 style={{ background: 'linear-gradient(135deg, #eefbf4, #d6f5e3)' }}>
                                 <Mail className="w-9 h-9 text-brand-600" />
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-3">{t('login.success_title')}</h2>
-                            <p className="text-gray-600 text-sm leading-relaxed mb-8">
-                                {t('login.success_desc1')}
-                                <strong className="text-gray-900 font-semibold">{email}</strong>.<br />
-                                {t('login.success_desc2')}
+                            <h2 className="text-2xl font-bold text-[#111827] mb-3">{'Revisa tu correo'}</h2>
+                            <p className="text-[#4B5563] text-sm leading-relaxed mb-8">
+                                {'Enviamos un enlace de verificación a '}
+                                <strong className="text-[#111827] font-semibold">{email}</strong>.<br />
+                                {'Haz clic en él para activar tu cuenta.'}
                             </p>
                             <div className="space-y-3">
                                 <button onClick={() => { setRegistrationSuccess(false); setIsRegistering(false); setPassword(''); }}
                                     className="w-full py-3.5 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-lg shadow-brand-500/20">
-                                    {t('login.success_btn1')}
+                                    {'Volver al inicio de sesión'}
                                 </button>
-                                <button onClick={handleResendEmail} className="w-full py-3.5 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
-                                    {t('login.success_btn2')}
+                                <button onClick={handleResendEmail} className="w-full py-3.5 bg-white text-[#374151] border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
+                                    {'No recibí el correo, reenviar'}
                                 </button>
                             </div>
                         </div>
@@ -265,14 +263,14 @@ export default function Login() {
                                             ? <Building2 className="w-5 h-5 text-white" />
                                             : <GraduationCap className="w-5 h-5 text-white" />}
                                     </div>
-                                    <h2 className="text-[1.6rem] font-black text-gray-900 tracking-tight leading-none">
-                                        {isRegistering ? t('login.register_title') : t('login.welcome')}
+                                    <h2 className="text-[1.6rem] font-black text-[#111827] tracking-tight leading-none">
+                                        {isRegistering ? 'Crear Cuenta' : 'Bienvenido'}
                                     </h2>
                                 </div>
-                                <p className="text-[13px] leading-relaxed pl-[54px] text-gray-500">
+                                <p className="text-[13px] leading-relaxed pl-[54px] text-[#6B7280]">
                                     {isRegistering
-                                        ? t('login.register_desc')
-                                        : t('login.welcome_desc')}
+                                        ? 'Únete al portal institucional y accede a oportunidades únicas.'
+                                        : 'Ingresa tus credenciales para acceder al portal institucional.'}
                                 </p>
                             </div>
 
@@ -317,31 +315,31 @@ export default function Login() {
 
                                     {/* Email */}
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                            {t('login.email_label')}
+                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                            {'Correo electrónico'}
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
                                                 <Mail className="w-4 h-4" />
                                             </div>
                                             <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                placeholder={t('login.email_placeholder')} value={email}
+                                                placeholder={'correo@upc.edu.co'} value={email}
                                                 onChange={e => setEmail(e.target.value)} required autoComplete="email" />
                                         </div>
                                     </div>
 
                                     {/* Password */}
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                            {t('login.password_label')}
+                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                            {'Contraseña'}
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
                                                 <Lock className="w-4 h-4" />
                                             </div>
                                             <input type={showPassword ? 'text' : 'password'}
                                                 style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                placeholder={t('login.password_placeholder')} value={password}
+                                                placeholder={'••••••••'} value={password}
                                                 onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
                                             <button type="button" onClick={() => setShowPassword(!showPassword)}
                                                 className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
@@ -367,13 +365,13 @@ export default function Login() {
                                                 )}
                                                 
                                                 <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{t('login.security_req')}</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{'Requisitos de seguridad'}</p>
                                                     {[
-                                                        { label: t('login.req.length'), met: password.length >= 8 },
-                                                        { label: t('login.req.upper'), met: /[A-Z]/.test(password) },
-                                                        { label: t('login.req.lower'), met: /[a-z]/.test(password) },
-                                                        { label: t('login.req.number'), met: /[0-9]/.test(password) },
-                                                        { label: t('login.req.special'), met: /[^A-Za-z0-9]/.test(password) },
+                                                        { label: 'Al menos 8 caracteres', met: password.length >= 8 },
+                                                        { label: 'Al menos una letra mayúscula', met: /[A-Z]/.test(password) },
+                                                        { label: 'Al menos una letra minúscula', met: /[a-z]/.test(password) },
+                                                        { label: 'Al menos un número', met: /[0-9]/.test(password) },
+                                                        { label: 'Al menos un carácter especial', met: /[^A-Za-z0-9]/.test(password) },
                                                     ].map((req, i) => (
                                                         <div key={i} className="flex items-center gap-2">
                                                             <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${req.met ? 'bg-brand-500 text-white' : 'bg-slate-200'}`}>
@@ -415,9 +413,9 @@ export default function Login() {
                                     >
                                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                             {loading ? (
-                                                <><Loader2 className="w-5 h-5 animate-spin" />{isRegistering ? t('login.loading_register') : t('login.loading_login')}</>
+                                                <><Loader2 className="w-5 h-5 animate-spin" />{isRegistering ? 'Creando cuenta...' : 'Iniciando sesión...'}</>
                                             ) : (
-                                                <>{isRegistering ? t('login.submit_register') : t('login.submit_login')}{!isRegistering && <ArrowRight className="w-4 h-4" />}</>
+                                                <>{isRegistering ? 'Crear cuenta ahora' : 'Acceder al Portal'}{!isRegistering && <ArrowRight className="w-4 h-4" />}</>
                                             )}
                                         </span>
                                     </button>
@@ -432,9 +430,9 @@ export default function Login() {
                                     onMouseEnter={e => (e.currentTarget.style.color = '#22a86e')}
                                     onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
                                 >
-                                    {isRegistering ? t('login.toggle_to_login') : t('login.toggle_to_register')}
+                                    {isRegistering ? '¿Ya tienes cuenta? ' : '¿No tienes cuenta? '}
                                     <span style={{ color: '#158a58', fontWeight: 900 }}>
-                                        {isRegistering ? t('login.toggle_to_login_link') : t('login.toggle_to_register_link')}
+                                        {isRegistering ? 'Inicia sesión' : 'Regístrate gratis'}
                                     </span>
                                 </button>
                             </div>

@@ -4,7 +4,6 @@ import { graduatesApi, authApi } from '../../../api';
 import api from '../../../api';
 import { Users, GraduationCap, Phone, ExternalLink, Plus, X, Save, Loader2, PlayCircle, Search, Download, Upload } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
-import { useTranslation } from '../../../context/LanguageContext';
 import Modal from '../../../components/Modal';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
 
@@ -61,8 +60,7 @@ export default function AdminGraduates() {
   const [yearFilter, setYearFilter] = useState('ALL');
 
   const [importing, setImporting] = useState(false);
-  const { t } = useTranslation();
-
+  
   useEffect(() => {
     fetchGraduates();
     fetchPrograms();
@@ -198,8 +196,8 @@ export default function AdminGraduates() {
       <div className="page-header">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="page-title">{t('graduates.title')}</h2>
-            <p className="text-sm mt-1 text-ink-secondary">{t('graduates.subtitle')}</p>
+            <h2 className="page-title">{'Directorio Global de Egresados'}</h2>
+            <p className="text-sm mt-1 text-ink-secondary">{'Consulta y registra nuevos egresados en la plataforma.'}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button 
@@ -207,11 +205,11 @@ export default function AdminGraduates() {
               className="btn-outline flex items-center gap-2"
               disabled={loading || graduates.length === 0}
             >
-              <Download className="w-4 h-4" /> {t('common.export')}
+              <Download className="w-4 h-4" /> {'Exportar'}
             </button>
             <label className={`btn-outline flex items-center gap-2 cursor-pointer ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {importing ? t('common.importing') : t('common.import')}
+              {importing ? 'Importando...' : 'Importar'}
               <input 
                 type="file" 
                 accept=".xlsx,.xls" 
@@ -221,7 +219,7 @@ export default function AdminGraduates() {
               />
             </label>
             <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> {t('graduates.register')}
+              <Plus className="w-4 h-4" /> {'Registrar Egresado'}
             </button>
           </div>
         </div>
@@ -234,7 +232,7 @@ export default function AdminGraduates() {
       ) : graduates.length === 0 ? (
         <div className="p-12 text-center rounded-2xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
           <Users className="w-12 h-12 mx-auto mb-4 opacity-50" style={{ color: 'var(--text-ink-tertiary)' }} />
-          <h3 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>{t('graduates.empty_title')}</h3>
+          <h3 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>{'No hay egresados registrados'}</h3>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
@@ -244,7 +242,7 @@ export default function AdminGraduates() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-ink-secondary)' }} />
                 <input
                   type="text"
-                  placeholder={t('graduates.search_placeholder')}
+                  placeholder={'Buscar por nombre o teléfono...'}
                   className="input w-full pl-9"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -256,7 +254,7 @@ export default function AdminGraduates() {
                   value={programFilter} 
                   onChange={(e) => setProgramFilter(e.target.value)}
                 >
-                  <option value="ALL">{t('graduates.all_programs')}</option>
+                  <option value="ALL">{'Todos los Programas'}</option>
                   {programs.map(p => (
                     <option key={p.id} value={p.id.toString()}>{p.name}</option>
                   ))}
@@ -267,7 +265,7 @@ export default function AdminGraduates() {
                   value={yearFilter} 
                   onChange={(e) => setYearFilter(e.target.value)}
                 >
-                  <option value="ALL">{t('graduates.all_years')}</option>
+                  <option value="ALL">{'Todos los Años'}</option>
                   {uniqueYears.map(year => (
                     <option key={year} value={year.toString()}>{year}</option>
                   ))}
@@ -280,10 +278,10 @@ export default function AdminGraduates() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('graduates.col_graduate')}</th>
-                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('graduates.col_year')}</th>
-                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('graduates.col_contact')}</th>
-                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider text-right" style={{ color: 'var(--text-ink-secondary)' }}>{t('graduates.col_cv')}</th>
+                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{'EGRESADO'}</th>
+                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{'AÑO'}</th>
+                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{'CONTACTO'}</th>
+                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider text-right" style={{ color: 'var(--text-ink-secondary)' }}>{'CV'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)] bg-[var(--bg-card)]">
@@ -296,7 +294,7 @@ export default function AdminGraduates() {
                         </div>
                         <div>
                           <p className="font-bold" style={{ color: 'var(--text-main)' }}>{grad.first_name} {grad.last_name}</p>
-                          <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--text-ink-secondary)' }}><GraduationCap className="w-3 h-3" /> {t('graduates.program_id')}: {grad.program_id}</p>
+                          <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--text-ink-secondary)' }}><GraduationCap className="w-3 h-3" /> {'Programa ID'}: {grad.program_id}</p>
                         </div>
                       </div>
                     </td>
@@ -314,18 +312,18 @@ export default function AdminGraduates() {
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border"
                           style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)', borderColor: 'var(--border-color)' }}
                         >
-                          <PlayCircle className="w-4 h-4" /> {t('graduates.impersonate')}
+                          <PlayCircle className="w-4 h-4" /> {'Actuar Como'}
                         </button>
                         <button 
                           onClick={() => setSelectedGraduate(grad)} 
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors border border-transparent"
                           style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-main)', borderColor: 'var(--border-color)' }}
                         >
-                          {t('graduates.view_details')}
+                          {'Ver Detalles'}
                         </button>
                         {grad.cv_url && (
                           <a href={`${GRADUATES_URL}${grad.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors border border-transparent" style={{ color: 'var(--accent-primary)' }}>
-                            {t('common.view_pdf')} <ExternalLink className="w-3 h-3" />
+                            {'Ver PDF'} <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>
@@ -335,7 +333,7 @@ export default function AdminGraduates() {
                 {filteredGraduates.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-8 text-center text-ink-secondary italic">
-                      {t('graduates.no_results')}
+                      {'No se encontraron egresados con los filtros actuales.'}
                     </td>
                   </tr>
                 )}
@@ -356,7 +354,7 @@ export default function AdminGraduates() {
       {/* Modal Registrar */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-4xl">
         <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
-          <h3 className="text-xl font-bold text-ink font-heading">{t('graduates.modal_register_title')}</h3>
+          <h3 className="text-xl font-bold text-ink font-heading">{'Registrar Nuevo Egresado'}</h3>
           <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -364,50 +362,50 @@ export default function AdminGraduates() {
         <form onSubmit={handleRegister} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.first_name')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Nombres *'}</label>
               <input name="first_name" className="input w-full" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.last_name')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Apellidos *'}</label>
               <input name="last_name" className="input w-full" required />
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.email')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Correo Electrónico *'}</label>
               <input name="email" type="email" className="input w-full" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.temp_password')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Contraseña (Temporal) *'}</label>
               <input name="password" type="text" className="input w-full" defaultValue="upc12345" required />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.academic_program')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Programa Académico *'}</label>
               <select name="program_id" className="input w-full" required>
-                <option value="">{t('common.select')}</option>
+                <option value="">{'Seleccione...'}</option>
                 {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.graduation_year')}</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Año de Graduación *'}</label>
               <input name="graduation_year" type="number" min="1980" max="2030" defaultValue={new Date().getFullYear()} className="input w-full" required />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('graduates.phone')}</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Teléfono'}</label>
             <input name="phone" type="text" className="input w-full" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
-            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost" disabled={saving}>{t('common.cancel')}</button>
+            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost" disabled={saving}>{'Cancelar'}</button>
             <button type="submit" className="btn-primary flex items-center gap-2" disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {t('common.register')}
+              {'Registrar'}
             </button>
           </div>
         </form>
@@ -419,7 +417,7 @@ export default function AdminGraduates() {
           <>
             <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <div>
-                <h3 className="text-xl font-bold text-ink font-heading">{t('graduates.profile_title')}</h3>
+                <h3 className="text-xl font-bold text-ink font-heading">{'Perfil del Egresado'}</h3>
                 <p className="text-sm text-brand-600 font-semibold">{selectedGraduate.first_name} {selectedGraduate.last_name}</p>
               </div>
               <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -430,53 +428,53 @@ export default function AdminGraduates() {
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {selectedGraduate.cv_url && (
                 <div>
-                  <h4 className="text-lg font-bold text-ink mb-3">{t('graduates.cv_title')}</h4>
+                  <h4 className="text-lg font-bold text-ink mb-3">{'Hoja de Vida (CV)'}</h4>
                   <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-400 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-100 border border-brand-200 dark:border-brand-800">
-                    <ExternalLink className="w-4 h-4" /> {t('graduates.view_cv')}
+                    <ExternalLink className="w-4 h-4" /> {'Ver Hoja de Vida'}
                   </a>
                 </div>
               )}
               <div>
-                <h4 className="text-lg font-bold text-ink mb-3">{t('graduates.work_experience')}</h4>
+                <h4 className="text-lg font-bold text-ink mb-3">{'Experiencia Laboral'}</h4>
                 {selectedGraduate.experiences && selectedGraduate.experiences.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.experiences.map(exp => (
                       <div key={exp.id} className="card p-4 border border-[var(--border-color)]">
                         <h5 className="font-bold text-ink">{exp.position}</h5>
                         <p className="text-sm font-semibold text-brand-600">{exp.company_name}</p>
-                        <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : t('common.present')}</p>
+                        <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}</p>
                         {exp.certificate_url && (
                           <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
-                            {t('graduates.view_certificate')}
+                            {'Ver Certificado Adjunto'}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{t('graduates.no_experience')}</p>
+                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{'El egresado no ha registrado experiencia laboral.'}</p>
                 )}
               </div>
 
               <div>
-                <h4 className="text-lg font-bold text-ink mb-3">{t('graduates.academic_history')}</h4>
+                <h4 className="text-lg font-bold text-ink mb-3">{'Formación Académica'}</h4>
                 {selectedGraduate.academic_histories && selectedGraduate.academic_histories.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.academic_histories.map(edu => (
                       <div key={edu.id} className="card p-4 border border-[var(--border-color)]">
                         <h5 className="font-bold text-ink">{edu.degree}</h5>
                         <p className="text-sm font-semibold text-brand-600">{edu.institution}</p>
-                        <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : t('common.in_progress')}</p>
+                        <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : 'En curso'}</p>
                         {edu.diploma_url && (
                           <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
-                            {t('graduates.view_diploma')}
+                            {'Ver Diploma Adjunto'}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{t('graduates.no_education')}</p>
+                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{'El egresado no ha registrado formación académica.'}</p>
                 )}
               </div>
             </div>

@@ -4,7 +4,6 @@ import api from '../../../api';
 import { Plus, Briefcase, Calendar, DollarSign, X, CheckCircle2, Search } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Modal from '../../../components/Modal';
-import { useTranslation } from '../../../context/LanguageContext';
 
 interface JobOffer {
   id: number;
@@ -33,8 +32,7 @@ export default function JobOffers() {
   
   // New state for form
   const [selectedSkills, setSelectedSkills] = useState<number[]>([]);
-  const { t } = useTranslation();
-  
+    
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -105,10 +103,10 @@ export default function JobOffers() {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-3xl font-bold font-heading text-ink tracking-tight">
-            {isAdmin ? t('jobs.title') : 'Mis Ofertas Laborales'}
+            {isAdmin ? 'Explorar Vacantes' : 'Mis Ofertas Laborales'}
           </h2>
           <p className="text-ink-secondary mt-1">
-            {isAdmin ? t('jobs.subtitle') : 'Gestiona y publica nuevas oportunidades laborales.'}
+            {isAdmin ? 'Visualiza las ofertas de todas las empresas aliadas.' : 'Gestiona y publica nuevas oportunidades laborales.'}
           </p>
         </div>
         {!isAdmin && (
@@ -128,7 +126,7 @@ export default function JobOffers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
               <input
                 type="text"
-                placeholder={t('jobs.search')}
+                placeholder={'Buscar por título de vacante...'}
                 className="input w-full pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -140,9 +138,9 @@ export default function JobOffers() {
                 value={statusFilter} 
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
-                <option value="ALL">{t('jobs.all_states')}</option>
-                <option value="ACTIVE">{t('jobs.active')}</option>
-                <option value="CLOSED">{t('jobs.closed')}</option>
+                <option value="ALL">{'Todos los Estados'}</option>
+                <option value="ACTIVE">{'ACTIVA'}</option>
+                <option value="CLOSED">{'CERRADA'}</option>
               </select>
               
               <div className="relative w-full sm:w-48">
@@ -151,7 +149,7 @@ export default function JobOffers() {
                 </div>
                 <input
                   type="number"
-                  placeholder={t('jobs.salary')}
+                  placeholder={'Salario'}
                   className="input w-full pl-9"
                   value={minSalaryFilter}
                   onChange={(e) => setMinSalaryFilter(e.target.value)}
@@ -195,7 +193,7 @@ export default function JobOffers() {
                   <span className={twMerge("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border", 
                     job.status.toUpperCase() === 'ACTIVE' ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
                   )}>
-                    {job.status.toUpperCase() === 'ACTIVE' ? t('jobs.active') : t('jobs.closed')}
+                    {job.status.toUpperCase() === 'ACTIVE' ? 'ACTIVA' : 'CERRADA'}
                   </span>
                 </div>
               </div>
@@ -216,7 +214,7 @@ export default function JobOffers() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Calendar className="w-4 h-4 text-brand-500" />
-                  <span>{t('jobs.close_date')}: <strong className="text-ink">{new Date(job.closing_date).toLocaleDateString()}</strong></span>
+                  <span>{'Cierre'}: <strong className="text-ink">{new Date(job.closing_date).toLocaleDateString()}</strong></span>
                 </div>
               </div>
               
@@ -224,7 +222,7 @@ export default function JobOffers() {
                 onClick={() => setSelectedJob(job)}
                 className="w-full py-2.5 bg-transparent border border-[var(--border-color)] hover:border-brand-500 hover:text-brand-600 text-ink-secondary rounded-xl font-semibold transition-all duration-200 shadow-sm"
               >
-                {t('jobs.view_details')}
+                {'Ver Detalles'}
               </button>
             </div>
           ));
@@ -275,7 +273,7 @@ export default function JobOffers() {
                   <h4 className="font-bold text-ink mb-1">Fecha de Cierre</h4>
                   <p className="text-ink-secondary flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    {t('jobs.close_date')}: {new Date(selectedJob.closing_date).toLocaleDateString()}
+                    {'Cierre'}: {new Date(selectedJob.closing_date).toLocaleDateString()}
                   </p>
                 </div>
               </div>

@@ -8,16 +8,15 @@ interface PaginationProps {
 }
 
 export default function Pagination({ currentPage, totalItems, pageSize, onPageChange }: PaginationProps) {
-  const totalPages = Math.ceil(totalItems / pageSize);
+    const totalPages = Math.ceil(totalItems / pageSize);
 
   if (totalPages <= 1) return null;
 
-  // Generate pagination range with ellipses
   const getPaginationRange = () => {
     const delta = 1;
     const range = [];
     const rangeWithDots = [];
-    let l;
+    let l: number | undefined;
 
     for (let i = 1; i <= totalPages; i++) {
       if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
@@ -45,26 +44,31 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
   return (
     <div className="flex items-center justify-between py-4 mt-2">
       <div className="flex flex-1 items-center justify-between">
-          <div className="hidden sm:block">
+        <div className="hidden sm:block">
           <p className="text-[13px] text-slate-500 dark:text-slate-400">
-            Mostrando <span className="font-medium text-slate-900 dark:text-white">{(currentPage - 1) * pageSize + 1}</span> -{' '}
+            {'Mostrando'}{' '}
+            <span className="font-medium text-slate-900 dark:text-white">
+              {(currentPage - 1) * pageSize + 1}
+            </span>{' '}
+            {'a'}{' '}
             <span className="font-medium text-slate-900 dark:text-white">
               {Math.min(currentPage * pageSize, totalItems)}
             </span>{' '}
-            de <span className="font-medium text-slate-900 dark:text-white">{totalItems}</span>
+            {'de'}{' '}
+            <span className="font-medium text-slate-900 dark:text-white">{totalItems}</span>
           </p>
         </div>
-        
+
         <div className="flex items-center space-x-1">
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
             className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-            aria-label="Página anterior"
+            aria-label={'Página anterior'}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          
+
           <div className="flex items-center space-x-1">
             {paginationRange.map((pageNumber, index) => {
               if (pageNumber === '...') {
@@ -79,11 +83,10 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
                 <button
                   key={`page-${pageNumber}`}
                   onClick={() => onPageChange(pageNumber as number)}
-                  className={`flex items-center justify-center w-8 h-8 rounded-lg text-[13px] font-medium transition-colors ${
-                    currentPage === pageNumber
+                  className={`flex items-center justify-center w-8 h-8 rounded-lg text-[13px] font-medium transition-colors ${currentPage === pageNumber
                       ? 'bg-brand-600 text-white shadow-sm'
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
+                    }`}
                 >
                   {pageNumber}
                 </button>
@@ -95,7 +98,7 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
             className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-            aria-label="Página siguiente"
+            aria-label={'Página siguiente'}
           >
             <ChevronRight className="h-4 w-4" />
           </button>

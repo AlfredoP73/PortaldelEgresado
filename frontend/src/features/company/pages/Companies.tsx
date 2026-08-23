@@ -7,7 +7,6 @@ import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
-import { useTranslation } from '../../../context/LanguageContext';
 
 interface Sector { id: number; name: string }
 interface City { id: number; name: string }
@@ -40,8 +39,7 @@ export default function Companies() {
   const [isCreating, setIsCreating] = useState(false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const { t } = useTranslation();
-  
+    
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
   const isAdmin = user?.role_name === 'ADMIN';
@@ -515,8 +513,8 @@ export default function Companies() {
 
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-bold font-heading tracking-tight" style={{ color: 'var(--text-main)' }}>{t('companies.title')}</h2>
-          <p className="mt-1" style={{ color: 'var(--text-ink-secondary)' }}>{t('companies.subtitle')}</p>
+          <h2 className="text-3xl font-bold font-heading tracking-tight" style={{ color: 'var(--text-main)' }}>{'Directorio de Empresas'}</h2>
+          <p className="mt-1" style={{ color: 'var(--text-ink-secondary)' }}>{'Gestiona las empresas aliadas y aprueba sus registros.'}</p>
         </div>
         <button 
           onClick={() => {
@@ -525,7 +523,7 @@ export default function Companies() {
           }}
           className="btn-primary"
         >
-          <Plus className="w-5 h-5" /> {t('companies.new_company')}
+          <Plus className="w-5 h-5" /> {'Nueva Empresa'}
         </button>
       </div>
 
@@ -616,7 +614,7 @@ export default function Companies() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-ink-secondary)' }} />
                   <input
                     type="text"
-                    placeholder={t('companies.search_placeholder')}
+                    placeholder={'Buscar empresa o correo...'}
                     className="input w-full pl-10"
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -630,7 +628,7 @@ export default function Companies() {
                     onChange={(e) => { setSectorFilter(e.target.value); setCurrentPage(1); }}
                     style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">{t('companies.all_sectors')}</option>
+                    <option value="ALL">{'Todos los Sectores'}</option>
                     {sectors.map(s => (
                       <option key={s.id} value={s.id.toString()}>{s.name}</option>
                     ))}
@@ -642,7 +640,7 @@ export default function Companies() {
                     onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
                     style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">{t('companies.all_cities')}</option>
+                    <option value="ALL">{'Todas las Ciudades'}</option>
                     {cities.map(c => (
                       <option key={c.id} value={c.id.toString()}>{c.name}</option>
                     ))}
@@ -654,10 +652,10 @@ export default function Companies() {
                     onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                     style={{ backgroundColor: 'transparent' }}
                   >
-                    <option value="ALL">{t('companies.states')}</option>
-                    <option value="APPROVED">{t('companies.status_approved')}</option>
-                    <option value="PENDING">{t('companies.status_pending')}</option>
-                    <option value="REJECTED">{t('companies.status_rejected')}</option>
+                    <option value="ALL">{'Estados'}</option>
+                    <option value="APPROVED">{'APROBADA'}</option>
+                    <option value="PENDING">{'PENDIENTE'}</option>
+                    <option value="REJECTED">{'RECHAZADA'}</option>
                   </select>
                 </div>
               </div>
@@ -667,11 +665,11 @@ export default function Companies() {
               <table className="w-full text-left border-collapse">
             <thead className="text-[12px] font-bold uppercase tracking-wider" style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-ink-secondary)', backgroundColor: 'var(--bg-muted)' }}>
               <tr>
-                <th className="px-6 py-4">{t('companies.col_company')}</th>
-                <th className="px-6 py-4">{t('companies.col_sector')}</th>
-                <th className="px-6 py-4">{t('companies.col_location')}</th>
-                <th className="px-6 py-4 text-center">{t('companies.col_status')}</th>
-                <th className="px-6 py-4 text-right">{t('companies.col_actions')}</th>
+                <th className="px-6 py-4">{'EMPRESA'}</th>
+                <th className="px-6 py-4">{'SECTOR'}</th>
+                <th className="px-6 py-4">{'UBICACIÓN'}</th>
+                <th className="px-6 py-4 text-center">{'ESTADO'}</th>
+                <th className="px-6 py-4 text-right">{'companies.col_actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
@@ -711,7 +709,7 @@ export default function Companies() {
                         company.status.toUpperCase() === 'REJECTED' ? 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]' :
                         'bg-[#FFFAEB] text-[#B54708] border-[#FEDF89]'
                       )}>
-                        {company.status.toUpperCase() === 'APPROVED' ? t('companies.status_approved') : company.status.toUpperCase() === 'REJECTED' ? t('companies.status_rejected') : t('companies.status_pending')}
+                        {company.status.toUpperCase() === 'APPROVED' ? 'APROBADA' : company.status.toUpperCase() === 'REJECTED' ? 'RECHAZADA' : 'PENDIENTE'}
                       </span>
                     </td>
                     <td className="px-6 py-4">

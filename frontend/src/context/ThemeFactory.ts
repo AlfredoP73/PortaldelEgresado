@@ -40,17 +40,17 @@ export class LightThemeFactory implements IThemeFactory {
 export class DarkThemeFactory implements IThemeFactory {
   createColors(): IThemeColors {
     return {
-      bgMain: '#051510', // Deep dark green/black
-      bgSurface: '#0a1a15', // Slightly lighter dark surface
-      bgCard: '#0f221a', // Card background in dark mode
-      bgMuted: '#09291a', // Muted areas
-      textInk: '#f1f5f9', // Slate 100 for high contrast
-      textInkSecondary: '#cbd5e1', // Slate 300
-      textInkTertiary: '#64748b', // Slate 500
+      bgMain: '#0B0F17',
+      bgSurface: '#131A26',
+      bgCard: '#131A26',
+      bgMuted: '#1A2332',
+      textInk: '#F8FAFC',
+      textInkSecondary: '#94A3B8',
+      textInkTertiary: '#64748B',
       textInverse: '#ffffff',
-      borderColor: '#1e382d', // Dark border
-      accentPrimary: '#45c388', // Light brand color
-      accentHover: '#33a36f',
+      borderColor: '#1E293B',
+      accentPrimary: '#10B981', // modern emerald brand
+      accentHover: '#059669',
     };
   }
 }

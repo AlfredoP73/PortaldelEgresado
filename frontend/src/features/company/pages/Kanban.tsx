@@ -4,7 +4,6 @@ import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertic
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
 import CandidateDetailsModal from '../../graduate/components/CandidateDetailsModal';
-import { useTranslation } from '../../../context/LanguageContext';
 
 interface JobOffer {
   id: number;
@@ -25,12 +24,12 @@ interface Application {
   };
 }
 
-const getKanbanColumns = (t: (key: string) => string) => [
-  { id: 'POSTULADO', title: t('kanban.col_applied'), dotColor: 'bg-slate-400' },
-  { id: 'EN_EVALUACION', title: t('kanban.col_evaluating'), dotColor: 'bg-yellow-400' },
-  { id: 'ENTREVISTADO', title: t('kanban.col_interviewed'), dotColor: 'bg-blue-400' },
-  { id: 'CONTRATADO', title: t('kanban.col_hired'), dotColor: 'bg-brand-400' },
-  { id: 'RECHAZADO', title: t('kanban.col_rejected'), dotColor: 'bg-red-400' },
+const KANBAN_COLUMNS = [
+  { id: 'POSTULADO', title: 'POSTULADOS', dotColor: 'bg-purple-400' },
+  { id: 'EN EVALUACION', title: 'EN EVALUACIÓN', dotColor: 'bg-yellow-400' },
+  { id: 'ENTREVISTADO', title: 'ENTREVISTADOS', dotColor: 'bg-blue-400' },
+  { id: 'CONTRATADO', title: 'CONTRATADOS', dotColor: 'bg-brand-400' },
+  { id: 'RECHAZADO', title: 'RECHAZADOS', dotColor: 'bg-red-400' },
 ];
 
 export default function Kanban() {
@@ -41,8 +40,6 @@ export default function Kanban() {
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
   const [draggingAppId, setDraggingAppId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { t } = useTranslation();
-  const KANBAN_COLUMNS = getKanbanColumns(t);
 
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
@@ -132,8 +129,8 @@ export default function Kanban() {
     <div className="h-full flex flex-col space-y-6">
       <div className="page-header flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="page-title">{t('kanban.title')}</h2>
-          <p className="text-sm mt-1 text-ink-secondary">{t('kanban.subtitle')}</p>
+          <h2 className="page-title">{'Gestión de Candidatos'}</h2>
+          <p className="text-sm mt-1 text-ink-secondary">{'Revisa y mueve a los postulantes a través del proceso de selección.'}</p>
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-3">
@@ -143,7 +140,7 @@ export default function Kanban() {
             </div>
             <input
               type="text"
-              placeholder={t('kanban.search')}
+              placeholder={'Buscar candidato...'}
               className="input pl-10 bg-white w-full shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -216,7 +213,7 @@ export default function Kanban() {
                           className="flex flex-col items-center justify-center p-8 text-ink-tertiary"
                         >
                           <User className="w-8 h-8 mb-2 opacity-50" />
-                          <p className="text-sm font-semibold">{t('kanban.no_candidates')}</p>
+                          <p className="text-sm font-semibold">{'Sin candidatos'}</p>
                         </motion.div>
                       ) : (
                         columnApps.map((app) => (
@@ -256,7 +253,7 @@ export default function Kanban() {
                               </div>
                             </div>
                             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{t('kanban.view_profile')}</span>
+                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{'Ver Perfil'}</span>
                               {!isAdmin && <span className="text-[10px] text-ink-tertiary uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">Arrastrar</span>}
                             </div>
                           </motion.div>

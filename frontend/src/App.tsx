@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
-import { LanguageProvider } from './context/LanguageContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './features/auth/pages/Login';
@@ -42,117 +41,115 @@ const HomeRedirect = () => {
 export default function App() {
   return (
     <ThemeProvider>
-      <LanguageProvider>
-        <BrowserRouter>
-          <Toaster position="top-center" reverseOrder={false} />
-          <Routes>
-            {/* Pública */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/mantenimiento" element={<Maintenance />} />
+      <BrowserRouter>
+        <Toaster position="top-center" reverseOrder={false} />
+        <Routes>
+          {/* Pública */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/mantenimiento" element={<Maintenance />} />
 
-            {/* Solo ADMIN */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-              <Route
-                path="/admin/dashboard"
-                element={<Layout><AdminDashboard /></Layout>}
-              />
-              <Route
-                path="/admin/settings"
-                element={<Layout><AdminSettings /></Layout>}
-              />
-            </Route>
+          {/* Solo ADMIN */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+            <Route
+              path="/admin/dashboard"
+              element={<Layout><AdminDashboard /></Layout>}
+            />
+            <Route
+              path="/admin/settings"
+              element={<Layout><AdminSettings /></Layout>}
+            />
+          </Route>
 
-            {/* Privadas — Módulo 2 (Empresas y Administrador) */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COMPANY']} />}>
-              <Route
-                path="/companies"
-                element={<Layout><Companies /></Layout>}
-              />
-              <Route
-                path="/company/dashboard"
-                element={<Layout><CompanyDashboard /></Layout>}
-              />
-              <Route
-                path="/talent-pool"
-                element={<Layout><CompanyTalentPool /></Layout>}
-              />
-              <Route
-                path="/job-offers"
-                element={<Layout><JobOffers /></Layout>}
-              />
-              <Route
-                path="/kanban"
-                element={<Layout><Kanban /></Layout>}
-              />
-              <Route
-                path="/admin/graduates"
-                element={<Layout><AdminGraduates /></Layout>}
-              />
-              <Route
-                path="/admin/applications"
-                element={<Layout><AdminApplications /></Layout>}
-              />
-              <Route
-                path="/admin/sectors"
-                element={<Layout><AdminSectors /></Layout>}
-              />
-              <Route
-                path="/admin/cities"
-                element={<Layout><AdminCities /></Layout>}
-              />
-              <Route
-                path="/admin/programs"
-                element={<Layout><AdminPrograms /></Layout>}
-              />
-              <Route
-                path="/admin/users"
-                element={<Layout><AdminUsers /></Layout>}
-              />
-              <Route
-                path="/admin/matchmaking"
-                element={<Layout><AdminMatchmaking /></Layout>}
-              />
-            </Route>
+          {/* Privadas — Módulo 2 (Empresas y Administrador) */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COMPANY']} />}>
+            <Route
+              path="/companies"
+              element={<Layout><Companies /></Layout>}
+            />
+            <Route
+              path="/company/dashboard"
+              element={<Layout><CompanyDashboard /></Layout>}
+            />
+            <Route
+              path="/talent-pool"
+              element={<Layout><CompanyTalentPool /></Layout>}
+            />
+            <Route
+              path="/job-offers"
+              element={<Layout><JobOffers /></Layout>}
+            />
+            <Route
+              path="/kanban"
+              element={<Layout><Kanban /></Layout>}
+            />
+            <Route
+              path="/admin/graduates"
+              element={<Layout><AdminGraduates /></Layout>}
+            />
+            <Route
+              path="/admin/applications"
+              element={<Layout><AdminApplications /></Layout>}
+            />
+            <Route
+              path="/admin/sectors"
+              element={<Layout><AdminSectors /></Layout>}
+            />
+            <Route
+              path="/admin/cities"
+              element={<Layout><AdminCities /></Layout>}
+            />
+            <Route
+              path="/admin/programs"
+              element={<Layout><AdminPrograms /></Layout>}
+            />
+            <Route
+              path="/admin/users"
+              element={<Layout><AdminUsers /></Layout>}
+            />
+            <Route
+              path="/admin/matchmaking"
+              element={<Layout><AdminMatchmaking /></Layout>}
+            />
+          </Route>
 
-            {/* Privadas — Módulo 1 (Egresados) */}
-            <Route element={<ProtectedRoute allowedRoles={['GRADUATE', 'ADMIN']} />}>
-              <Route
-                path="/graduate/dashboard"
-                element={<Layout><GraduateDashboard /></Layout>}
-              />
-              <Route
-                path="/profile"
-                element={<Layout><GraduateProfile /></Layout>}
-              />
-              <Route
-                path="/experience"
-                element={<Layout><GraduateExperience /></Layout>}
-              />
-              <Route
-                path="/education"
-                element={<Layout><GraduateEducation /></Layout>}
-              />
-              <Route
-                path="/jobs"
-                element={<Layout><JobBoard /></Layout>}
-              />
-              <Route
-                path="/applications"
-                element={<Layout><GraduateApplications /></Layout>}
-              />
-              <Route
-                path="/surveys"
-                element={<Layout><GraduateSurveys /></Layout>}
-              />
-            </Route>
+          {/* Privadas — Módulo 1 (Egresados) */}
+          <Route element={<ProtectedRoute allowedRoles={['GRADUATE', 'ADMIN']} />}>
+            <Route
+              path="/graduate/dashboard"
+              element={<Layout><GraduateDashboard /></Layout>}
+            />
+            <Route
+              path="/profile"
+              element={<Layout><GraduateProfile /></Layout>}
+            />
+            <Route
+              path="/experience"
+              element={<Layout><GraduateExperience /></Layout>}
+            />
+            <Route
+              path="/education"
+              element={<Layout><GraduateEducation /></Layout>}
+            />
+            <Route
+              path="/jobs"
+              element={<Layout><JobBoard /></Layout>}
+            />
+            <Route
+              path="/applications"
+              element={<Layout><GraduateApplications /></Layout>}
+            />
+            <Route
+              path="/surveys"
+              element={<Layout><GraduateSurveys /></Layout>}
+            />
+          </Route>
 
-            {/* Redirige raíz */}
-            <Route path="/" element={<HomeRedirect />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </LanguageProvider>
+          {/* Redirige raíz */}
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   );
 }

@@ -5,7 +5,6 @@ import { Plus, Trash2, Loader2, Save, Edit2, X, BookOpen, Download, Upload } fro
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
-import { useTranslation } from '../../../context/LanguageContext';
 
 interface CatalogItem {
   id: number;
@@ -23,7 +22,6 @@ export default function AdminPrograms() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [importing, setImporting] = useState(false);
-  const { t } = useTranslation();
 
   useEffect(() => {
     fetchItems();
@@ -130,8 +128,8 @@ export default function AdminPrograms() {
     <div className="space-y-6">
       <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="page-title text-[var(--text-main)]">{t('programs.title')}</h2>
-          <p className="text-sm mt-1 text-[var(--text-ink-secondary)]">{t('programs.subtitle')}</p>
+          <h2 className="page-title text-[var(--text-main)]">Programas Académicos</h2>
+          <p className="text-sm mt-1 text-ink-secondary">Administra los programas académicos de la institución.</p>
         </div>
           <div className="flex items-center gap-2">
             <button 
@@ -139,11 +137,11 @@ export default function AdminPrograms() {
               className="btn-outline flex items-center gap-2"
               disabled={loading || items.length === 0}
             >
-              <Download className="w-4 h-4" /> {t('common.export')}
+              <Download className="w-4 h-4" /> Exportar
             </button>
             <label className={`btn-outline flex items-center gap-2 cursor-pointer ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {importing ? t('common.importing') : t('common.import')}
+              {importing ? 'Importando...' : 'Importar'}
               <input 
                 type="file" 
                 accept=".xlsx,.xls" 
@@ -153,42 +151,41 @@ export default function AdminPrograms() {
               />
             </label>
             <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> {t('programs.new')}
+              <Plus className="w-4 h-4" /> Nuevo Programa
             </button>
           </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+      <div className="card overflow-hidden">
         {loading ? (
           <div className="flex justify-center items-center h-48">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-primary)' }}></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
           </div>
         ) : items.length === 0 ? (
           <div className="p-12 text-center flex flex-col items-center justify-center">
-            <BookOpen className="w-12 h-12 mb-4 opacity-50" style={{ color: 'var(--text-ink-tertiary)' }} />
-            <h3 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>{t('programs.empty_title')}</h3>
-            <p className="mt-1" style={{ color: 'var(--text-ink-secondary)' }}>{t('programs.empty_desc')}</p>
+            <BookOpen className="w-12 h-12 mb-4 text-ink-tertiary opacity-50" />
+            <h3 className="text-lg font-bold text-ink">No hay programas</h3>
+            <p className="mt-1 text-ink-secondary">Comienza agregando el primer programa académico.</p>
           </div>
         ) : (
           <>
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('common.col_id')}</th>
-                  <th className="px-6 py-4 w-full font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('programs.col_name')}</th>
-                  <th className="px-6 py-4 text-right font-bold uppercase text-[11px] tracking-wider" style={{ color: 'var(--text-ink-secondary)' }}>{t('common.col_actions')}</th>
+                  <th className="px-6 py-4 font-bold uppercase text-[11px] tracking-wider text-ink-secondary">ID</th>
+                  <th className="px-6 py-4 w-full font-bold uppercase text-[11px] tracking-wider text-ink-secondary">Nombre del Programa</th>
+                  <th className="px-6 py-4 text-right font-bold uppercase text-[11px] tracking-wider text-ink-secondary">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-color)] bg-[var(--bg-card)]">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {paginatedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-[var(--bg-muted)] transition-colors">
-                    <td className="px-6 py-4 font-mono" style={{ color: 'var(--text-ink-secondary)' }}>{item.id}</td>
-                    <td className="px-6 py-4 font-semibold" style={{ color: 'var(--text-main)' }}>{item.name}</td>
+                    <td className="px-6 py-4 font-mono text-ink-secondary">{item.id}</td>
+                    <td className="px-6 py-4 font-semibold text-ink">{item.name}</td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
                       <button
                         onClick={() => handleEdit(item)}
-                        className="p-2 rounded-lg transition-colors border border-transparent"
-                        style={{ color: 'var(--accent-primary)' }}
+                        className="p-2 rounded-lg transition-colors border border-transparent text-brand-600 hover:bg-brand-50"
                         title="Editar"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -216,38 +213,38 @@ export default function AdminPrograms() {
       </div>
 
       <Modal isOpen={showModal} onClose={closeModal} maxWidth="max-w-md">
-        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
-          <h3 className="text-lg font-bold font-heading" style={{ color: 'var(--text-main)' }}>
-            {editingItem ? t('programs.modal_edit') : t('programs.modal_new')}
+        <div className="flex justify-between items-center p-6 border-b shrink-0 border-[var(--border-color)] bg-[var(--bg-surface)]">
+          <h3 className="text-lg font-bold font-heading text-ink">
+            {editingItem ? 'Editar Programa' : 'Nuevo Programa'}
           </h3>
-          <button onClick={closeModal} className="p-1.5 rounded-full transition-colors" style={{ color: 'var(--text-ink-tertiary)' }}>
+          <button onClick={closeModal} className="p-1.5 rounded-full transition-colors text-ink-tertiary hover:bg-black/5 dark:hover:bg-white/5">
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1">
           <div>
-            <label className="form-label">{t('programs.input_label')}</label>
+            <label className="form-label">Nombre del Programa</label>
             <input
               type="text"
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               className="input w-full"
-              placeholder={t('programs.input_placeholder')}
+              placeholder="Ej. Ingeniería de Sistemas, Derecho..."
               autoFocus
               required
             />
           </div>
           
-          <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
             <button type="button" onClick={closeModal} className="btn-ghost" disabled={saving}>
-              {t('common.cancel')}
+              Cancelar
             </button>
             <button type="submit" disabled={saving} className="btn-primary min-w-[120px]">
               {saving ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> {t('common.saving')}</>
+                <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
               ) : (
-                <><Save className="w-4 h-4" /> {editingItem ? t('common.update') : t('common.save')}</>
+                <><Save className="w-4 h-4" /> {editingItem ? 'Actualizar' : 'Guardar'}</>
               )}
             </button>
           </div>

@@ -16,7 +16,7 @@ interface AcademicHistory {
 }
 
 export default function GraduateEducation() {
-  const [education, setEducation] = useState<AcademicHistory[]>([]);
+    const [education, setEducation] = useState<AcademicHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [uploadingId, setUploadingId] = useState<number | null>(null);
@@ -73,7 +73,7 @@ export default function GraduateEducation() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar este historial académico?')) return;
+    if (!confirm('¿Está seguro de eliminar este registro?')) return;
     try {
       await graduatesApi.delete(`/academic_histories/${id}`);
       fetchData();
@@ -112,11 +112,11 @@ export default function GraduateEducation() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Historial Académico</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Añade tus estudios de pregrado, posgrado y cursos, adjuntando tus diplomas.</p>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>{'Formación Académica'}</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{'Registra tu historial educativo.'}</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Agregar Estudio
+          <Plus className="w-4 h-4" /> {'Agregar Formación'}
         </button>
       </div>
 
@@ -127,8 +127,8 @@ export default function GraduateEducation() {
       ) : education.length === 0 ? (
         <div className="card p-12 text-center">
           <GraduationCap className="w-12 h-12 text-ink-tertiary mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-bold text-ink">Sin historial académico registrado</h3>
-          <p className="text-ink-secondary mt-2 max-w-md mx-auto">Añade tu formación profesional y otros estudios relevantes.</p>
+          <h3 className="text-lg font-bold text-ink">{'Sin historial académico registrado'}</h3>
+          <p className="text-ink-secondary mt-2 max-w-md mx-auto">{'Registra tu historial educativo.'}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -157,7 +157,7 @@ export default function GraduateEducation() {
                       </div>
                     </a>
                     <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl font-bold text-sm transition-colors">
-                      <FileText className="w-4 h-4" /> Ver Documento
+                      <FileText className="w-4 h-4" /> {'Ver PDF'}
                     </a>
                   </div>
                 ) : (
@@ -165,12 +165,12 @@ export default function GraduateEducation() {
                     <input type="file" id={`diploma-${edu.id}`} className="hidden" accept=".pdf" onChange={(e) => handleUploadDiploma(edu.id, e)} disabled={uploadingId === edu.id} />
                     <label htmlFor={`diploma-${edu.id}`} className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-ink-50 text-ink hover:bg-ink-100 rounded-xl font-bold text-sm transition-colors cursor-pointer border border-ink-200">
                       {uploadingId === edu.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      Subir Diploma PDF
+                      {'Diploma (PDF)'}
                     </label>
                   </div>
                 )}
                 <button onClick={() => handleDelete(edu.id)} className="flex items-center justify-center gap-2 w-full px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl font-bold text-sm transition-colors">
-                  <Trash2 className="w-4 h-4" /> Eliminar
+                  <Trash2 className="w-4 h-4" /> {'Eliminar'}
                 </button>
               </div>
             </div>
@@ -180,37 +180,37 @@ export default function GraduateEducation() {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-3xl">
         <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
-          <h3 className="text-xl font-bold text-ink font-heading">Agregar Historial Académico</h3>
+          <h3 className="text-xl font-bold text-ink font-heading">{'Agregar Historial Académico'}</h3>
           <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleAdd} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Título / Grado *</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Título / Grado'} *</label>
             <input name="degree" className="input w-full" required />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Institución *</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Institución'} *</label>
             <input name="institution" className="input w-full" required />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Inicio *</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Fecha Inicio'} *</label>
               <input name="start_date" type="date" className="input w-full" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Fin</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Fecha Fin'}</label>
               <input name="end_date" type="date" className="input w-full" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-ink-secondary mb-1">Diploma (PDF)</label>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">{'Diploma (PDF)'}</label>
             <input type="file" name="diploma" accept=".pdf" className="input w-full p-2" />
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">Cancelar</button>
-            <button type="submit" className="btn-primary flex items-center gap-2"><Save className="w-4 h-4" /> Guardar</button>
+            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">{'Cancelar'}</button>
+            <button type="submit" className="btn-primary flex items-center gap-2"><Save className="w-4 h-4" /> {'Guardar'}</button>
           </div>
         </form>
       </Modal>
