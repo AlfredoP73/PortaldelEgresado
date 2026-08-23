@@ -22,7 +22,7 @@ interface Application {
 }
 
 export default function GraduateApplications() {
-  const [applications, setApplications] = useState<Application[]>([]);
+    const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters and Pagination
@@ -50,8 +50,8 @@ export default function GraduateApplications() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Mis Postulaciones</h2>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Haz seguimiento al estado de las ofertas a las que has aplicado.</p>
+        <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>{'Mis Postulaciones'}</h2>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{'Consulta el estado de tus postulaciones.'}</p>
       </div>
 
       {loading ? (
@@ -67,7 +67,7 @@ export default function GraduateApplications() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
                   <input
                     type="text"
-                    placeholder="Buscar por empresa o cargo..."
+                    placeholder={'Buscar por cargo o empresa...'}
                     className="input w-full pl-9"
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -79,11 +79,11 @@ export default function GraduateApplications() {
                     value={statusFilter} 
                     onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                   >
-                    <option value="ALL">Todos los Estados</option>
-                    <option value="POSTULADO">Postulado</option>
-                    <option value="EN_EVALUACION">En Evaluación</option>
-                    <option value="CONTRATADO">Contratado</option>
-                    <option value="RECHAZADO">Rechazado</option>
+                    <option value="ALL">{'Todos los Estados'}</option>
+                    <option value="POSTULADO">{'Postulado'}</option>
+                    <option value="EN_EVALUACION">{'En Evaluación'}</option>
+                    <option value="CONTRATADO">{'Contratado'}</option>
+                    <option value="RECHAZADO">{'Rechazado'}</option>
                   </select>
                 </div>
               </div>
@@ -104,8 +104,8 @@ export default function GraduateApplications() {
               return (
                 <div className="card p-12 text-center">
                   <CheckCircle2 className="w-12 h-12 text-ink-tertiary mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-bold text-ink">No hay postulaciones</h3>
-                  <p className="text-ink-secondary mt-2 max-w-md mx-auto">No se encontraron postulaciones con los filtros seleccionados.</p>
+                  <h3 className="text-lg font-bold text-ink">{'No hay postulaciones'}</h3>
+                  <p className="text-ink-secondary mt-2 max-w-md mx-auto">{'No hay postulaciones'}</p>
                 </div>
               );
             }
@@ -132,7 +132,7 @@ export default function GraduateApplications() {
                 </span>
               </div>
               <div className="text-sm text-ink-tertiary mt-2">
-                Postulado el: {new Date(app.application_date).toLocaleDateString()}
+                {'Postulado'}: {new Date(app.application_date).toLocaleDateString()}
               </div>
             </div>
                   ))}

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
-import { useTranslation } from '../../../context/LanguageContext';
 const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
 
 interface WorkExperience {
@@ -59,8 +58,7 @@ export default function GraduateProfile() {
   const [newSkillName, setNewSkillName] = useState('');
   const [uploadingCV, setUploadingCV] = useState(false);
   const navigate = useNavigate();
-  const { t } = useTranslation();
-
+  
   const handleCompletenessAction = (actionId: string) => {
     switch (actionId) {
       case 'basic': setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
@@ -195,11 +193,11 @@ export default function GraduateProfile() {
       {/* Page header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="page-title">{t('graduate_profile.title')}</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{t('graduate_profile.subtitle')}</p>
+          <h2 className="page-title">{'Mi Perfil Profesional'}</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{'Tu presencia pública ante empresas y empleadores'}</p>
         </div>
         <button onClick={() => setIsEditing(true)} className="btn-primary flex items-center gap-2">
-          <Edit2 className="w-4 h-4" /> {t('graduate_profile.edit_profile')}
+          <Edit2 className="w-4 h-4" /> {'Editar Perfil'}
         </button>
       </div>
 
@@ -269,7 +267,7 @@ export default function GraduateProfile() {
                   style={{ background: 'var(--bg-surface)' }}
                 >
                   {uploadingCV ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {t('graduate_profile.update_cv')}
+                  {'Actualizar CV PDF'}
                 </button>
               </div>
             </div>

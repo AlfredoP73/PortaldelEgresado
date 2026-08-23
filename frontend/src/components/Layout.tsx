@@ -20,156 +20,156 @@ import {
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
-import { useTranslation } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
-const getNavItems = (role: string, t: (key: string) => string) => {
+const getNavItems = (role: string) => {
   const allItems = [
     // Module Admin
     {
-      name: t('sidebar.dashboard'),
+      name: 'Dashboard',
       path: '/admin/dashboard',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('sidebar.graduates'),
+      name: 'Egresados',
       path: '/admin/graduates',
       icon: Users,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('nav.applications_report'),
+      name: 'Reporte Postulaciones',
       path: '/admin/applications',
       icon: FileText,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('nav.matchmaking'),
+      name: 'Matchmaking',
       path: '/admin/matchmaking',
       icon: Settings,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('sidebar.users'),
+      name: 'Gestión Usuarios',
       path: '/admin/users',
       icon: Users,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('sidebar.sectors'),
+      name: 'Sectores Emp.',
       path: '/admin/sectors',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('sidebar.cities'),
+      name: 'Gestión Ciudades',
       path: '/admin/cities',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
     {
-      name: t('sidebar.programs'),
+      name: 'Gestión Programas',
       path: '/admin/programs',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
-      section: t('section.admin_global'),
+      section: 'Administración Global',
     },
 
     {
-      name: t('sidebar.dashboard'),
+      name: 'Dashboard',
       path: '/company/dashboard',
       icon: LayoutDashboard,
       roles: ['COMPANY'],
-      section: t('section.module_companies'),
+      section: 'Módulo Empresas',
     },
     {
-      name: role === 'COMPANY' ? t('nav.company_profile') : t('sidebar.companies'),
+      name: role === 'COMPANY' ? 'Mi Perfil Empresarial' : 'Empresas Aliadas',
       path: '/companies',
       icon: Building2,
       roles: ['ADMIN', 'COMPANY'],
-      section: t('section.module_companies'),
+      section: 'Módulo Empresas',
     },
     {
-      name: t('nav.talent_pool'),
+      name: 'Talento Humano',
       path: '/talent-pool',
       icon: Users,
       roles: ['COMPANY'],
-      section: t('section.module_companies'),
+      section: 'Módulo Empresas',
     },
     {
-      name: t('sidebar.vacancies'),
+      name: 'Vacantes Activas',
       path: '/job-offers',
       icon: Briefcase,
       roles: ['ADMIN', 'COMPANY'],
-      section: t('section.module_companies'),
+      section: 'Módulo Empresas',
     },
     {
-      name: t('nav.candidates'),
+      name: 'Candidatos',
       path: '/kanban',
       icon: LayoutDashboard,
       roles: ['ADMIN', 'COMPANY'],
-      section: t('section.module_companies'),
+      section: 'Módulo Empresas',
     },
 
     {
-      name: t('sidebar.dashboard'),
+      name: 'Dashboard',
       path: '/graduate/dashboard',
       icon: LayoutDashboard,
       roles: ['GRADUATE'],
-      section: t('section.module_graduate'),
+      section: 'Módulo Egresado',
     },
     {
-      name: t('nav.personal_data'),
+      name: 'Datos Personales',
       path: '/profile',
       icon: UserCircle,
       roles: ['GRADUATE'],
-      section: t('section.module_graduate'),
+      section: 'Módulo Egresado',
     },
     {
-      name: t('nav.work_experience'),
+      name: 'Experiencia Laboral',
       path: '/experience',
       icon: Briefcase,
       roles: ['GRADUATE'],
-      section: t('section.module_graduate'),
+      section: 'Módulo Egresado',
     },
     {
-      name: t('sidebar.history'),
+      name: 'Historial Académico',
       path: '/education',
       icon: GraduationCap,
       roles: ['GRADUATE'],
-      section: t('section.module_graduate'),
+      section: 'Módulo Egresado',
     },
     {
-      name: t('nav.explore_jobs'),
+      name: 'Explorar Vacantes',
       path: '/jobs',
       icon: Search,
       roles: ['GRADUATE'],
-      section: t('section.employability'),
+      section: 'Empleabilidad',
     },
     {
-      name: t('sidebar.applications'),
+      name: 'Mis Postulaciones',
       path: '/applications',
       icon: CheckCircle,
       roles: ['GRADUATE'],
-      section: t('section.employability'),
+      section: 'Empleabilidad',
     },
     {
-      name: t('nav.tracking_m01'),
+      name: 'Seguimiento M01',
       path: '/surveys',
       icon: ClipboardList,
       roles: ['GRADUATE'],
-      section: t('section.institutional'),
+      section: 'Institucional',
     },
   ];
 
@@ -181,17 +181,17 @@ const getNavItems = (role: string, t: (key: string) => string) => {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { theme, setTheme } = useTheme();
 
   const pageTitles: Record<string, string> = {
-    '/admin/dashboard': t('page.admin_dashboard'),
-    '/company/dashboard': t('page.company_dashboard'),
-    '/graduate/dashboard': t('page.graduate_dashboard'),
-    '/companies': t('page.companies_directory'),
-    '/job-offers': t('page.job_offers'),
-    '/kanban': t('page.candidate_management'),
-    '/profile': t('page.prof_profile'),
-    '/jobs': t('page.explore_jobs'),
+    '/admin/dashboard': 'Dashboard Administrativo',
+    '/company/dashboard': 'Dashboard Empresa',
+    '/graduate/dashboard': 'Dashboard Egresado',
+    '/companies': 'Directorio de Empresas',
+    '/job-offers': 'Ofertas Laborales',
+    '/kanban': 'Gestión de Candidatos',
+    '/profile': 'Mi Perfil Profesional',
+    '/jobs': 'Explorar Ofertas Laborales',
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
@@ -207,7 +207,7 @@ export default function Layout({ children }: LayoutProps) {
   const user = rawUser ? JSON.parse(rawUser) : null;
 
   const roleName = user?.role_name || '';
-  const navItems = getNavItems(roleName, t);
+  const navItems = getNavItems(roleName);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -237,10 +237,10 @@ export default function Layout({ children }: LayoutProps) {
   const currentTitle =
     pageTitles[location.pathname] ??
     (roleName === 'COMPANY'
-      ? t('page.portal_company')
+      ? 'Portal Empresa'
       : roleName === 'GRADUATE'
-        ? t('page.portal_graduate')
-        : t('page.portal_admin'));
+        ? 'Portal Egresado'
+        : 'Portal Administrativo');
 
   const currentNavItem = navItems.find((item) => item.path === location.pathname);
   const CurrentIcon = currentNavItem?.icon;
@@ -503,7 +503,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={handleLogout}
               className="flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-[11px] font-bold text-red-300 hover:bg-red-500/10 transition-colors"
             >
-              <LogOut className="w-3.5 h-3.5" /> {t('sidebar.logout')}
+              <LogOut className="w-3.5 h-3.5" /> {'Cerrar Sesión'}
             </button>
           </div>
           
@@ -512,7 +512,7 @@ export default function Layout({ children }: LayoutProps) {
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center py-2.5 rounded-xl text-red-300 hover:bg-red-500/10 transition-colors mt-2"
-              title={t('sidebar.logout')}
+              title={'Cerrar Sesión'}
             >
               <LogOut className="w-[18px] h-[18px]" />
             </button>
@@ -574,7 +574,7 @@ export default function Layout({ children }: LayoutProps) {
             "
           >
             <span>
-              {t('sidebar.impersonating')}
+              {'Estás actuando en nombre de este usuario.'}
             </span>
 
             <button
@@ -589,7 +589,7 @@ export default function Layout({ children }: LayoutProps) {
                 transition-colors
               "
             >
-              {t('sidebar.stop_impersonating')}
+              {'Volver a mi cuenta'}
             </button>
           </div>
         )}
@@ -621,7 +621,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-1.5 -ml-2 rounded-lg transition-colors"
               style={{ color: 'var(--text-ink-secondary)' }}
-              title={isSidebarOpen ? t('sidebar.collapse') : t('sidebar.expand')}
+              title={isSidebarOpen ? 'Colapsar menú' : 'Expandir menú'}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -635,16 +635,25 @@ export default function Layout({ children }: LayoutProps) {
                 {currentTitle}
               </h1>
               
-              {/* Badge representing module context */}
+              {/* badge */}
               <span className="px-2.5 py-1 text-[9px] font-bold tracking-widest rounded-full uppercase" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)' }}>
-                 {roleName === 'ADMIN' ? t('role.admin') : (roleName === 'COMPANY' ? t('role.company') : t('role.graduate'))}
+                 {roleName === 'ADMIN' ? 'ADMINISTRACIÓN' : (roleName === 'COMPANY' ? 'EMPRESA' : 'EGRESADO')}
               </span>
             </div>
 
-            {roleName === 'GRADUATE' && <NotificationsBell />}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+                style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-ink-secondary)' }}
+                title={theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+              >
+                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </button>
 
-            {roleName === 'ADMIN' && (
-              <div className="flex items-center gap-2">
+              {roleName === 'GRADUATE' && <NotificationsBell />}
+
+              {roleName === 'ADMIN' && (
                 <Link
                   to="/admin/settings"
                   className="
@@ -657,12 +666,12 @@ export default function Layout({ children }: LayoutProps) {
                     backgroundColor: 'var(--bg-muted)',
                     color: 'var(--text-ink-secondary)',
                   }}
-                  title={t('settings.title')}
+                  title={'Configuración'}
                 >
                   <Settings className="w-4 h-4" />
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
           </header>
 
         {/* =====================================================

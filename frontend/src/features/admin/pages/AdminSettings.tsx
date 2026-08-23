@@ -1,11 +1,9 @@
 import React from 'react';
 import { useTheme } from '../../../context/ThemeContext';
-import { useTranslation } from '../../../context/LanguageContext';
 import { Settings, Palette, Factory, Check } from 'lucide-react';
 
 export default function AdminSettings() {
-  const { theme, setTheme } = useTheme();
-  const { t, language, setLanguage } = useTranslation();
+    const { theme, setTheme } = useTheme();
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
@@ -15,10 +13,10 @@ export default function AdminSettings() {
     <div className="animate-fade-in p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-main)' }}>
-          {t('admin_settings.title')}
+          {'Configuración'}
         </h1>
         <p className="text-sm flex items-center gap-2" style={{ color: 'var(--text-ink-secondary)' }}>
-          {t('admin_settings.subtitle')}
+          {'Personalización y ajustes del sistema.'}
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)' }}>
             Abstract Factory
           </span>
@@ -38,12 +36,12 @@ export default function AdminSettings() {
           <div className="flex items-center gap-2 mb-4">
             <Palette className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
             <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--text-main)' }}>
-              {t('admin_settings.theme_section')} - Abstract Factory
+              {'Tema Visual'} - Abstract Factory
             </h2>
           </div>
           
           <p className="text-sm mb-6" style={{ color: 'var(--text-ink-secondary)' }}>
-            {t('admin_settings.theme_description', 'Selecciona una familia de colores. Cada tema es una implementación concreta de')} <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-[11px] font-mono">ThemeFactory</code>.
+            {'Selecciona una familia de colores. Cada tema es una implementación concreta de'} <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-[11px] font-mono">ThemeFactory</code>.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -67,7 +65,7 @@ export default function AdminSettings() {
                    <div className="w-1/3 h-2 rounded-full bg-white/20" />
                  </div>
               </div>
-              <h3 className="font-bold text-white text-sm mb-1">{t('settings.theme_dark')}</h3>
+              <h3 className="font-bold text-white text-sm mb-1">{'Oscuro'}</h3>
               <p className="text-[11px] text-white/40 mb-3 font-mono">DarkThemeFactory()</p>
               <div className="flex gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-[#051510] border border-white/20" />
@@ -98,7 +96,7 @@ export default function AdminSettings() {
                    <div className="w-1/3 h-2 rounded-full bg-[#475569]" />
                  </div>
               </div>
-              <h3 className="font-bold text-[#0f172a] text-sm mb-1">{t('settings.theme_light')}</h3>
+              <h3 className="font-bold text-[#0f172a] text-sm mb-1">{'Claro'}</h3>
               <p className="text-[11px] text-[#64748b] mb-3 font-mono">LightThemeFactory()</p>
               <div className="flex gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-[#ffffff] border border-black/20" />
@@ -121,13 +119,13 @@ export default function AdminSettings() {
           }}
         >
           <h4 className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: 'var(--text-ink-secondary)' }}>
-            <Factory className="w-4 h-4" /> {t('admin_settings.factory_vars', 'Variables generadas por la fábrica')}
+            <Factory className="w-4 h-4" /> {'Variables generadas por la fábrica'}
           </h4>
           
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-sm font-bold" style={{ color: 'var(--text-main)' }}>
-                {t('admin_settings.factory_instantiated')}: <code className="text-[13px] font-mono px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--accent-primary)' }}>ThemeFactory{theme.charAt(0).toUpperCase() + theme.slice(1)}()</code>
+                {'Fábrica instanciada'}: <code className="text-[13px] font-mono px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--accent-primary)' }}>ThemeFactory{theme.charAt(0).toUpperCase() + theme.slice(1)}()</code>
               </p>
             </div>
           </div>
@@ -164,7 +162,7 @@ export default function AdminSettings() {
           <div className="flex items-center gap-2 mb-6">
             <Settings className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
             <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--text-main)' }}>
-              {t('admin_settings.general_config')}
+              {'Configuración general del sistema'}
             </h2>
             <span className="ml-auto text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-ink-secondary)' }}>
               Admin Only
@@ -174,43 +172,7 @@ export default function AdminSettings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-ink-secondary)' }}>
-                {t('admin_settings.global_language')}
-              </label>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setLanguage('es')}
-                  className="flex-1 flex items-center justify-between p-3 rounded-xl border transition-all"
-                  style={{
-                    backgroundColor: language === 'es' ? 'var(--bg-muted)' : 'transparent',
-                    borderColor: language === 'es' ? 'var(--accent-primary)' : 'var(--border-color)',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">🇪🇸</span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--text-main)' }}>{t('settings.language_es')}</span>
-                  </div>
-                  {language === 'es' && <Check className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />}
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className="flex-1 flex items-center justify-between p-3 rounded-xl border transition-all"
-                  style={{
-                    backgroundColor: language === 'en' ? 'var(--bg-muted)' : 'transparent',
-                    borderColor: language === 'en' ? 'var(--accent-primary)' : 'var(--border-color)',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">🇺🇸</span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--text-main)' }}>{t('settings.language_en')}</span>
-                  </div>
-                  {language === 'en' && <Check className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-ink-secondary)' }}>
-                {t('admin_settings.timezone')}
+                Zona Horaria
               </label>
               <select 
                 className="w-full p-3.5 rounded-xl border appearance-none outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-all"

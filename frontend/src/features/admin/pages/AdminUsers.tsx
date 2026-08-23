@@ -4,7 +4,7 @@ import { authApi } from '../../../api';
 import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2, Download, Upload } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
-import { useTranslation } from '../../../context/LanguageContext';
+import Modal from '../../../components/Modal';
 
 interface User {
   id: number;
@@ -29,7 +29,6 @@ export default function AdminUsers() {
   const [saving, setSaving] = useState(false);
 
   const [importing, setImporting] = useState(false);
-  const { t } = useTranslation();
 
   useEffect(() => {
     fetchUsers();
@@ -149,8 +148,8 @@ export default function AdminUsers() {
       <div className="page-header">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="page-title">{t('users.title')}</h2>
-            <p className="text-sm mt-1 text-ink-secondary">{t('users.subtitle')}</p>
+            <h2 className="page-title">Gestión de Usuarios</h2>
+            <p className="text-sm mt-1 text-ink-secondary">Administra todos los accesos al sistema.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button 
@@ -158,11 +157,11 @@ export default function AdminUsers() {
               className="btn-outline flex items-center gap-2"
               disabled={loading || users.length === 0}
             >
-              <Download className="w-4 h-4" /> {t('common.export')}
+              <Download className="w-4 h-4" /> Exportar
             </button>
             <label className={`btn-outline flex items-center gap-2 cursor-pointer ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
               {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {importing ? t('common.importing') : t('common.import')}
+              {importing ? 'Importando...' : 'Importar'}
               <input 
                 type="file" 
                 accept=".xlsx,.xls" 
@@ -171,41 +170,44 @@ export default function AdminUsers() {
                 disabled={importing}
               />
             </label>
-            <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> {t('users.new')}
+            <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Nuevo Usuario
             </button>
           </div>
         </div>
       </div>
 
-      {showForm && (
-        <div className="card p-6 animate-fade-in border-l-4 border-brand-500">
-          <h3 className="text-lg font-bold text-ink mb-4">{t('users.register_title')}</h3>
-          <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.email_label')}</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input w-full" required />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.password_label')}</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input w-full" required minLength={6} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">{t('users.role_label')}</label>
-              <select value={roleId} onChange={e => setRoleId(Number(e.target.value))} className="input w-full">
-                <option value={1}>ADMIN</option>
-                <option value={2}>COMPANY</option>
-                <option value={3}>GRADUATE</option>
-              </select>
-            </div>
-            <div>
-              <button type="submit" disabled={saving} className="btn-primary w-full flex justify-center items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.create')}
-              </button>
-            </div>
-          </form>
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} maxWidth="max-w-2xl">
+        <div className="flex justify-between items-center p-6 border-b shrink-0 border-[var(--border-color)] bg-[var(--bg-surface)]">
+          <h3 className="text-lg font-bold text-ink">Registrar Nuevo Usuario</h3>
         </div>
-      )}
+        <form onSubmit={handleRegister} className="p-6 space-y-5 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Correo Electrónico</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input w-full" placeholder="ejemplo@correo.com" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Contraseña</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="input w-full" placeholder="Mínimo 6 caracteres" required minLength={6} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Rol del Usuario</label>
+            <select value={roleId} onChange={e => setRoleId(Number(e.target.value))} className="input w-full">
+              <option value={1}>ADMIN (Administrador del Portal)</option>
+              <option value={2}>COMPANY (Empresa Aliada)</option>
+              <option value={3}>GRADUATE (Egresado)</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost" disabled={saving}>Cancelar</button>
+            <button type="submit" disabled={saving} className="btn-primary min-w-[140px] flex justify-center items-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Usuario'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
@@ -214,7 +216,7 @@ export default function AdminUsers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
               <input
                 type="text"
-                placeholder={t('users.search_placeholder')}
+                placeholder="Buscar por email..."
                 className="input w-full pl-9"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -226,7 +228,7 @@ export default function AdminUsers() {
                 value={roleFilter} 
                 onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
               >
-                <option value="ALL">{t('users.all_roles')}</option>
+                <option value="ALL">Todos los Roles</option>
                 <option value="ADMIN">Admin</option>
                 <option value="COMPANY">Company</option>
                 <option value="GRADUATE">Graduate</option>
@@ -244,10 +246,10 @@ export default function AdminUsers() {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('common.id')}</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('users.col_email')}</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{t('users.col_role')}</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">{t('common.actions')}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">ID</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Email</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Rol</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -273,7 +275,7 @@ export default function AdminUsers() {
                           onClick={() => handleImpersonate(user.id)}
                           className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-brand-200"
                         >
-                          <PlayCircle className="w-4 h-4" /> {t('users.impersonate')}
+                          <PlayCircle className="w-4 h-4" /> Impersonar
                         </button>
                       )}
                     </td>
@@ -282,7 +284,7 @@ export default function AdminUsers() {
                 {filteredUsers.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-8 text-center text-ink-secondary italic">
-                      {t('users.no_results')}
+                      No se encontraron usuarios
                     </td>
                   </tr>
                 )}

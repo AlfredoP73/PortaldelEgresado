@@ -18,7 +18,7 @@ const STEPS = [
 ];
 
 export default function ProfileWizard({ initialProfile, programs, onClose, onComplete }: ProfileWizardProps) {
-  const [step, setStep] = useState(1);
+    const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
   // -- Step 1 State --
@@ -175,7 +175,7 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
           <h2 className="text-3xl font-black text-slate-800">Completar Hoja de Vida</h2>
           <p className="text-slate-500 mt-1">Completa tu perfil paso a paso para destacar.</p>
         </div>
-        <button onClick={onClose} className="btn-ghost" title="Completar después">
+        <button onClick={onClose} className="btn-ghost" title={'Cancelar'}>
           Completar después
         </button>
       </div>
@@ -206,10 +206,10 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
         {/* STEP 1 */}
         {step === 1 && (
           <form onSubmit={handleSaveStep1} className="space-y-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2"><UserCircle className="text-brand-500"/> 1. Datos Personales</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2"><UserCircle className="text-brand-500"/> 1. {'Datos Personales'}</h3>
             <div className="grid grid-cols-2 gap-5">
-              <div><label className="form-label">Nombres</label><input type="text" className="input" required value={profileData.first_name} onChange={e=>setProfileData({...profileData, first_name: e.target.value})} /></div>
-              <div><label className="form-label">Apellidos</label><input type="text" className="input" required value={profileData.last_name} onChange={e=>setProfileData({...profileData, last_name: e.target.value})} /></div>
+              <div><label className="form-label">{'Nombres'}</label><input type="text" className="input" required value={profileData.first_name} onChange={e=>setProfileData({...profileData, first_name: e.target.value})} /></div>
+              <div><label className="form-label">{'Apellidos'}</label><input type="text" className="input" required value={profileData.last_name} onChange={e=>setProfileData({...profileData, last_name: e.target.value})} /></div>
               <div>
                 <label className="form-label">Programa Egresado</label>
                 <select className="input" required value={profileData.program_id} onChange={e=>setProfileData({...profileData, program_id: e.target.value})}>
@@ -219,7 +219,7 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
               </div>
               <div><label className="form-label">Año de Graduación</label><input type="number" className="input" required min="1980" max="2030" value={profileData.graduation_year} onChange={e=>setProfileData({...profileData, graduation_year: e.target.value})} /></div>
             </div>
-            <div><label className="form-label">Teléfono</label><input type="text" className="input" value={profileData.phone} onChange={e=>setProfileData({...profileData, phone: e.target.value})} /></div>
+            <div><label className="form-label">{'Teléfono'}</label><input type="text" className="input" value={profileData.phone} onChange={e=>setProfileData({...profileData, phone: e.target.value})} /></div>
             <div><label className="form-label">Resumen Profesional (Opcional)</label><textarea className="input" rows={3} value={profileData.profile_summary} onChange={e=>setProfileData({...profileData, profile_summary: e.target.value})} placeholder="Escribe un breve resumen de tu perfil profesional..." /></div>
             <div className="flex justify-end pt-4"><button type="submit" disabled={loading} className="btn-primary flex items-center gap-2">{loading ? <Loader2 className="animate-spin w-4 h-4"/> : 'Guardar y Continuar'} <ChevronRight className="w-4 h-4" /></button></div>
           </form>
@@ -236,7 +236,7 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
                 <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-200 mb-4 flex items-center justify-center border-4 border-white shadow-md relative">
                    {pictureUrl ? <img src={`${GRADUATES_URL}${pictureUrl}`} alt="Foto" className="w-full h-full object-cover" /> : <Camera className="w-8 h-8 text-slate-400" />}
                 </div>
-                <h4 className="font-bold text-slate-800 mb-1">Foto de perfil</h4>
+                <h4 className="font-bold text-slate-800 mb-1">{'Foto de perfil'}</h4>
                 <p className="text-xs text-slate-500 mb-4">Sube una foto profesional de frente (JPG o PNG)</p>
                 <input type="file" id="foto-up" className="hidden" accept="image/*" onChange={handleUploadPhoto} />
                 <label htmlFor="foto-up" className="btn-ghost cursor-pointer text-sm w-full"><Upload className="w-4 h-4 inline-block mr-2"/>Subir Foto</label>
@@ -264,13 +264,13 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
         {/* STEP 3 */}
         {step === 3 && (
           <form onSubmit={handleSaveStep3} className="space-y-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2"><GraduationCap className="text-brand-500"/> 3. Formación Académica</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2"><GraduationCap className="text-brand-500"/> 3. {'Educación'}</h3>
             <p className="text-sm text-slate-500 mb-6">Si has realizado estudios adicionales (postgrados, maestrías, diplomados), puedes agregarlos aquí. Si no, presiona "Omitir".</p>
             
             <div className="grid grid-cols-2 gap-5">
-              <div className="col-span-2"><label className="form-label">Institución</label><input type="text" className="input" placeholder="Ej: Universidad Popular del Cesar" value={education.institution} onChange={e=>setEducation({...education, institution: e.target.value})} /></div>
-              <div className="col-span-2"><label className="form-label">Título obtenido</label><input type="text" className="input" placeholder="Ej: Especialista en..." value={education.degree} onChange={e=>setEducation({...education, degree: e.target.value})} /></div>
-              <div><label className="form-label">Fecha de inicio</label><input type="date" className="input" value={education.start_date} onChange={e=>setEducation({...education, start_date: e.target.value})} /></div>
+              <div className="col-span-2"><label className="form-label">{'Institución'}</label><input type="text" className="input" placeholder={'Ej: Universidad Popular del Cesar'} value={education.institution} onChange={e=>setEducation({...education, institution: e.target.value})} /></div>
+              <div className="col-span-2"><label className="form-label">{'Título obtenido'}</label><input type="text" className="input" placeholder={'Ej: Especialista en...'} value={education.degree} onChange={e=>setEducation({...education, degree: e.target.value})} /></div>
+              <div><label className="form-label">{'Fecha de inicio'}</label><input type="date" className="input" value={education.start_date} onChange={e=>setEducation({...education, start_date: e.target.value})} /></div>
               <div><label className="form-label">Fecha de fin (Dejar vacío si sigue cursando)</label><input type="date" className="input" value={education.end_date} onChange={e=>setEducation({...education, end_date: e.target.value})} /></div>
               <div className="col-span-2 pt-2">
                 <label className="form-label">Diploma (PDF, opcional)</label>
@@ -287,7 +287,7 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
             <div className="flex justify-between pt-6 border-t border-slate-100">
                <button type="button" onClick={() => setStep(2)} className="btn-ghost flex items-center gap-2"><ChevronLeft className="w-4 h-4" /> Atrás</button>
                <div className="flex gap-3">
-                 <button type="button" onClick={() => setStep(4)} className="btn-ghost">Omitir este paso</button>
+                 <button type="button" onClick={() => setStep(4)} className="btn-ghost">{'Omitir este paso'}</button>
                  <button type="submit" disabled={loading} className="btn-primary flex items-center gap-2">{loading ? <Loader2 className="animate-spin w-4 h-4"/> : 'Guardar y Continuar'} <ChevronRight className="w-4 h-4" /></button>
                </div>
             </div>
@@ -297,15 +297,15 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
         {/* STEP 4 */}
         {step === 4 && (
           <form onSubmit={handleSaveStep4} className="space-y-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2"><Briefcase className="text-brand-500"/> 4. Experiencia Laboral</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2"><Briefcase className="text-brand-500"/> 4. {'Experiencia'}</h3>
             <p className="text-sm text-slate-500 mb-6">Añade tu experiencia más reciente. Si aún no tienes experiencia, presiona "Omitir y Finalizar".</p>
             
             <div className="grid grid-cols-2 gap-5">
-              <div><label className="form-label">Empresa</label><input type="text" className="input" placeholder="Ej: Microsoft, Alcaldía..." value={experience.company_name} onChange={e=>setExperience({...experience, company_name: e.target.value})} /></div>
-              <div><label className="form-label">Cargo</label><input type="text" className="input" placeholder="Ej: Ingeniero de Software" value={experience.position} onChange={e=>setExperience({...experience, position: e.target.value})} /></div>
-              <div><label className="form-label">Fecha de inicio</label><input type="date" className="input" value={experience.start_date} onChange={e=>setExperience({...experience, start_date: e.target.value})} /></div>
+              <div><label className="form-label">{'Empresa'}</label><input type="text" className="input" placeholder={'Ej: Microsoft, Alcaldía...'} value={experience.company_name} onChange={e=>setExperience({...experience, company_name: e.target.value})} /></div>
+              <div><label className="form-label">{'Cargo'}</label><input type="text" className="input" placeholder={'Ej: Ingeniero de Software'} value={experience.position} onChange={e=>setExperience({...experience, position: e.target.value})} /></div>
+              <div><label className="form-label">{'Fecha de inicio'}</label><input type="date" className="input" value={experience.start_date} onChange={e=>setExperience({...experience, start_date: e.target.value})} /></div>
               <div><label className="form-label">Fecha de fin (Dejar vacío si es actual)</label><input type="date" className="input" value={experience.end_date} onChange={e=>setExperience({...experience, end_date: e.target.value})} /></div>
-              <div className="col-span-2"><label className="form-label">Descripción de funciones</label><textarea className="input" rows={3} value={experience.description} onChange={e=>setExperience({...experience, description: e.target.value})} /></div>
+              <div className="col-span-2"><label className="form-label">{'Descripción de funciones'}</label><textarea className="input" rows={3} value={experience.description} onChange={e=>setExperience({...experience, description: e.target.value})} /></div>
               <div className="col-span-2 pt-2">
                 <label className="form-label">Certificado Laboral (PDF, opcional)</label>
                 <div className="flex items-center gap-4">

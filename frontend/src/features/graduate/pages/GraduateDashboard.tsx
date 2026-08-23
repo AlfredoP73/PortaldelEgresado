@@ -23,13 +23,11 @@ import {
   RadialBar,
   LabelList,
 } from 'recharts';
-import { useTranslation } from '../../../context/LanguageContext';
 
 export default function GraduateDashboard() {
   const [data, setData] = useState<GraduateDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { t } = useTranslation();
-
+  
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -71,17 +69,17 @@ export default function GraduateDashboard() {
   const KPI_ICONS = [FileText, Target, Eye, Target];
 
   const kpis = [
-    { title: t('graduate_dash.my_applications'), value: summary.total_applications, description: t('graduate_dash.my_applications_desc') },
-    { title: t('graduate_dash.response_rate'), value: `${summary.response_rate}%`, description: t('graduate_dash.response_rate_desc') },
-    { title: t('graduate_dash.profile_views'), value: summary.profile_views, description: t('graduate_dash.profile_views_desc') },
-    { title: t('graduate_dash.salary_exp'), value: `$${summary.expected_salary.toLocaleString()}`, description: t('graduate_dash.salary_exp_desc') },
+    { title: 'MIS POSTULACIONES', value: summary.total_applications, description: 'Aplicaciones enviadas' },
+    { title: 'TASA DE RESPUESTA', value: `${summary.response_rate}%`, description: 'Avanzan a entrevista' },
+    { title: 'VISITAS AL PERFIL', value: summary.profile_views, description: 'Visualizaciones de empresas' },
+    { title: 'EXPECTATIVA SALARIAL', value: `$${summary.expected_salary.toLocaleString()}`, description: 'Promedio de ofertas aplicadas' },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="page-header flex items-center justify-between">
-        <h1 className="page-title">{t('graduate_dash.title')}</h1>
+        <h1 className="page-title">{'Dashboard Egresado'}</h1>
         <button onClick={fetchData} className="btn-outline p-2" title="Actualizar">
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -110,8 +108,8 @@ export default function GraduateDashboard() {
         {/* Radar de Habilidades */}
         <section className="card p-5">
           <div>
-            <h2 className="text-base font-semibold text-ink">{t('graduate_dash.skills_vs_market')}</h2>
-            <p className="mt-1 text-xs text-ink-secondary">{t('graduate_dash.skills_vs_market_desc')}</p>
+            <h2 className="text-base font-semibold text-ink">{'Mis Habilidades vs Mercado'}</h2>
+            <p className="mt-1 text-xs text-ink-secondary">{'Comparativa de dominio técnico'}</p>
           </div>
           {skills_radar?.length ? (
             <div className="mt-4 h-[300px] w-full">
@@ -135,8 +133,8 @@ export default function GraduateDashboard() {
         {/* Evolución Mensual */}
         <section className="card p-5">
           <div>
-            <h2 className="text-base font-semibold text-ink">{t('graduate_dash.timeline')}</h2>
-            <p className="mt-1 text-xs text-ink-secondary">{t('graduate_dash.timeline_desc')}</p>
+            <h2 className="text-base font-semibold text-ink">{'Línea de Tiempo de Postulaciones'}</h2>
+            <p className="mt-1 text-xs text-ink-secondary">{'Actividad de aplicaciones por mes'}</p>
           </div>
           {applications_timeline?.length ? (
             <div className="mt-4 h-[300px] w-full">

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { matchmakingApi } from '../../../api';
 import toast from 'react-hot-toast';
-import { useTranslation } from '../../../context/LanguageContext';
 import { Settings, Save, AlertCircle, BookOpen, Wrench, Briefcase, Sliders } from 'lucide-react';
 
 interface MatchmakingWeights {
@@ -18,8 +17,7 @@ export default function AdminMatchmaking() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { t } = useTranslation();
-
+  
   useEffect(() => {
     fetchWeights();
   }, []);
@@ -37,7 +35,7 @@ export default function AdminMatchmaking() {
       }
     } catch (error) {
       console.error('Error fetching weights:', error);
-      toast.error(t('matchmaking.error_fetch'));
+      toast.error('matchmaking.error_fetch');
     } finally {
       setLoading(false);
     }
@@ -48,17 +46,17 @@ export default function AdminMatchmaking() {
     const total = weights.program_weight + weights.skills_weight + weights.experience_weight;
 
     if (Math.abs(total - 1.0) > 0.01) {
-      toast.error(t('matchmaking.error_sum', { total: (total * 100).toFixed(0) }));
+      toast.error(`La suma total debe ser 100%. Actual: ${(total * 100).toFixed(0)}%`);
       return;
     }
 
     try {
       setSaving(true);
       await matchmakingApi.put('/criteria', weights);
-      toast.success(t('matchmaking.success_save'));
+      toast.success('Configuración guardada exitosamente');
     } catch (error) {
       console.error('Error saving weights:', error);
-      toast.error(t('matchmaking.error_save'));
+      toast.error('Error al guardar la configuración');
     } finally {
       setSaving(false);
     }
@@ -80,10 +78,10 @@ export default function AdminMatchmaking() {
         <div>
           <h2 className="page-title text-[var(--text-main)] flex items-center gap-2">
             <Sliders className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            {t('matchmaking.title')}
+            {'Configuración del Algoritmo'}
           </h2>
           <p className="text-sm mt-1 text-[var(--text-ink-secondary)]">
-            {t('matchmaking.subtitle')}
+            {'Ajusta el peso de cada criterio para calcular el porcentaje de afinidad. La suma total debe ser exactamente 100%.'}
           </p>
         </div>
         <button
@@ -92,14 +90,14 @@ export default function AdminMatchmaking() {
           className="btn-primary flex items-center gap-2 px-6 py-2.5"
         >
           <Save className="w-5 h-5" />
-          {saving ? t('common.saving') : t('matchmaking.save')}
+          {saving ? 'Guardando...' : 'Guardar Cambios'}
         </button>
       </div>
 
       <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl p-4 flex items-start sm:items-center gap-3">
         <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 sm:mt-0" />
         <p className="text-sm text-dark-800 dark:text-dark-300">
-          {t('matchmaking.info_text')}
+          {'El motor suma el puntaje de los 3 criterios multiplicados por su peso. Además, asigna un bonus adicional automático a egresados sin empleo.'}
         </p>
       </div>
 
@@ -111,8 +109,8 @@ export default function AdminMatchmaking() {
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.program')}</p>
-              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.program_desc')}</p>
+              <p className="font-bold text-[var(--text-main)]">{'Programa Académico'}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{'Evalúa si el egresado pertenece a la carrera solicitada.'}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
@@ -132,8 +130,8 @@ export default function AdminMatchmaking() {
               <Wrench className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.skills')}</p>
-              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.skills_desc')}</p>
+              <p className="font-bold text-[var(--text-main)]">{'Habilidades Técnicas'}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{'Cruce entre las competencias y requerimientos.'}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
@@ -153,8 +151,8 @@ export default function AdminMatchmaking() {
               <Briefcase className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-[var(--text-main)]">{t('matchmaking.experience')}</p>
-              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{t('matchmaking.experience_desc')}</p>
+              <p className="font-bold text-[var(--text-main)]">{'Experiencia Laboral'}</p>
+              <p className="text-[11px] text-[var(--text-ink-secondary)] mt-0.5">{'Proporción de años trabajados según lo exigido.'}</p>
             </div>
           </div>
           <div className="flex-1 w-full flex items-center gap-4">
@@ -173,7 +171,7 @@ export default function AdminMatchmaking() {
       {/* Summary Footer */}
       <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-6">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('matchmaking.total_sum')}</span>
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{'Suma Total'}</span>
           <span className={`text-2xl font-black ${Math.abs(totalSum - 1.0) < 0.01
             ? 'text-green-600 dark:text-green-400'
             : 'text-red-500 dark:text-red-400'
