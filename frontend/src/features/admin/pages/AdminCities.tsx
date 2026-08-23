@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import api from '../../../api';
 import { Plus, Trash2, Loader2, Save, Edit2, X, MapPin } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
+import Modal from '../../../components/Modal';
 
 interface CatalogItem {
   id: number;
@@ -149,48 +150,45 @@ export default function AdminCities() {
         )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
-          <div className="w-full max-w-md card bg-[var(--bg-modal)] shadow-2xl animate-scale-in">
-            <div className="flex justify-between items-center p-6 border-b border-[var(--border-color)]">
-              <h3 className="text-lg font-bold text-ink">
-                {editingItem ? 'Editar Ciudad' : 'Nueva Ciudad'}
-              </h3>
-              <button onClick={closeModal} className="text-ink-tertiary hover:text-ink p-1 rounded-full hover:bg-black/5 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSave} className="p-6 space-y-5">
-              <div>
-                <label className="form-label">Nombre de la Ciudad *</label>
-                <input
-                  type="text"
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                  className="input w-full"
-                  placeholder="Ej: Valledupar"
-                  autoFocus
-                  required
-                />
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={closeModal} className="btn-ghost" disabled={saving}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={saving} className="btn-primary min-w-[120px]">
-                  {saving ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
-                  ) : (
-                    <><Save className="w-4 h-4" /> {editingItem ? 'Actualizar' : 'Guardar'}</>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
+      <Modal isOpen={showModal} onClose={closeModal} maxWidth="max-w-md">
+        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+          <h3 className="text-lg font-bold text-ink font-heading">
+            {editingItem ? 'Editar Ciudad' : 'Nueva Ciudad'}
+          </h3>
+          <button onClick={closeModal} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1">
+          <div>
+            <label className="form-label">Nombre de la Ciudad *</label>
+            <input
+              type="text"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              className="input w-full"
+              placeholder="Ej: Valledupar"
+              autoFocus
+              required
+            />
+          </div>
+          
+          <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <button type="button" onClick={closeModal} className="btn-ghost" disabled={saving}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} className="btn-primary min-w-[120px]">
+              {saving ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</>
+              ) : (
+                <><Save className="w-4 h-4" /> {editingItem ? 'Actualizar' : 'Guardar'}</>
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
+

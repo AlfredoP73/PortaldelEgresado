@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Search,
   Settings,
+  Menu,
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
@@ -195,6 +196,15 @@ export default function Layout({ children }: LayoutProps) {
     return localStorage.getItem('theme') === 'dark';
   });
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('sidebarOpen');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', String(isSidebarOpen));
+  }, [isSidebarOpen]);
+
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark');
@@ -244,6 +254,9 @@ export default function Layout({ children }: LayoutProps) {
         ? 'Portal Egresado'
         : 'Portal Administrativo');
 
+  const currentNavItem = navItems.find((item) => item.path === location.pathname);
+  const CurrentIcon = currentNavItem?.icon;
+
   return (
     <div
       className="h-screen flex font-sans" 
@@ -256,19 +269,21 @@ export default function Layout({ children }: LayoutProps) {
           SIDEBAR FIJO
           ========================================================= */}
       <aside
-        className="
+        className={twMerge(
+          `
           fixed
           left-0
           top-0
           bottom-0
-          w-[252px]
           flex
           flex-col
           z-30
           overflow-hidden
-          transition-colors
+          transition-all
           duration-300
-        "
+          `,
+          isSidebarOpen ? 'w-[252px]' : 'w-[80px]'
+        )}
         style={{
           backgroundColor: 'var(--bg-sidebar)',
         }}
@@ -306,13 +321,18 @@ export default function Layout({ children }: LayoutProps) {
             />
           </div>
 
-          <div className="leading-tight min-w-0">
-            <p className="text-white font-bold text-[13px] truncate">
+          <div
+            className={twMerge(
+              "leading-tight min-w-0 transition-all duration-300 overflow-hidden",
+              isSidebarOpen ? "opacity-100 w-auto" : "opacity-0 w-0"
+            )}
+          >
+            <p className="text-white font-bold text-[13px] truncate whitespace-nowrap">
               Portal Empleo
             </p>
 
             <p
-              className="text-xs truncate"
+              className="text-xs truncate whitespace-nowrap"
               style={{
                 color: 'rgba(255,255,255,0.35)',
               }}
@@ -352,23 +372,26 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <div key={path}>
                     {showSection && section && (
-                      <p
-                        className="
-                          text-[10px]
-                          font-bold
-                          uppercase
-                          px-3
-                          mb-3
-                          mt-4
-                          first:mt-0
-                        "
-                        style={{
-                          color: 'rgba(255,255,255,0.45)',
-                          letterSpacing: '0.15em',
-                        }}
-                      >
-                        {section}
-                      </p>
+                      <div className={twMerge(
+                        "overflow-hidden transition-all duration-300",
+                        isSidebarOpen ? "opacity-100 max-h-10 mt-4 mb-3" : "opacity-0 max-h-0 mt-0 mb-0"
+                      )}>
+                        <p
+                          className="
+                            text-[10px]
+                            font-bold
+                            uppercase
+                            px-3
+                            whitespace-nowrap
+                          "
+                          style={{
+                            color: 'rgba(255,255,255,0.45)',
+                            letterSpacing: '0.15em',
+                          }}
+                        >
+                          {section}
+                        </p>
+                      </div>
                     )}
 
                     <Link
@@ -377,7 +400,6 @@ export default function Layout({ children }: LayoutProps) {
                         `
                         flex
                         items-center
-                        gap-3
                         px-3
                         py-2.5
                         rounded-xl
@@ -415,11 +437,16 @@ export default function Layout({ children }: LayoutProps) {
                         }}
                       />
 
-                      <span className="flex-1 truncate">
+                      <span
+                        className={twMerge(
+                          "whitespace-nowrap overflow-hidden transition-all duration-300",
+                          isSidebarOpen ? "opacity-100 w-auto ml-3 flex-1 truncate" : "opacity-0 w-0 ml-0 flex-none"
+                        )}
+                      >
                         {name}
                       </span>
 
-                      {active && (
+                      {active && isSidebarOpen && (
                         <ChevronRight
                           className="
                             w-3.5
@@ -463,17 +490,12 @@ export default function Layout({ children }: LayoutProps) {
           }}
         >
           <div
-            className="
-              flex
-              items-center
-              gap-2.5
-              px-2.5
-              py-2
-              rounded-xl
-              mb-2
-            "
+            className={twMerge(
+              "flex items-center rounded-xl mb-2 transition-all duration-300 overflow-hidden",
+              isSidebarOpen ? "gap-2.5 px-2.5 py-2" : "gap-0 px-0 py-0 h-0"
+            )}
             style={{
-              backgroundColor: 'rgba(0,0,0,0.2)',
+              backgroundColor: isSidebarOpen ? 'rgba(0,0,0,0.2)' : 'transparent',
             }}
           >
             <div
@@ -522,20 +544,10 @@ export default function Layout({ children }: LayoutProps) {
 
           <button
             onClick={handleLogout}
-            className="
-              w-full
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-2
-              rounded-xl
-              text-[12px]
-              font-semibold
-              transition-all
-              group
-            "
+            className={twMerge(
+              "w-full flex items-center justify-center rounded-xl text-[12px] font-semibold transition-all group overflow-hidden",
+              isSidebarOpen ? "gap-2 px-4 py-2" : "gap-0 px-0 py-2 h-10 w-10 mx-auto"
+            )}
             style={{
               color: 'rgba(252,165,165,0.7)',
             }}
@@ -548,9 +560,16 @@ export default function Layout({ children }: LayoutProps) {
                 'transparent';
             }}
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4 flex-shrink-0" />
 
-            Cerrar Sesión
+            <span
+              className={twMerge(
+                "whitespace-nowrap overflow-hidden transition-all duration-300",
+                isSidebarOpen ? "opacity-100 w-auto" : "opacity-0 w-0 hidden"
+              )}
+            >
+              Cerrar Sesión
+            </span>
           </button>
         </div>
       </aside>
@@ -559,17 +578,19 @@ export default function Layout({ children }: LayoutProps) {
           CONTENIDO PRINCIPAL
           ========================================================= */}
       <div
-        className="
-          ml-[252px]
+        className={twMerge(
+          `
           flex-1
           flex
           flex-col
           h-screen   
           overflow-hidden
           relative
-          transition-colors
+          transition-all
           duration-300
-        "
+          `,
+          isSidebarOpen ? 'ml-[252px]' : 'ml-[80px]'
+        )}
         style={{
           backgroundColor: 'var(--bg-main)',
         }}
@@ -581,9 +602,11 @@ export default function Layout({ children }: LayoutProps) {
             inset-0
             pointer-events-none
             z-0
+            transition-all
+            duration-300
           "
           style={{
-            left: '252px',
+            left: isSidebarOpen ? '252px' : '80px',
             backgroundImage:
               'radial-gradient(var(--pattern-dot) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
@@ -653,7 +676,15 @@ export default function Layout({ children }: LayoutProps) {
               borderBottom: '1px solid var(--border-color)',
             }}
           >
-            <div className="flex-1">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1.5 -ml-2 rounded-lg text-ink-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              title={isSidebarOpen ? "Colapsar menú" : "Expandir menú"}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex-1 flex items-center gap-2">
+              {CurrentIcon && <CurrentIcon className="w-4 h-4 text-ink-secondary" />}
               <h1
                 className="text-sm font-medium"
                 style={{
@@ -699,7 +730,6 @@ export default function Layout({ children }: LayoutProps) {
             overflow-x-hidden
             p-8
             relative
-            z-10
           "
         >
           <div

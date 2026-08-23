@@ -23,7 +23,10 @@ const handleGlobalError = (error: any) => {
   if (error.response?.status === 401) {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    // Si ya estamos en login, no recargar la página para que el componente pueda mostrar el error
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   } else if (!error.response || error.response.status >= 500) {
     if (window.location.pathname !== '/mantenimiento') {
       window.location.href = '/mantenimiento';

@@ -4,6 +4,7 @@ import { graduatesApi, authApi } from '../../../api';
 import api from '../../../api';
 import { Users, GraduationCap, Phone, ExternalLink, Plus, X, Save, Loader2, PlayCircle, Search } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
+import Modal from '../../../components/Modal';
 
 const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
 
@@ -265,89 +266,91 @@ export default function AdminGraduates() {
         </div>
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-4xl rounded-2xl shadow-2xl animate-fade-in-up" style={{ backgroundColor: 'var(--bg-modal)' }}>
-            <div className="flex justify-between items-center p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
-              <h3 className="text-xl font-bold text-ink">Registrar Nuevo Egresado</h3>
-              <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1 rounded-full hover:bg-black/5"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleRegister} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Nombres *</label>
-                  <input name="first_name" className="input w-full" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Apellidos *</label>
-                  <input name="last_name" className="input w-full" required />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Correo Electrónico *</label>
-                  <input name="email" type="email" className="input w-full" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Contraseña (Temporal) *</label>
-                  <input name="password" type="text" className="input w-full" defaultValue="upc12345" required />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Programa Académico *</label>
-                  <select name="program_id" className="input w-full" required>
-                    <option value="">Seleccione...</option>
-                    {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Año de Graduación *</label>
-                  <input name="graduation_year" type="number" min="1980" max="2030" defaultValue={new Date().getFullYear()} className="input w-full" required />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Teléfono</label>
-                <input name="phone" type="text" className="input w-full" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                <button type="button" onClick={() => setShowModal(false)} className="btn-ghost" disabled={saving}>Cancelar</button>
-                <button type="submit" className="btn-primary flex items-center gap-2" disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Registrar
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Modal Registrar */}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-4xl">
+        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+          <h3 className="text-xl font-bold text-ink font-heading">Registrar Nuevo Egresado</h3>
+          <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+        <form onSubmit={handleRegister} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Nombres *</label>
+              <input name="first_name" className="input w-full" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Apellidos *</label>
+              <input name="last_name" className="input w-full" required />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Correo Electrónico *</label>
+              <input name="email" type="email" className="input w-full" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Contraseña (Temporal) *</label>
+              <input name="password" type="text" className="input w-full" defaultValue="upc12345" required />
+            </div>
+          </div>
 
-      {selectedGraduate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-7xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl animate-fade-in-up" style={{ backgroundColor: 'var(--bg-modal)' }}>
-            <div className="sticky top-0 bg-[var(--bg-modal)] flex justify-between items-center p-6 border-b z-10" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Programa Académico *</label>
+              <select name="program_id" className="input w-full" required>
+                <option value="">Seleccione...</option>
+                {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Año de Graduación *</label>
+              <input name="graduation_year" type="number" min="1980" max="2030" defaultValue={new Date().getFullYear()} className="input w-full" required />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Teléfono</label>
+            <input name="phone" type="text" className="input w-full" />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost" disabled={saving}>Cancelar</button>
+            <button type="submit" className="btn-primary flex items-center gap-2" disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Registrar
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Ver Detalles */}
+      <Modal isOpen={!!selectedGraduate} onClose={() => setSelectedGraduate(null)} maxWidth="max-w-4xl">
+        {selectedGraduate && (
+          <>
+            <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <div>
-                <h3 className="text-xl font-bold text-ink">Perfil del Egresado</h3>
+                <h3 className="text-xl font-bold text-ink font-heading">Perfil del Egresado</h3>
                 <p className="text-sm text-brand-600 font-semibold">{selectedGraduate.first_name} {selectedGraduate.last_name}</p>
               </div>
-              <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1 rounded-full hover:bg-black/5"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {selectedGraduate.cv_url && (
                 <div>
-                  <h4 className="text-lg font-bold text-ink mb-4">Hoja de Vida (CV)</h4>
-                  <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-100 border border-brand-200">
+                  <h4 className="text-lg font-bold text-ink mb-3">Hoja de Vida (CV)</h4>
+                  <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-400 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-100 border border-brand-200 dark:border-brand-800">
                     <ExternalLink className="w-4 h-4" /> Ver Hoja de Vida
                   </a>
                 </div>
               )}
               <div>
-                <h4 className="text-lg font-bold text-ink mb-4">Experiencia Laboral</h4>
+                <h4 className="text-lg font-bold text-ink mb-3">Experiencia Laboral</h4>
                 {selectedGraduate.experiences && selectedGraduate.experiences.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.experiences.map(exp => (
@@ -356,7 +359,7 @@ export default function AdminGraduates() {
                         <p className="text-sm font-semibold text-brand-600">{exp.company_name}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}</p>
                         {exp.certificate_url && (
-                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
+                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
                             Ver Certificado Adjunto
                           </a>
                         )}
@@ -369,7 +372,7 @@ export default function AdminGraduates() {
               </div>
 
               <div>
-                <h4 className="text-lg font-bold text-ink mb-4">Formación Académica</h4>
+                <h4 className="text-lg font-bold text-ink mb-3">Formación Académica</h4>
                 {selectedGraduate.academic_histories && selectedGraduate.academic_histories.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.academic_histories.map(edu => (
@@ -378,7 +381,7 @@ export default function AdminGraduates() {
                         <p className="text-sm font-semibold text-brand-600">{edu.institution}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : 'En curso'}</p>
                         {edu.diploma_url && (
-                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
+                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
                             Ver Diploma Adjunto
                           </a>
                         )}
@@ -390,9 +393,10 @@ export default function AdminGraduates() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
+

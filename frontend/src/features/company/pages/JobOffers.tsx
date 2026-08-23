@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import api from '../../../api';
 import { Plus, Briefcase, Calendar, DollarSign, X, CheckCircle2, Search } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
+import Modal from '../../../components/Modal';
 
 interface JobOffer {
   id: number;
@@ -168,13 +169,13 @@ export default function JobOffers() {
 
           if (filteredJobs.length === 0) {
             return (
-          <div className="col-span-full card p-12 flex flex-col items-center justify-center text-center">
-            <Briefcase className="w-16 h-16 text-brand-200 mb-4" />
-            <h3 className="text-xl font-bold text-ink mb-2">No hay vacantes</h3>
-            <p className="text-ink-secondary">
-              {isAdmin ? 'No se encontraron vacantes con los filtros actuales.' : 'Aún no has publicado ninguna oportunidad o no coinciden con los filtros.'}
-            </p>
-          </div>
+              <div className="col-span-full card p-12 flex flex-col items-center justify-center text-center">
+                <Briefcase className="w-16 h-16 text-brand-200 mb-4" />
+                <h3 className="text-xl font-bold text-ink mb-2">No hay vacantes</h3>
+                <p className="text-ink-secondary">
+                  {isAdmin ? 'No se encontraron vacantes con los filtros actuales.' : 'Aún no has publicado ninguna oportunidad o no coinciden con los filtros.'}
+                </p>
+              </div>
             );
           }
 
@@ -192,7 +193,6 @@ export default function JobOffers() {
                 )}>
                   {job.status.toUpperCase() === 'ACTIVE' ? 'ACTIVA' : 'CERRADA'}
                 </span>
-
               </div>
               
               <h3 className="text-xl font-bold text-ink mb-1 group-hover:text-brand-600 transition-colors line-clamp-1">
@@ -227,16 +227,16 @@ export default function JobOffers() {
       </div>
 
       {/* Modal Detalles */}
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
-          <div className="rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden animate-scale-in max-h-[90vh] flex flex-col" style={{ backgroundColor: 'var(--bg-modal)', border: '1px solid var(--border-color)' }}>
-            <div className="flex justify-between items-center p-6 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <Modal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} maxWidth="max-w-4xl">
+        {selectedJob && (
+          <>
+            <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <h3 className="text-2xl font-bold text-ink font-heading">{selectedJob.title}</h3>
-              <button onClick={() => setSelectedJob(null)} className="text-ink-tertiary hover:text-ink transition-colors">
-                <X className="w-6 h-6" />
+              <button onClick={() => setSelectedJob(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto space-y-6">
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
               <div className="flex flex-col gap-1">
                 <h4 className="font-bold text-ink text-lg">{selectedJob.company?.name || 'Empresa Confidencial'}</h4>
                 <p className="text-brand-600 font-medium text-sm">
@@ -246,19 +246,19 @@ export default function JobOffers() {
               {selectedJob.description && (
                 <div>
                   <h4 className="font-bold text-ink mb-2 text-lg">Descripción</h4>
-                  <p className="text-ink-secondary whitespace-pre-line">{selectedJob.description}</p>
+                  <p className="text-ink-secondary whitespace-pre-line leading-relaxed bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{selectedJob.description}</p>
                 </div>
               )}
               {selectedJob.requirements && (
                 <div>
                   <h4 className="font-bold text-ink mb-2 text-lg">Requisitos</h4>
-                  <p className="text-ink-secondary whitespace-pre-line">{selectedJob.requirements}</p>
+                  <p className="text-ink-secondary whitespace-pre-line leading-relaxed bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{selectedJob.requirements}</p>
                 </div>
               )}
               {selectedJob.functions && (
                 <div>
                   <h4 className="font-bold text-ink mb-2 text-lg">Funciones</h4>
-                  <p className="text-ink-secondary whitespace-pre-line">{selectedJob.functions}</p>
+                  <p className="text-ink-secondary whitespace-pre-line leading-relaxed bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{selectedJob.functions}</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border" style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}>
@@ -272,102 +272,99 @@ export default function JobOffers() {
                 </div>
               </div>
             </div>
-            <div className="p-6 shrink-0" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <div className="p-6 shrink-0 border-t" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <button onClick={() => setSelectedJob(null)} className="w-full btn-primary">
                 Cerrar Detalles
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
-      {/* Modal Creación (Demo) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
-          <div className="rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-scale-in" style={{ backgroundColor: 'var(--bg-modal)', border: '1px solid var(--border-color)' }}>
-            <div className="flex justify-between items-center p-6" style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <h3 className="text-xl font-bold text-ink font-heading">Publicar Nueva Vacante</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-ink-tertiary hover:text-ink transition-colors">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateJob} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Título de la Vacante</label>
-                <input name="title" type="text" className="input" placeholder="Ej: Desarrollador Frontend Senior" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Descripción Breve</label>
-                  <textarea name="description" className="input" required></textarea>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Requisitos</label>
-                  <textarea name="requirements" className="input" required></textarea>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Funciones del Cargo</label>
-                <textarea name="functions" className="input min-h-[80px]" required></textarea>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Salario Min ($)</label>
-                  <input name="salary_min" type="number" className="input" placeholder="3000000" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Salario Max ($)</label>
-                  <input name="salary_max" type="number" className="input" placeholder="5000000" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Programa Académico</label>
-                  <select name="program_id" className="input" required>
-                    <option value="">Seleccione un programa...</option>
-                    {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha de Cierre</label>
-                  <input name="closing_date" type="date" className="input" required />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Años de Exp. Mínima</label>
-                  <input name="min_experience_years" type="number" className="input" defaultValue={0} min="0" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Habilidades Requeridas</label>
-                  <div className="border border-[var(--border-color)] rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-[var(--bg-muted)]">
-                    {availableSkills.map(skill => (
-                      <label key={skill.id} className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-[var(--border-color)] text-brand-600 focus:ring-brand-500 bg-[var(--bg-main)]"
-                          checked={selectedSkills.includes(skill.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedSkills([...selectedSkills, skill.id]);
-                            else setSelectedSkills(selectedSkills.filter(id => id !== skill.id));
-                          }}
-                        />
-                        <span className="text-sm text-ink">{skill.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-ghost">Cancelar</button>
-                <button type="submit" className="btn-primary">
-                  <CheckCircle2 className="w-5 h-5" /> Publicar
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Modal Creación */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="max-w-3xl">
+        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+          <h3 className="text-xl font-bold text-ink font-heading">Publicar Nueva Vacante</h3>
+          <button onClick={() => setIsModalOpen(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+        <form onSubmit={handleCreateJob} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Título de la Vacante</label>
+            <input name="title" type="text" className="input" placeholder="Ej: Desarrollador Frontend Senior" required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Descripción Breve</label>
+              <textarea name="description" className="input" required></textarea>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Requisitos</label>
+              <textarea name="requirements" className="input" required></textarea>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Funciones del Cargo</label>
+            <textarea name="functions" className="input min-h-[80px]" required></textarea>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Salario Min ($)</label>
+              <input name="salary_min" type="number" className="input" placeholder="3000000" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Salario Max ($)</label>
+              <input name="salary_max" type="number" className="input" placeholder="5000000" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Programa Académico</label>
+              <select name="program_id" className="input" required>
+                <option value="">Seleccione un programa...</option>
+                {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha de Cierre</label>
+              <input name="closing_date" type="date" className="input" required />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Años de Exp. Mínima</label>
+              <input name="min_experience_years" type="number" className="input" defaultValue={0} min="0" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Habilidades Requeridas</label>
+              <div className="border border-[var(--border-color)] rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-[var(--bg-muted)]">
+                {availableSkills.map(skill => (
+                  <label key={skill.id} className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-[var(--border-color)] text-brand-600 focus:ring-brand-500 bg-[var(--bg-main)]"
+                      checked={selectedSkills.includes(skill.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedSkills([...selectedSkills, skill.id]);
+                        else setSelectedSkills(selectedSkills.filter(id => id !== skill.id));
+                      }}
+                    />
+                    <span className="text-sm text-ink">{skill.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="pt-4 flex justify-end gap-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="btn-ghost">Cancelar</button>
+            <button type="submit" className="btn-primary">
+              <CheckCircle2 className="w-5 h-5" /> Publicar
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
+

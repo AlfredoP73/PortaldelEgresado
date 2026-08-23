@@ -5,9 +5,14 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+# Asegurar que se cargue el .env correcto desde la raíz del backend
+env_path = os.path.join(os.path.dirname(__file__), "../../../../.env")
+load_dotenv(dotenv_path=os.path.abspath(env_path))
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 1025))
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "noreply@portaldelegresados.upc.edu.co")

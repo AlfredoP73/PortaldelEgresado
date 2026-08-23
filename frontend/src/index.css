@@ -2,88 +2,88 @@
 @import "tailwindcss";
 
 @theme {
-  /* UPC Green palette */
-  --color-brand-50: #eefbf4;
-  --color-brand-100: #d6f5e3;
-  --color-brand-200: #b0eacb;
-  --color-brand-300: #7cdaac;
-  --color-brand-400: #45c388;
-  --color-brand-500: #22a86e;
-  --color-brand-600: #158a58;
-  --color-brand-700: #116e48;
-  --color-brand-800: #10583b;
-  --color-brand-900: #0e4832;
-  --color-brand-950: #06281c;
+  /* Corporate Green SaaS palette */
+  --color-brand-50: #EAF7F1;
+  --color-brand-100: #D1EFE2;
+  --color-brand-200: #A8E0C7;
+  --color-brand-300: #74CDA7;
+  --color-brand-400: #3DB381;
+  --color-brand-500: #087443;
+  --color-brand-600: #087443;
+  --color-brand-700: #065F37;
+  --color-brand-800: #054C2C;
+  --color-brand-900: #064E3B;
+  --color-brand-950: #032A1F;
 
-  --color-surface: #ffffff;
-  --color-surface-soft: #f5f7fa;
-  --color-surface-muted: #edf0f5;
+  --color-surface: #FFFFFF;
+  --color-surface-soft: #F8FAFC;
+  --color-surface-muted: #F1F5F9;
 
-  --color-ink: #111827;
-  --color-ink-secondary: #4b5563;
-  --color-ink-tertiary: #9ca3af;
+  --color-ink: #172033;
+  --color-ink-secondary: #667085;
+  --color-ink-tertiary: #98A2B3;
 
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-heading: 'Inter', system-ui, sans-serif;
 
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-card: 0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04);
+  --shadow-elevated: 0 4px 12px rgba(16,24,40,0.08);
 }
 
 /* ── CSS custom props (light) ── */
 :root {
-  --bg-main: #f5f7fa;
-  --bg-surface: #ffffff;
-  --bg-muted: #f9fafb;
-  --bg-sidebar: #0e4832;
-  --bg-header: rgba(255,255,255,0.85);
-  --bg-modal: #ffffff;
-  --bg-input: #ffffff;
-  --border-color: #e5e7eb;
-  --border-input: #d1d5db;
-  --pattern-dot: rgba(0,0,0,0.04);
-  --text-main: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --bg-main: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #F8FAFC;
+  --bg-sidebar: #064E3B;
+  --bg-header: rgba(255,255,255,0.9);
+  --bg-modal: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --border-color: #E4E7EC;
+  --border-input: #D0D5DD;
+  --pattern-dot: rgba(0,0,0,0.03);
+  --text-main: #172033;
+  --text-secondary: #667085;
+  --text-muted: #98A2B3;
   --btn-ghost-bg: transparent;
-  --btn-ghost-hover: #eef9f4;
-  --bg-hover: rgba(0, 0, 0, 0.05);
-  --shadow-btn: 0 4px 14px rgba(21, 138, 88, 0.28);
+  --btn-ghost-hover: #EAF7F1;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --shadow-btn: 0 1px 2px rgba(16, 24, 40, 0.05);
   
   /* Dashboard / Charts */
-  --chart-1: #22a86e;
-  --chart-2: #45c388;
-  --chart-3: #7cdaac;
-  --chart-4: #158a58;
-  --chart-5: #116e48;
+  --chart-1: #087443;
+  --chart-2: #3DB381;
+  --chart-3: #74CDA7;
+  --chart-4: #065F37;
+  --chart-5: #064E3B;
 }
 
 /* ── CSS custom props (dark) ── */
 body.dark {
-  --bg-main: #060d0a;
-  --bg-surface: #0f1f17;
-  --bg-muted: #162619;
-  --bg-sidebar: #040d08;
-  --bg-header: rgba(6, 13, 10, 0.9);
-  --bg-modal: #0f1f17;
-  --bg-input: #0a1610;
-  --border-color: rgba(255,255,255,0.07);
-  --border-input: rgba(255,255,255,0.12);
-  --pattern-dot: rgba(255,255,255,0.025);
-  --text-main: #f0faf5;
-  --text-secondary: #9dc8af;
-  --text-muted: #4d7a60;
-  --btn-ghost-hover: rgba(34,168,110,0.1);
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --shadow-btn: 0 4px 18px rgba(21, 138, 88, 0.4);
+  --bg-main: #0B0F17;
+  --bg-surface: #131A26;
+  --bg-muted: #1A2332;
+  --bg-sidebar: #08111A;
+  --bg-header: rgba(19, 26, 38, 0.9);
+  --bg-modal: #131A26;
+  --bg-input: #101620;
+  --border-color: #1E293B;
+  --border-input: #334155;
+  --pattern-dot: rgba(255,255,255,0.02);
+  --text-main: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --btn-ghost-hover: rgba(8, 116, 67, 0.15);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.2);
 
   /* Tailwind token overrides */
-  --color-surface: #0f1f17;
-  --color-surface-soft: #060d0a;
-  --color-surface-muted: #162619;
-  --color-ink: #f0faf5;
-  --color-ink-secondary: #9dc8af;
-  --color-ink-tertiary: #4d7a60;
+  --color-surface: #131A26;
+  --color-surface-soft: #0B0F17;
+  --color-surface-muted: #1A2332;
+  --color-ink: #F8FAFC;
+  --color-ink-secondary: #94A3B8;
+  --color-ink-tertiary: #64748B;
 }
 
 /* ── Base ── */
@@ -159,8 +159,8 @@ body.dark .label-upper { color: #9dc8af; }
 }
 .input::placeholder { color: var(--text-muted); }
 .input:focus {
-  box-shadow: 0 0 0 3px rgba(134,239,172,0.3);
-  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgba(8, 116, 67, 0.15);
+  border-color: #087443;
 }
 .input.pl-9, .input.pl-10 {
   padding-left: 2.5rem !important;
@@ -177,12 +177,12 @@ select.input { cursor: pointer; }
   color: #374151;
   margin-bottom: 6px;
 }
-body.dark .form-label { color: #9dc8af; }
+body.dark .form-label { color: #94A3B8; }
 
 /* ── Buttons ── */
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-brand-500) 0%, var(--color-brand-700) 100%);
-  color: #fff;
+  background-color: #087443;
+  color: #FFFFFF;
   font-weight: 600;
   padding: 10px 20px;
   border-radius: 8px;
@@ -192,13 +192,18 @@ body.dark .form-label { color: #9dc8af; }
   gap: 0.5rem;
   transition: all 150ms ease;
   cursor: pointer;
-  box-shadow: var(--shadow-btn);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
   letter-spacing: 0.01em;
   font-size: 14px;
-  border: none;
+  border: 1px solid #087443;
 }
-.btn-primary:hover { filter: brightness(0.92); }
-.btn-primary:active { filter: brightness(0.88); }
+.btn-primary:hover {
+  background-color: #065F37;
+  border-color: #065F37;
+}
+.btn-primary:active {
+  background-color: #054C2C;
+}
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
 
 .btn-outline {
@@ -208,17 +213,22 @@ body.dark .form-label { color: #9dc8af; }
   gap: 0.5rem;
   padding: 10px 20px;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
-  color: #374151;
-  background: white;
+  border: 1px solid #D0D5DD;
+  color: #344054;
+  background: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   transition: all 150ms ease;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
-.btn-outline:hover { background: #f9fafb; }
+.btn-outline:hover {
+  background: #F8FAFC;
+  border-color: #D0D5DD;
+  color: #172033;
+}
 body.dark .btn-outline {
-  border-color: rgba(255,255,255,0.12);
+  border-color: #334155;
   color: var(--text-main);
   background: var(--bg-surface);
 }
@@ -234,7 +244,7 @@ body.dark .btn-outline:hover { background: var(--bg-muted); }
   background: var(--btn-ghost-bg);
   font-size: 14px;
 }
-.btn-ghost:hover { background-color: var(--btn-ghost-hover); color: var(--color-brand-600); }
+.btn-ghost:hover { background-color: var(--btn-ghost-hover); color: #087443; }
 
 /* ── Tables ── */
 table thead th {

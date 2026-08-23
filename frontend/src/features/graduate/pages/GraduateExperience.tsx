@@ -2,6 +2,7 @@ import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { graduatesApi } from '../../../api';
 import { Briefcase, Plus, Trash2, Upload, Loader2, X, Save, FileText } from 'lucide-react';
+import Modal from '../../../components/Modal';
 
 const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
 
@@ -180,48 +181,47 @@ export default function GraduateExperience() {
         </div>
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-3xl rounded-2xl shadow-2xl animate-fade-in-up" style={{ backgroundColor: 'var(--bg-modal)' }}>
-            <div className="flex justify-between items-center p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
-              <h3 className="text-xl font-bold text-ink">Agregar Experiencia Laboral</h3>
-              <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1 rounded-full hover:bg-black/5"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleAdd} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Cargo / Posición *</label>
-                <input name="position" className="input w-full" required />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Empresa *</label>
-                <input name="company_name" className="input w-full" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Inicio *</label>
-                  <input name="start_date" type="date" className="input w-full" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Fin</label>
-                  <input name="end_date" type="date" className="input w-full" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Descripción</label>
-                <textarea name="description" className="input w-full min-h-[80px]" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Certificado (PDF)</label>
-                <input type="file" name="certificate" accept=".pdf" className="input w-full p-2 bg-white" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">Cancelar</button>
-                <button type="submit" className="btn-primary flex items-center gap-2"><Save className="w-4 h-4" /> Guardar</button>
-              </div>
-            </form>
-          </div>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-3xl">
+        <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
+          <h3 className="text-xl font-bold text-ink font-heading">Agregar Experiencia Laboral</h3>
+          <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+        <form onSubmit={handleAdd} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Cargo / Posición *</label>
+            <input name="position" className="input w-full" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Empresa *</label>
+            <input name="company_name" className="input w-full" required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Inicio *</label>
+              <input name="start_date" type="date" className="input w-full" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha Fin</label>
+              <input name="end_date" type="date" className="input w-full" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Descripción</label>
+            <textarea name="description" className="input w-full min-h-[80px]" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Certificado (PDF)</label>
+            <input type="file" name="certificate" accept=".pdf" className="input w-full p-2" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost">Cancelar</button>
+            <button type="submit" className="btn-primary flex items-center gap-2"><Save className="w-4 h-4" /> Guardar</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
+
