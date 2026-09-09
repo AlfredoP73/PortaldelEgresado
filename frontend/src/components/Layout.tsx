@@ -17,6 +17,9 @@ import {
   Search,
   Settings,
   Menu,
+  MapPin,
+  Trophy,
+  Sparkles
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
@@ -100,13 +103,7 @@ const getNavItems = (role: string) => {
       roles: ['ADMIN', 'COMPANY'],
       section: 'Módulo Empresas',
     },
-    {
-      name: 'Talento Humano',
-      path: '/talent-pool',
-      icon: Users,
-      roles: ['COMPANY'],
-      section: 'Módulo Empresas',
-    },
+
     {
       name: 'Vacantes Activas',
       path: '/job-offers',
@@ -154,6 +151,13 @@ const getNavItems = (role: string) => {
       name: 'Explorar Vacantes',
       path: '/jobs',
       icon: Search,
+      roles: ['GRADUATE'],
+      section: 'Empleabilidad',
+    },
+    {
+      name: 'Recomendaciones',
+      path: '/matchmaking',
+      icon: Sparkles,
       roles: ['GRADUATE'],
       section: 'Empleabilidad',
     },

@@ -41,7 +41,7 @@ export default function AdminSettings() {
           </div>
           
           <p className="text-sm mb-6" style={{ color: 'var(--text-ink-secondary)' }}>
-            {'Selecciona una familia de colores. Cada tema es una implementación concreta de'} <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-[11px] font-mono">ThemeFactory</code>.
+            {'Selecciona una familia de colores. Cada tema es una implementación concreta de'} <code className="px-1.5 py-0.5 rounded text-[11px] font-mono" style={{ backgroundColor: 'var(--bg-muted)' }}>ThemeFactory</code>.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

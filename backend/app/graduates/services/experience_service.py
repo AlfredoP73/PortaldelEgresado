@@ -10,6 +10,10 @@ import os
 MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "cvs")
 
 def add_experience(experience: schemas.WorkExperienceCreate, current_user: dict, db: Session):
+    db_profile = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
+    if not db_profile:
+        raise HTTPException(status_code=400, detail="Debe guardar sus datos básicos antes de añadir experiencia")
+
     db_exp = models.WorkExperience(**experience.model_dump(), graduate_id=current_user["id"])
     db.add(db_exp)
     db.commit()

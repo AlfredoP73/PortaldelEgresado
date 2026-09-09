@@ -532,7 +532,7 @@ export default function Companies() {
           <h3 className="text-xl font-bold text-ink font-heading">
             {editingCompany ? 'Editar Empresa' : 'Registrar Nueva Empresa'}
           </h3>
-          <button onClick={() => { setAdminModalOpen(false); setEditingCompany(null); }} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+          <button onClick={() => { setAdminModalOpen(false); setEditingCompany(null); }} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>

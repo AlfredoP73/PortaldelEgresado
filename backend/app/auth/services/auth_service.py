@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import os
 import uuid
+import random
+from datetime import datetime, timedelta, timezone
 
 from app.auth import models, schemas
 from app.auth.utils.auth_utils import verify_password, get_password_hash, create_access_token
@@ -45,6 +47,12 @@ def authenticate_user(body: schemas.LoginRequest, db: Session) -> schemas.TokenR
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
         )
+
+    # Limpiar PIN de recuperación si existe (buena higiene de datos)
+    if user.password_reset_pin is not None:
+        user.password_reset_pin = None
+        user.pin_expires_at = None
+        db.commit()
 
     data_payload = {
         "sub": user.email,
@@ -167,3 +175,52 @@ def get_all_users(admin_user: models.User, db: Session) -> list[schemas.UserInfo
         )
         for u in users
     ]
+
+def forgot_password(email: str, db: Session) -> dict:
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        # Por seguridad no revelamos que no existe, pero para este caso devolveremos OK
+        return {"message": "Si el correo está registrado, recibirás un PIN de recuperación."}
+
+    # Generar PIN numérico de 6 dígitos
+    pin = f"{random.randint(100000, 999999)}"
+    
+    user.password_reset_pin = pin
+    user.pin_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    db.commit()
+
+    notifier = NotificationFactory.get_notifier("email")
+    notifier.send_password_reset_pin(email, pin)
+
+    return {"message": "Si el correo está registrado, recibirás un PIN de recuperación."}
+
+def verify_pin(email: str, pin: str, db: Session) -> dict:
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    if not user.password_reset_pin or user.password_reset_pin != pin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="PIN incorrecto")
+
+    if user.pin_expires_at and user.pin_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El PIN ha expirado")
+
+    return {"message": "PIN verificado correctamente"}
+
+def reset_password(email: str, pin: str, new_password: str, db: Session) -> dict:
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    if not user.password_reset_pin or user.password_reset_pin != pin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="PIN incorrecto")
+
+    if user.pin_expires_at and user.pin_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El PIN ha expirado")
+
+    user.password_hash = get_password_hash(new_password)
+    user.password_reset_pin = None
+    user.pin_expires_at = None
+    db.commit()
+
+    return {"message": "Contraseña actualizada exitosamente. Ya puedes iniciar sesión."}

@@ -3,24 +3,19 @@ import httpx
 from collections import defaultdict
 from datetime import datetime
 
-GRADUATES_URL = "http://graduates:8000/api/internal"
-COMPANIES_URL = "http://companies:8000/api/internal"
-PUBLIC_COMPANIES_URL = "http://companies:8000/api/internal"
+from app.core.adapters import HttpGraduatesAdapter, HttpCompaniesAdapter
 
-def fetch_data(url):
-    with httpx.Client() as client:
-        try:
-            resp = client.get(url, timeout=10.0)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            print(f"Error fetching {url}: {e}")
-            return []
+graduates_adapter = HttpGraduatesAdapter()
+companies_adapter = HttpCompaniesAdapter()
 
 def get_dashboard(db, program_id: int = None, year: int = None):
-    graduates = fetch_data(f"{GRADUATES_URL}/graduates")
-    applications = fetch_data(f"{COMPANIES_URL}/applications")
-    programs_data = fetch_data(f"{PUBLIC_COMPANIES_URL}/programs")
+    graduates = graduates_adapter.get_all_graduates()
+    applications = companies_adapter.get_all_applications()
+    try:
+        programs_data = companies_adapter.get_programs()
+    except:
+        programs_data = []
+        
     program_map = {p["id"]: p["name"] for p in programs_data} if programs_data else {}
     
     if program_id:
@@ -93,10 +88,13 @@ def get_dashboard(db, program_id: int = None, year: int = None):
     }
 
 def get_company_dashboard(db, company_id: int):
-    applications = fetch_data(f"{COMPANIES_URL}/applications")
+    applications = companies_adapter.get_all_applications()
     my_apps = [a for a in applications if a.get("job_offer", {}).get("company_id") == company_id]
-    graduates = fetch_data(f"{GRADUATES_URL}/graduates")
-    programs_data = fetch_data(f"{PUBLIC_COMPANIES_URL}/programs")
+    graduates = graduates_adapter.get_all_graduates()
+    try:
+        programs_data = companies_adapter.get_programs()
+    except:
+        programs_data = []
     
     grad_map = {g["user_id"]: g for g in graduates}
     program_map = {p["id"]: p["name"] for p in programs_data} if programs_data else {}
@@ -146,8 +144,11 @@ def get_company_dashboard(db, company_id: int):
     }
 
 def get_graduate_dashboard(db, graduate_id: int):
-    my_apps = fetch_data(f"{COMPANIES_URL}/applications/graduate/{graduate_id}")
-    all_jobs = fetch_data(f"{PUBLIC_COMPANIES_URL}/jobs")
+    my_apps = companies_adapter.get_my_applications(graduate_id)
+    try:
+        all_jobs = companies_adapter.get_jobs({})
+    except:
+        all_jobs = []
     
     total_apps = len(my_apps)
     interviews = sum(1 for a in my_apps if a.get("status") == "ENTREVISTADO")

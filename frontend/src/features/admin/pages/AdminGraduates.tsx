@@ -355,7 +355,7 @@ export default function AdminGraduates() {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} maxWidth="max-w-4xl">
         <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
           <h3 className="text-xl font-bold text-ink font-heading">{'Registrar Nuevo Egresado'}</h3>
-          <button onClick={() => setShowModal(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+          <button onClick={() => setShowModal(false)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -420,7 +420,7 @@ export default function AdminGraduates() {
                 <h3 className="text-xl font-bold text-ink font-heading">{'Perfil del Egresado'}</h3>
                 <p className="text-sm text-brand-600 font-semibold">{selectedGraduate.first_name} {selectedGraduate.last_name}</p>
               </div>
-              <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              <button onClick={() => setSelectedGraduate(null)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -429,7 +429,7 @@ export default function AdminGraduates() {
               {selectedGraduate.cv_url && (
                 <div>
                   <h4 className="text-lg font-bold text-ink mb-3">{'Hoja de Vida (CV)'}</h4>
-                  <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-400 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-100 border border-brand-200 dark:border-brand-800">
+                  <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-colors shadow-sm" style={{ backgroundColor: 'rgba(8, 116, 67, 0.1)', color: 'var(--accent-primary)' }}>
                     <ExternalLink className="w-4 h-4" /> {'Ver Hoja de Vida'}
                   </a>
                 </div>
@@ -444,7 +444,7 @@ export default function AdminGraduates() {
                         <p className="text-sm font-semibold text-brand-600">{exp.company_name}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}</p>
                         {exp.certificate_url && (
-                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
+                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
                             {'Ver Certificado Adjunto'}
                           </a>
                         )}
@@ -466,7 +466,7 @@ export default function AdminGraduates() {
                         <p className="text-sm font-semibold text-brand-600">{edu.institution}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : 'En curso'}</p>
                         {edu.diploma_url && (
-                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
+                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
                             {'Ver Diploma Adjunto'}
                           </a>
                         )}

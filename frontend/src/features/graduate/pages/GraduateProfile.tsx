@@ -65,7 +65,7 @@ export default function GraduateProfile() {
       case 'photo': document.getElementById('avatar-upload')?.click(); break;
       case 'cv': document.getElementById('cv-upload')?.click(); break;
       case 'skills': setIsEditingSkills(true); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100); break;
-      case 'exp': navigate('/graduate/experience'); break;
+      case 'exp': navigate('/experience'); break;
     }
   };
 

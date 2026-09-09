@@ -5,6 +5,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './features/auth/pages/Login';
 import VerifyEmail from './features/auth/pages/VerifyEmail';
+import ForgotPassword from './features/auth/pages/ForgotPassword';
+import VerifyPin from './features/auth/pages/VerifyPin';
+import ResetPassword from './features/auth/pages/ResetPassword';
 import Maintenance from './pages/Maintenance';
 import Companies from './features/company/pages/Companies';
 import JobOffers from './features/company/pages/JobOffers';
@@ -13,6 +16,7 @@ import GraduateProfile from './features/graduate/pages/GraduateProfile';
 import GraduateExperience from './features/graduate/pages/GraduateExperience';
 import GraduateEducation from './features/graduate/pages/GraduateEducation';
 import JobBoard from './features/graduate/pages/JobBoard';
+import GraduateMatchmaking from './features/graduate/pages/GraduateMatchmaking';
 import GraduateApplications from './features/graduate/pages/GraduateApplications';
 import GraduateSurveys from './features/graduate/pages/GraduateSurveys';
 import AdminGraduates from './features/admin/pages/AdminGraduates';
@@ -21,7 +25,6 @@ import AdminSectors from './features/admin/pages/AdminSectors';
 import AdminCities from './features/admin/pages/AdminCities';
 import AdminPrograms from './features/admin/pages/AdminPrograms';
 import AdminUsers from './features/admin/pages/AdminUsers';
-import CompanyTalentPool from './features/company/pages/CompanyTalentPool';
 import AdminDashboard from './features/admin/pages/AdminDashboard';
 import CompanyDashboard from './features/company/pages/CompanyDashboard';
 import GraduateDashboard from './features/graduate/pages/GraduateDashboard';
@@ -47,6 +50,9 @@ export default function App() {
           {/* Pública */}
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-pin" element={<VerifyPin />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/mantenimiento" element={<Maintenance />} />
 
           {/* Solo ADMIN */}
@@ -70,10 +76,6 @@ export default function App() {
             <Route
               path="/company/dashboard"
               element={<Layout><CompanyDashboard /></Layout>}
-            />
-            <Route
-              path="/talent-pool"
-              element={<Layout><CompanyTalentPool /></Layout>}
             />
             <Route
               path="/job-offers"
@@ -134,6 +136,10 @@ export default function App() {
             <Route
               path="/jobs"
               element={<Layout><JobBoard /></Layout>}
+            />
+            <Route
+              path="/matchmaking"
+              element={<Layout><GraduateMatchmaking /></Layout>}
             />
             <Route
               path="/applications"

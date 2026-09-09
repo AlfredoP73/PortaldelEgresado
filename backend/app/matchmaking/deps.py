@@ -27,8 +27,9 @@ require_graduate_or_admin = RoleChecker(["GRADUATE", "ADMIN"])
 INTERNAL_TOKEN = os.getenv("MATCHMAKING_INTERNAL_TOKEN", "token_interno_servicios")
 
 # tokenUrl solo se usa para el esquema OpenAPI de 401.
+AUTH_URL = os.getenv("AUTH_URL", "http://auth:8000")
 optional_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="http://localhost:8002/api/auth/login",
+    tokenUrl=f"{AUTH_URL}/api/auth/login",
     auto_error=False,
 )
 

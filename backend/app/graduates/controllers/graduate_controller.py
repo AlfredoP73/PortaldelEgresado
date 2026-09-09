@@ -63,14 +63,25 @@ def get_matchmaking_graduate_ids(db: Session = Depends(get_db)):
 @internal_router.get("/matchmaking/graduates/{graduate_id}")
 def get_matchmaking_graduate(graduate_id: int, db: Session = Depends(get_db)):
     from app.graduates import models
+    from datetime import date
+    
     g = db.query(models.Graduate).filter(models.Graduate.user_id == graduate_id).first()
     if not g:
         raise HTTPException(status_code=404, detail="Not found")
+        
+    total_exp_days = 0
+    for exp in g.experiences:
+        start = exp.start_date
+        end = exp.end_date or date.today()
+        if start:
+            total_exp_days += (end - start).days
+    total_exp_years = round(total_exp_days / 365.25, 2)
     
     # Needs to return dictionary matching expectations of MatchScoreBuilder
     return {
         "user_id": g.user_id,
         "program_id": g.program_id,
+        "total_experience_years": total_exp_years,
         "experiences": [
             {
                 "start_date": exp.start_date.isoformat() if exp.start_date else None,
@@ -100,7 +111,7 @@ def get_profile(db: Session = Depends(get_db), current_user: dict = Depends(get_
     return graduate_service.get_profile(current_user, db)
 
 @router.post("/profile", response_model=schemas.Graduate)
-def create_or_update_profile(profile: schemas.GraduateCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def create_or_update_profile(profile: schemas.GraduateUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return graduate_service.create_or_update_profile(profile, current_user, db)
 
 @router.post("/cv")
