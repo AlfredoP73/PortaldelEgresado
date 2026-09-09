@@ -197,7 +197,7 @@ export default function GraduateExperience() {
           style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
           <h3 className="text-xl font-bold text-ink font-heading">{'Agregar Experiencia Laboral'}</h3>
           <button onClick={() => setShowModal(false)}
-            className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -7,36 +7,27 @@ import shutil
 from app.graduates import models, schemas
 from app.auth.models import User
 from app.auth.utils.auth_utils import get_password_hash
-import httpx
+from app.core.adapters import HttpCompaniesAdapter, HttpAuthAdapter
 
-COMPANIES_URL = "http://companies:8000/api/internal"
-AUTH_URL = "http://auth:8000/api/internal"
+companies_adapter = HttpCompaniesAdapter()
+auth_adapter = HttpAuthAdapter()
 
 def admin_get_all_applications(db: Session):
-    with httpx.Client() as client:
-        try:
-            response = client.get(f"{COMPANIES_URL}/applications")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+    try:
+        return companies_adapter.get_all_applications()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
 
 def admin_create_graduate(body: schemas.AdminGraduateCreate, db: Session):
     # Call auth microservice to create user
-    with httpx.Client() as client:
-        try:
-            auth_resp = client.post(
-                f"{AUTH_URL}/users", 
-                json={"email": body.email, "password": body.password, "role_id": 3}
-            )
-            if auth_resp.status_code == 400:
-                raise HTTPException(status_code=400, detail=auth_resp.json().get("detail", "Error"))
-            auth_resp.raise_for_status()
-            new_user = auth_resp.json()
-        except HTTPException as he:
-            raise he
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error conectando con Auth: {str(e)}")
+    try:
+        new_user = auth_adapter.create_user({
+            "email": body.email, 
+            "password": body.password, 
+            "role_id": 3
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error conectando con Auth: {str(e)}")
             
     new_grad = models.Graduate(
         user_id=new_user["id"],
@@ -60,14 +51,31 @@ def get_profile(current_user: dict, db: Session):
         raise HTTPException(status_code=404, detail="Perfil no encontrado")
     return profile
 
-def create_or_update_profile(profile: schemas.GraduateCreate, current_user: dict, db: Session):
+def create_or_update_profile(profile: schemas.GraduateUpdate, current_user: dict, db: Session):
     db_profile = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
     
+    # Map fields that the mobile app sends with different names
+    profile_data = profile.model_dump(exclude_unset=True)
+    
+    if "bio" in profile_data:
+        profile_data["profile_summary"] = profile_data.pop("bio")
+    if "phone_number" in profile_data:
+        profile_data["phone"] = profile_data.pop("phone_number")
+        
+    # Remove fields not in DB to prevent errors
+    profile_data.pop("document_id", None)
+    profile_data.pop("address", None)
+    profile_data.pop("document_type", None)
+    profile_data.pop("user_id", None)
+
     if db_profile:
-        for key, value in profile.model_dump(exclude_unset=True).items():
-            setattr(db_profile, key, value)
+        for key, value in profile_data.items():
+            if hasattr(db_profile, key):
+                setattr(db_profile, key, value)
     else:
-        profile_data = profile.model_dump(exclude={"user_id"})
+        # Require mandatory fields for new profile
+        if not all(k in profile_data for k in ("first_name", "last_name", "program_id", "graduation_year")):
+            raise HTTPException(status_code=400, detail="Faltan campos obligatorios para crear el perfil")
         db_profile = models.Graduate(**profile_data, user_id=current_user["id"])
         db.add(db_profile)
     
@@ -152,6 +160,10 @@ def create_skill(skill: schemas.SkillBase, db: Session):
     return db_skill
 
 def update_skills(skills_data: schemas.GraduateSkillsUpdate, current_user: dict, db: Session):
+    db_profile = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
+    if not db_profile:
+        raise HTTPException(status_code=400, detail="Debe guardar sus datos básicos antes de añadir habilidades")
+
     db.query(models.GraduateSkill).filter(models.GraduateSkill.graduate_id == current_user["id"]).delete()
     
     for skill in skills_data.skills:

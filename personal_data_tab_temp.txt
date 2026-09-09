@@ -1,0 +1,368 @@
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/network/api_client.dart';
+
+class PersonalDataTab extends StatefulWidget {
+  const PersonalDataTab({super.key});
+
+  @override
+  State<PersonalDataTab> createState() => _PersonalDataTabState();
+}
+
+class _PersonalDataTabState extends State<PersonalDataTab> with AutomaticKeepAliveClientMixin {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  final TextEditingController _firstNameCtrl = TextEditingController();
+  final TextEditingController _lastNameCtrl = TextEditingController();
+  final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _phoneCtrl = TextEditingController();
+  final TextEditingController _gradYearCtrl = TextEditingController();
+  final TextEditingController _bioCtrl = TextEditingController();
+  
+  bool _isUploadingCv = false;
+  String? _cvUrl;
+  List<dynamic> _skills = [];
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    
+    // Attempt to load email from token
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token != null && token.isNotEmpty) {
+        Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+        _emailCtrl.text = decodedToken['sub'] ?? '';
+      }
+    } catch (_) {}
+
+    try {
+      final response = await ApiClient.instance.get('/modulo1/profile');
+      if (response.data != null) {
+        final data = response.data;
+        _firstNameCtrl.text = data['first_name'] ?? '';
+        _lastNameCtrl.text = data['last_name'] ?? '';
+        _phoneCtrl.text = data['phone'] ?? '';
+        _gradYearCtrl.text = data['graduation_year']?.toString() ?? '';
+        _bioCtrl.text = data['profile_summary'] ?? '';
+        _cvUrl = data['cv_url'];
+        if (data['skills'] != null) {
+          _skills = List<dynamic>.from(data['skills']);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Cargando perfil nuevo...'),
+          backgroundColor: AppTheme.accentBlue,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _uploadCv() async {
+    try {
+      PlatformFile? result = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null) {
+        setState(() => _isUploadingCv = true);
+        
+        final filename = result.name;
+        final bytes = await result.readAsBytes();
+
+        FormData formData = FormData.fromMap({
+          "file": MultipartFile.fromBytes(bytes, filename: filename),
+        });
+
+        final res = await ApiClient.instance.post(
+          '/modulo1/cv', 
+          data: formData,
+        );
+
+        setState(() {
+          _cvUrl = res.data['cv_url'];
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hoja de vida subida exitosamente'), backgroundColor: AppTheme.primaryColor),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al subir la hoja de vida'), backgroundColor: AppTheme.statusRechazado),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingCv = false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ApiClient.instance.post('/modulo1/profile', data: {
+        'first_name': _firstNameCtrl.text,
+        'last_name': _lastNameCtrl.text,
+        'phone': _phoneCtrl.text,
+        'graduation_year': int.tryParse(_gradYearCtrl.text) ?? 0,
+        'profile_summary': _bioCtrl.text,
+        'program_id': 1,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Datos guardados exitosamente'),
+          backgroundColor: AppTheme.primaryColor,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error al guardar: $e'),
+          backgroundColor: AppTheme.accentPink,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _previewDocument(String url) async {
+    String fullUrl = url;
+    if (url.startsWith('/')) {
+      String base = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
+      fullUrl = base + url;
+    }
+    final uri = Uri.parse(fullUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('No se pudo abrir el documento.'),
+          backgroundColor: AppTheme.statusRechazado,
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            SizedBox(height: 16),
+
+            // Form Fields
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _firstNameCtrl,
+                    decoration: AppTheme.inputDecoration(context,  label: 'NOMBRES', icon: Icons.person_outline),
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _lastNameCtrl,
+                    decoration: AppTheme.inputDecoration(context,  label: 'APELLIDOS', icon: Icons.badge_outlined),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            TextFormField(
+              controller: _emailCtrl,
+              readOnly: true,
+              decoration: AppTheme.inputDecoration(context,  label: 'CORREO ELECTRÓNICO', icon: Icons.email_outlined),
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _phoneCtrl,
+                    decoration: AppTheme.inputDecoration(context,  label: 'TELÉFONO', icon: Icons.phone_outlined),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _gradYearCtrl,
+                    decoration: AppTheme.inputDecoration(context,  label: 'AÑO DE GRADO', icon: Icons.workspace_premium_outlined),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            TextFormField(
+              controller: _bioCtrl,
+              maxLines: 3,
+              decoration: AppTheme.inputDecoration(context,  label: 'RESUMEN PROFESIONAL (BIO)', icon: Icons.text_snippet_outlined),
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: context.surfaceColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_rounded, color: AppTheme.primaryColor, size: 28),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Hoja de Vida (CV)', style: TextStyle(fontWeight: FontWeight.w700, color: context.primaryText)),
+                        Text(
+                          _cvUrl != null ? 'CV subido correctamente' : 'Sube tu CV en formato PDF',
+                          style: TextStyle(fontSize: 12, color: context.secondaryText),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_cvUrl != null)
+  @override
+  State<_SkillsManager> createState() => _SkillsManagerState();
+}
+
+class _SkillsManagerState extends State<_SkillsManager> {
+  bool _isLoading = true;
+  List<dynamic> _allSkills = [];
+  List<int> _selectedIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIds = widget.currentSkills.map((s) => s['skill_id'] as int).toList();
+    _loadAllSkills();
+  }
+
+  Future<void> _loadAllSkills() async {
+    try {
+      final res = await ApiClient.instance.get('/modulo1/skills');
+      setState(() {
+        _allSkills = res.data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar habilidades')));
+      }
+    }
+  }
+
+  Future<void> _saveSkills() async {
+    setState(() => _isLoading = true);
+    try {
+      await ApiClient.instance.put('/modulo1/profile/skills', data: {
+        'skills': _selectedIds,
+      });
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar habilidades')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      padding: EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Gestionar Habilidades', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.primaryText)),
+              IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+            ],
+          ),
+          SizedBox(height: 16),
+          Expanded(
+            child: _isLoading 
+              ? Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _allSkills.map((skill) {
+                      final isSelected = _selectedIds.contains(skill['id']);
+                      return FilterChip(
+                        label: Text(skill['name'] ?? ''),
+                        selected: isSelected,
+                        selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        checkmarkColor: AppTheme.primaryColor,
+                        onSelected: (val) {
+                          setState(() {
+                            if (val) _selectedIds.add(skill['id']);
+                            else _selectedIds.remove(skill['id']);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+          ),
+          SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _saveSkills,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                padding: EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isLoading 
+                ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text('Guardar Habilidades'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

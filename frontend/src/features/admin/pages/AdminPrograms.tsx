@@ -217,7 +217,7 @@ export default function AdminPrograms() {
           <h3 className="text-lg font-bold font-heading text-ink">
             {editingItem ? 'Editar Programa' : 'Nuevo Programa'}
           </h3>
-          <button onClick={closeModal} className="p-1.5 rounded-full transition-colors text-ink-tertiary hover:bg-black/5 dark:hover:bg-white/5">
+          <button onClick={closeModal} className="p-1.5 rounded-full transition-colors hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -70,6 +70,44 @@ def get_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
         email_verified=user.email_verified,
     )
 
+# ── POST /api/auth/forgot-password ───────────────────────────────────────────
+@router.post("/forgot-password", response_model=schemas.MessageResponse)
+def forgot_password(body: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Genera un PIN de 6 dígitos para recuperación de contraseña."""
+    return auth_service.forgot_password(body.email, db)
+
+# ── POST /api/auth/verify-pin ────────────────────────────────────────────────
+@router.post("/verify-pin", response_model=schemas.MessageResponse)
+def verify_pin(body: schemas.VerifyPinRequest, db: Session = Depends(get_db)):
+    """Verifica si el PIN es correcto y aún no ha expirado."""
+    return auth_service.verify_pin(body.email, body.pin, db)
+
+# ── POST /api/auth/reset-password ────────────────────────────────────────────
+@router.post("/reset-password", response_model=schemas.MessageResponse)
+def reset_password(body: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Restablece la contraseña utilizando un PIN válido."""
+    return auth_service.reset_password(body.email, body.pin, body.new_password, db)
+
+# ── NOTIFICATIONS ────────────────────────────────────────────────────────────
+@router.get("/notifications", response_model=List[schemas.NotificationResponse])
+def get_my_notifications(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Devuelve las notificaciones del usuario autenticado."""
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Notification
+    return db.query(Notification).filter(Notification.user_id == user.id).order_by(Notification.created_at.desc()).limit(50).all()
+
+@router.put("/notifications/{notification_id}/read")
+def mark_notification_read(notification_id: int, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Notification
+    from fastapi import HTTPException
+    notif = db.query(Notification).filter(Notification.id == notification_id, Notification.user_id == user.id).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    notif.is_read = True
+    db.commit()
+    return {"message": "Notificación marcada como leída"}
+
 from fastapi import APIRouter, HTTPException
 
 internal_router = APIRouter(prefix="/api/internal", tags=["Internal"])

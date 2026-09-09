@@ -15,6 +15,8 @@ interface JobOffer {
   salary_min: number;
   salary_max: number;
   closing_date: string;
+  modality: string;
+  contract_type: string;
   company: {
     name: string;
     sector?: { name: string };
@@ -39,6 +41,8 @@ export default function JobBoard() {
   const [sectorFilter, setSectorFilter] = useState('ALL');
   const [cityFilter, setCityFilter] = useState('ALL');
   const [matchFilter, setMatchFilter] = useState('ALL');
+  const [modalityFilter, setModalityFilter] = useState('ALL');
+  const [contractTypeFilter, setContractTypeFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 9;
   
@@ -98,6 +102,8 @@ export default function JobBoard() {
     const matchSalary = minSalaryFilter ? (job.salary_min && job.salary_min >= Number(minSalaryFilter)) : true;
     const matchSector = sectorFilter === 'ALL' || job.company.sector?.name === sectorFilter;
     const matchCity = cityFilter === 'ALL' || job.company.city?.name === cityFilter;
+    const matchModality = modalityFilter === 'ALL' || job.modality === modalityFilter;
+    const matchContract = contractTypeFilter === 'ALL' || job.contract_type === contractTypeFilter;
     
     let matchScorePassed = true;
     if (matchFilter !== 'ALL') {
@@ -105,7 +111,7 @@ export default function JobBoard() {
       matchScorePassed = score >= Number(matchFilter);
     }
     
-    return matchSearch && matchSalary && matchSector && matchCity && matchScorePassed;
+    return matchSearch && matchSalary && matchSector && matchCity && matchScorePassed && matchModality && matchContract;
   });
 
   // Ordenar por afinidad de mayor a menor
@@ -119,7 +125,7 @@ export default function JobBoard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, minSalaryFilter, sectorFilter, cityFilter, matchFilter]);
+  }, [searchTerm, minSalaryFilter, sectorFilter, cityFilter, matchFilter, modalityFilter, contractTypeFilter]);
 
   const uniqueSectors = Array.from(new Set(jobs.map(j => j.company.sector?.name).filter(Boolean))).sort();
   const uniqueCities = Array.from(new Set(jobs.map(j => j.company.city?.name).filter(Boolean))).sort();
@@ -179,6 +185,28 @@ export default function JobBoard() {
                 <option value="1500000">Desde $1.5M</option>
                 <option value="2500000">Desde $2.5M</option>
                 <option value="4000000">Desde $4.0M</option>
+              </select>
+
+              <select 
+                className="input w-full sm:w-40" 
+                value={modalityFilter}
+                onChange={(e) => setModalityFilter(e.target.value)}
+              >
+                <option value="ALL">Cualquier Modalidad</option>
+                <option value="Remoto">Remoto</option>
+                <option value="Presencial">Presencial</option>
+                <option value="Híbrido">Híbrido</option>
+              </select>
+
+              <select 
+                className="input w-full sm:w-40" 
+                value={contractTypeFilter}
+                onChange={(e) => setContractTypeFilter(e.target.value)}
+              >
+                <option value="ALL">Cualquier Contrato</option>
+                <option value="Indefinido">Indefinido</option>
+                <option value="Fijo">Término Fijo</option>
+                <option value="Prestación de Servicios">Prestación de Servicios</option>
               </select>
 
               <select 
@@ -246,6 +274,10 @@ export default function JobBoard() {
                     <CalendarDays className="w-4 h-4 text-brand-500" />
                     <span>Cierra: {new Date(job.closing_date).toLocaleDateString()}</span>
                   </div>
+                  <div className="flex items-center gap-2 text-sm text-ink-tertiary">
+                    <CheckCircle2 className="w-4 h-4 text-brand-500" />
+                    <span>{job.modality || 'Presencial'} • {job.contract_type || 'Indefinido'}</span>
+                  </div>
                 </div>
 
                 <button className="w-full btn-ghost border border-brand-200 text-brand-700 bg-brand-50 group-hover:bg-brand-600 group-hover:text-white transition-colors">
@@ -287,9 +319,9 @@ export default function JobBoard() {
                   {matches[selectedJob.id] !== undefined && (
                     <span className={twMerge(
                       'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shrink-0',
-                      matches[selectedJob.id] >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400' :
-                      matches[selectedJob.id] >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' :
-                      'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      matches[selectedJob.id] >= 75 ? 'bg-green-100 text-green-700' :
+                      matches[selectedJob.id] >= 50 ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-100 text-gray-600'
                     )}>
                       {Math.round(matches[selectedJob.id])}% de afinidad
                     </span>
@@ -315,7 +347,8 @@ export default function JobBoard() {
               </div>
               <button
                 onClick={() => setSelectedJob(null)}
-                className="text-ink-tertiary hover:text-ink transition-colors p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full shrink-0"
+                className="transition-colors p-2 rounded-full hover-bg-muted shrink-0"
+                style={{ color: 'var(--text-muted)' }}
                 aria-label="Cerrar"
               >
                 <X className="w-5 h-5" />
@@ -435,7 +468,7 @@ export default function JobBoard() {
               </div>
 
               {successMessage && (
-                <div className="p-3 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 rounded-xl border border-green-200 dark:border-green-800 flex items-center gap-2.5 animate-fade-in text-sm font-semibold">
+                <div className="p-3 rounded-xl border flex items-center gap-2.5 animate-fade-in text-sm font-semibold" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   <span>{successMessage}</span>
                 </div>

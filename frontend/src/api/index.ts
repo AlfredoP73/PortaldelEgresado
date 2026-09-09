@@ -55,6 +55,13 @@ api.interceptors.request.use((config) => {
 // Interceptor: si el backend devuelve 401, limpia sesión y redirige al login
 api.interceptors.response.use((res) => res, handleGlobalError);
 
+// API methods para SubProcesos
+export const createSubProcess = (applicationId: number, data: any) => 
+  api.post(`/applications/${applicationId}/sub-processes`, data);
+
+export const updateSubProcess = (subProcessId: number, data: any) => 
+  api.put(`/sub-processes/${subProcessId}`, data);
+
 export const graduatesApi = axios.create({
   baseURL: `${GRADUATES_URL}/api/modulo1`,
   headers: { 'Content-Type': 'application/json' },
@@ -104,5 +111,21 @@ export const getNotifications = (graduateId: number, soloNoLeidas = false) =>
 
 export const markNotificationRead = (notificationId: number) =>
   matchmakingApi.patch<MatchNotification>(`/notifications/${notificationId}/leido`);
+
+// ── Notificaciones de sistema (Auth) ─────────────────────────────────────────
+export interface AuthNotification {
+  id: number;
+  title: string;
+  message: string;
+  type: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export const getAuthNotifications = () =>
+  authApi.get<AuthNotification[]>('/notifications');
+
+export const markAuthNotificationRead = (notificationId: number) =>
+  authApi.put(`/notifications/${notificationId}/read`);
 
 export default api;

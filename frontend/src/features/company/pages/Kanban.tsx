@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../../api';
-import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical } from 'lucide-react';
+import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical, Plus } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
 import CandidateDetailsModal from '../../graduate/components/CandidateDetailsModal';
+import AddSubProcessModal from '../components/AddSubProcessModal';
+import RejectionModal from '../components/RejectionModal';
 
 interface JobOffer {
   id: number;
@@ -16,6 +19,7 @@ interface Application {
   candidate_id: number;
   status: string;
   application_date: string;
+  match_score?: number;
   graduate?: {
     first_name: string;
     last_name: string;
@@ -26,7 +30,7 @@ interface Application {
 
 const KANBAN_COLUMNS = [
   { id: 'POSTULADO', title: 'POSTULADOS', dotColor: 'bg-purple-400' },
-  { id: 'EN EVALUACION', title: 'EN EVALUACIÓN', dotColor: 'bg-yellow-400' },
+  { id: 'EN_EVALUACION', title: 'EN EVALUACIÓN', dotColor: 'bg-yellow-400' },
   { id: 'ENTREVISTADO', title: 'ENTREVISTADOS', dotColor: 'bg-blue-400' },
   { id: 'CONTRATADO', title: 'CONTRATADOS', dotColor: 'bg-brand-400' },
   { id: 'RECHAZADO', title: 'RECHAZADOS', dotColor: 'bg-red-400' },
@@ -40,6 +44,7 @@ export default function Kanban() {
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
   const [draggingAppId, setDraggingAppId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [addingSubProcessStage, setAddingSubProcessStage] = useState<string | null>(null);
 
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
@@ -80,11 +85,35 @@ export default function Kanban() {
     }
   };
 
-  const moveApplication = async (appId: number, newStatus: string) => {
+  const [selectedApps, setSelectedApps] = useState<number[]>([]);
+  const [rejectingAppId, setRejectingAppId] = useState<number | null>(null);
+  const [bulkRejecting, setBulkRejecting] = useState(false);
+
+  const toggleAppSelection = (appId: number) => {
+    setSelectedApps(prev => prev.includes(appId) ? prev.filter(id => id !== appId) : [...prev, appId]);
+  };
+
+  const handleBulkMove = async (newStatus: string, rejectionReason?: string) => {
+    if (isAdmin || selectedApps.length === 0) return;
+    try {
+      await api.post('/applications/bulk-update', {
+        application_ids: selectedApps,
+        status: newStatus,
+        rejection_reason: rejectionReason
+      });
+      setSelectedApps([]);
+      if (selectedJob) fetchApplications(selectedJob);
+      toast.success('Aplicaciones actualizadas');
+    } catch (error) {
+      toast.error('Error al actualizar');
+    }
+  };
+
+  const moveApplication = async (appId: number, newStatus: string, rejectionReason?: string) => {
     if (isAdmin) return;
     try {
       setApplications(prev => prev.map(app => app.id === appId ? { ...app, status: newStatus } : app));
-      await api.put(`/applications/${appId}/status`, { status: newStatus });
+      await api.put(`/applications/${appId}/status`, { status: newStatus, rejection_reason: rejectionReason });
       if (selectedJob) fetchApplications(selectedJob);
     } catch (error) {
       console.error('Error updating application status:', error);
@@ -113,7 +142,11 @@ export default function Kanban() {
     const appId = parseInt(appIdStr, 10);
     setDraggingAppId(null);
     if (!isNaN(appId)) {
-      moveApplication(appId, statusId);
+      if (statusId === 'RECHAZADO') {
+        setRejectingAppId(appId);
+      } else {
+        moveApplication(appId, statusId);
+      }
     }
   };
 
@@ -168,6 +201,47 @@ export default function Kanban() {
         </div>
       </div>
 
+      <AnimatePresence>
+        {selectedApps.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0, y: -10 }} 
+            animate={{ opacity: 1, height: 'auto', y: 0 }} 
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            className="bg-brand-50 border border-brand-200 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-brand-700 bg-white px-3 py-1 rounded-lg border border-brand-200 shadow-sm">{selectedApps.length} seleccionados</span>
+              <button 
+                onClick={() => setSelectedApps([])}
+                className="text-sm font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+              >
+                Limpiar selección
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-brand-700">Mover a:</span>
+              <select 
+                className="input py-1.5 px-3 text-sm min-w-[150px]"
+                onChange={(e) => {
+                  if (e.target.value === 'RECHAZADO') {
+                    setBulkRejecting(true);
+                  } else if (e.target.value) {
+                    handleBulkMove(e.target.value);
+                  }
+                  e.target.value = "";
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>Selecciona etapa...</option>
+                {KANBAN_COLUMNS.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!selectedJob ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -195,14 +269,23 @@ export default function Kanban() {
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col.id)}
                 >
-                  <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)]">
+                  <div className="px-4 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)] group">
                     <div className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${col.dotColor}`} />
                       <h3 className="font-semibold text-ink tracking-wide text-sm uppercase">{col.title}</h3>
+                      <span className="flex items-center justify-center bg-[var(--bg-muted)] text-ink-secondary w-5 h-5 rounded-full text-xs font-bold ml-1">
+                        {columnApps.length}
+                      </span>
                     </div>
-                    <span className="flex items-center justify-center bg-[var(--bg-muted)] text-ink-secondary w-7 h-7 rounded-full text-xs font-bold border border-[var(--border-color)]">
-                      {columnApps.length}
-                    </span>
+                    {!isAdmin && col.id !== 'CONTRATADO' && col.id !== 'RECHAZADO' && (
+                      <button 
+                        onClick={() => setAddingSubProcessStage(col.id)}
+                        title="Añadir Sub-proceso a esta etapa"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-brand-50 hover:text-brand-600 text-ink-tertiary rounded-md flex items-center justify-center"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   
                   <div className="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar relative">
@@ -233,7 +316,29 @@ export default function Kanban() {
                               draggingAppId === app.id ? "opacity-50 border-brand-500 scale-95 shadow-none" : ""
                             )}
                           >
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className={`absolute top-3 left-3 z-10 transition-opacity ${selectedApps.includes(app.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              {!isAdmin && (
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer shadow-sm border-gray-300"
+                                  checked={selectedApps.includes(app.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleAppSelection(app.id);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              )}
+                            </div>
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 z-10">
+                              {app.match_score !== undefined && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  app.match_score >= 80 ? 'bg-green-100 text-green-700' : 
+                                  app.match_score >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {Math.round(app.match_score)}% Match
+                                </span>
+                              )}
                                <button className="p-1 hover:bg-slate-100 rounded-md text-ink-tertiary hover:text-ink" onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }}>
                                  <MoreVertical className="w-4 h-4" />
                                </button>
@@ -242,7 +347,7 @@ export default function Kanban() {
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center text-brand-600 font-bold shrink-0 border border-brand-100 shadow-sm">
                                 {app.graduate ? `${app.graduate.first_name.charAt(0)}${app.graduate.last_name.charAt(0)}` : <User className="w-5 h-5" />}
                               </div>
-                              <div className="pr-5">
+                              <div className="pr-16">
                                 <h4 className="font-bold text-ink text-sm leading-tight">
                                   {app.graduate ? `${app.graduate.first_name} ${app.graduate.last_name}` : `Candidato #${app.candidate_id}`}
                                 </h4>
@@ -253,7 +358,7 @@ export default function Kanban() {
                               </div>
                             </div>
                             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{'Ver Perfil'}</span>
+                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{'Ver Perfil y Pruebas'}</span>
                               {!isAdmin && <span className="text-[10px] text-ink-tertiary uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">Arrastrar</span>}
                             </div>
                           </motion.div>
@@ -271,10 +376,41 @@ export default function Kanban() {
       <AnimatePresence>
         {selectedApplicationId && (
           <CandidateDetailsModal 
-            applicationId={selectedApplicationId} 
+            applicationId={selectedApplicationId}
+            application={applications.find(a => a.id === selectedApplicationId)}
+            onUpdateSubProcess={() => selectedJob && fetchApplications(selectedJob)}
             onClose={() => setSelectedApplicationId(null)} 
           />
         )}
+        
+        {addingSubProcessStage && selectedJob && (
+          <AddSubProcessModal 
+            jobId={selectedJob}
+            stage={addingSubProcessStage}
+            onClose={() => setAddingSubProcessStage(null)}
+            onSuccess={() => fetchApplications(selectedJob)}
+          />
+        )}
+        
+        <RejectionModal 
+          isOpen={!!rejectingAppId}
+          onClose={() => setRejectingAppId(null)}
+          onConfirm={(reason) => {
+            if (rejectingAppId) {
+              moveApplication(rejectingAppId, 'RECHAZADO', reason);
+              setRejectingAppId(null);
+            }
+          }}
+        />
+
+        <RejectionModal 
+          isOpen={bulkRejecting}
+          onClose={() => setBulkRejecting(false)}
+          onConfirm={(reason) => {
+            handleBulkMove('RECHAZADO', reason);
+            setBulkRejecting(false);
+          }}
+        />
       </AnimatePresence>
     </div>
   );

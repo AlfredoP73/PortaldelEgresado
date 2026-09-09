@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
     Mail, Lock, AlertCircle, Loader2, Eye, EyeOff,
     BookOpen, Users, Award, Briefcase, GraduationCap,
@@ -39,6 +39,12 @@ export default function Login() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
+        
+        if (isRegistering && roleId === 3 && !email.toLowerCase().endsWith('@unicesar.edu.co')) {
+            setError('Debes registrarte con tu correo institucional @unicesar.edu.co');
+            return;
+        }
+        
         setLoading(true);
         try {
             if (isRegistering) {
@@ -387,7 +393,20 @@ export default function Login() {
                                         )}
                                     </div>
 
-                                    {/* Error */}
+                                    {/* Forgot password - solo en modo login */}
+                                    {!isRegistering && (
+                                        <div className="text-right -mt-2">
+                                            <Link
+                                                to="/forgot-password"
+                                                style={{ fontSize: '13px', fontWeight: 600, color: '#22a86e', textDecoration: 'none' }}
+                                                onMouseEnter={e => (e.currentTarget.style.color = '#0e4832')}
+                                                onMouseLeave={e => (e.currentTarget.style.color = '#22a86e')}
+                                            >
+                                                ¿Olvidaste tu contraseña?
+                                            </Link>
+                                        </div>
+                                    )}
+
                                     {error && (
                                         <div className="flex items-start gap-3 rounded-xl px-4 py-3 text-sm animate-scale-in"
                                             style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  auth:
+    image: ${DOCKER_USER}/portal_auth:latest
+    env_file: .env
+    restart: always
+
+  companies:
+    image: ${DOCKER_USER}/portal_companies:latest
+    env_file: .env
+    restart: always
+
+  graduates:
+    image: ${DOCKER_USER}/portal_graduates:latest
+    env_file: .env
+    restart: always
+
+  matchmaking:
+    image: ${DOCKER_USER}/portal_matchmaking:latest
+    env_file: .env
+    restart: always
+
+  dashboard:
+    image: ${DOCKER_USER}/portal_dashboard:latest
+    env_file: .env
+    restart: always
+
+  # API Gateway Nginx para enrutar internamente a los 5 microservicios
+  api_gateway:
+    image: ${DOCKER_USER}/portal_api_gateway:latest
+    ports:
+      - "8000:80"
+    depends_on:
+      - auth
+      - companies
+      - graduates
+      - matchmaking
+      - dashboard
+    restart: always

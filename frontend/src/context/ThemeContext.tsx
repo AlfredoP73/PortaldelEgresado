@@ -29,9 +29,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     
     if (theme === 'dark') {
       factory = new DarkThemeFactory();
+      document.documentElement.classList.add('dark');
       document.body.classList.add('dark');
     } else {
       factory = new LightThemeFactory();
+      document.documentElement.classList.remove('dark');
       document.body.classList.remove('dark');
     }
 

@@ -103,3 +103,75 @@ Universidad Popular del Cesar
         print(f"[EMAIL] Correo de verificación enviado a {to_email}")
     except Exception as e:
         print(f"[EMAIL ERROR] No se pudo enviar correo a {to_email}: {e}")
+
+def send_password_reset_pin_email(to_email: str, pin: str):
+    """Envía un correo con el PIN de 6 dígitos para recuperar la contraseña."""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Código de Recuperación de Contraseña — Portal de Egresados UPC"
+    msg["From"] = SMTP_FROM_EMAIL
+    msg["To"] = to_email
+
+    text_body = f"""
+Has solicitado restablecer tu contraseña.
+
+Tu código de recuperación es: {pin}
+
+Este código es válido por 15 minutos. Si no solicitaste este cambio, ignora este correo.
+"""
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" style="max-width:560px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+    <!-- Header -->
+    <tr>
+      <td style="background:linear-gradient(135deg,#0e4832,#22a86e);padding:32px 40px;text-align:center;">
+        <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:700;">Recuperación de Contraseña</h1>
+        <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:6px 0 0;">Portal de Egresados UPC</p>
+      </td>
+    </tr>
+    <!-- Body -->
+    <tr>
+      <td style="padding:40px;text-align:center;">
+        <h2 style="color:#1e293b;font-size:20px;margin:0 0 12px;font-weight:700;">Tu código de seguridad</h2>
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          Ingresa el siguiente PIN de 6 dígitos en la aplicación para restablecer tu contraseña.
+        </p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:20px;">
+          <h1 style="color:#0e4832;font-size:36px;letter-spacing:6px;margin:0;">{pin}</h1>
+        </div>
+        <p style="color:#ef4444;font-size:13px;line-height:1.5;margin:0;">
+          * Este código expirará en 15 minutos.
+        </p>
+      </td>
+    </tr>
+    <!-- Footer -->
+    <tr>
+      <td style="padding:20px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+        <p style="color:#94a3b8;font-size:12px;margin:0;">
+          Si no solicitaste este cambio, por favor ignora este correo. Tu contraseña seguirá siendo la misma.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            if SMTP_USER and SMTP_PASS:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(msg["From"], [to_email], msg.as_string())
+        print(f"[EMAIL] PIN de recuperación enviado a {to_email}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] No se pudo enviar el PIN a {to_email}: {e}")

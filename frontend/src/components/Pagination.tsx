@@ -45,17 +45,17 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
     <div className="flex items-center justify-between py-4 mt-2">
       <div className="flex flex-1 items-center justify-between">
         <div className="hidden sm:block">
-          <p className="text-[13px] text-slate-500 dark:text-slate-400">
+          <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
             {'Mostrando'}{' '}
-            <span className="font-medium text-slate-900 dark:text-white">
+            <span className="font-medium" style={{ color: 'var(--text-main)' }}>
               {(currentPage - 1) * pageSize + 1}
             </span>{' '}
             {'a'}{' '}
-            <span className="font-medium text-slate-900 dark:text-white">
+            <span className="font-medium" style={{ color: 'var(--text-main)' }}>
               {Math.min(currentPage * pageSize, totalItems)}
             </span>{' '}
             {'de'}{' '}
-            <span className="font-medium text-slate-900 dark:text-white">{totalItems}</span>
+            <span className="font-medium" style={{ color: 'var(--text-main)' }}>{totalItems}</span>
           </p>
         </div>
 
@@ -63,7 +63,8 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg disabled:opacity-50 transition-colors hover-bg-muted"
+            style={{ color: 'var(--text-secondary)' }}
             aria-label={'Página anterior'}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -73,7 +74,7 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
             {paginationRange.map((pageNumber, index) => {
               if (pageNumber === '...') {
                 return (
-                  <div key={`ellipsis-${index}`} className="flex items-center justify-center w-8 h-8 text-slate-400">
+                  <div key={`ellipsis-${index}`} className="flex items-center justify-center w-8 h-8" style={{ color: 'var(--text-muted)' }}>
                     <MoreHorizontal className="h-4 w-4" />
                   </div>
                 );
@@ -83,10 +84,11 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
                 <button
                   key={`page-${pageNumber}`}
                   onClick={() => onPageChange(pageNumber as number)}
-                  className={`flex items-center justify-center w-8 h-8 rounded-lg text-[13px] font-medium transition-colors ${currentPage === pageNumber
+                  className={`flex items-center justify-center w-8 h-8 rounded-lg text-[13px] font-medium transition-colors hover-bg-muted ${currentPage === pageNumber
                       ? 'bg-brand-600 text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      : ''
                     }`}
+                  style={currentPage !== pageNumber ? { color: 'var(--text-secondary)' } : {}}
                 >
                   {pageNumber}
                 </button>
@@ -97,7 +99,8 @@ export default function Pagination({ currentPage, totalItems, pageSize, onPageCh
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg disabled:opacity-50 transition-colors hover-bg-muted"
+            style={{ color: 'var(--text-secondary)' }}
             aria-label={'Página siguiente'}
           >
             <ChevronRight className="h-4 w-4" />

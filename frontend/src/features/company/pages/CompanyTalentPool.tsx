@@ -300,7 +300,7 @@ export default function CompanyTalentPool() {
                 <h3 className="text-xl font-bold text-ink font-heading">{'Perfil de Talento'}</h3>
                 <p className="text-sm text-brand-600 font-semibold">{selectedGraduate.first_name} {selectedGraduate.last_name}</p>
               </div>
-              <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              <button onClick={() => setSelectedGraduate(null)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -308,14 +308,14 @@ export default function CompanyTalentPool() {
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Contact & CV Row */}
               <div className="flex flex-col md:flex-row gap-6 items-start">
-                <div className="flex-1 bg-brand-50 dark:bg-brand-950/20 p-5 rounded-2xl border border-brand-100 dark:border-brand-900/30 w-full">
-                  <h4 className="text-lg font-bold text-brand-900 dark:text-brand-300 mb-3">{'Información de Contacto'}</h4>
+                <div className="flex-1 p-5 rounded-2xl border w-full" style={{ backgroundColor: 'rgba(8, 116, 67, 0.05)', borderColor: 'rgba(8, 116, 67, 0.2)' }}>
+                  <h4 className="text-lg font-bold mb-3" style={{ color: 'var(--accent-primary)' }}>{'Información de Contacto'}</h4>
                   <div className="space-y-2">
                     {selectedGraduate.email && (
-                      <p className="text-sm text-brand-800 dark:text-brand-400"><span className="font-semibold">{'Correo'}:</span> {selectedGraduate.email}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-main)' }}><span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{'Correo'}:</span> {selectedGraduate.email}</p>
                     )}
                     {selectedGraduate.phone && (
-                      <p className="text-sm text-brand-800 dark:text-brand-400"><span className="font-semibold">{'Teléfono:'}</span> {selectedGraduate.phone}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-main)' }}><span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{'Teléfono:'}</span> {selectedGraduate.phone}</p>
                     )}
                   </div>
                   {selectedGraduate.email && (
@@ -328,7 +328,7 @@ export default function CompanyTalentPool() {
                 <div className="flex-1 bg-[var(--bg-muted)] p-5 rounded-2xl border border-[var(--border-color)] w-full">
                   <h4 className="text-lg font-bold text-ink mb-3">{'Hoja de Vida (CV)'}</h4>
                   {selectedGraduate.cv_url ? (
-                    <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 text-brand-700 dark:text-brand-400 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-50 border border-brand-200 dark:border-brand-800 shadow-sm w-full justify-center">
+                    <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-colors shadow-sm w-full justify-center" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)' }}>
                       <ExternalLink className="w-4 h-4" /> {'Ver Hoja de Vida'}
                     </a>
                   ) : (
@@ -358,7 +358,7 @@ export default function CompanyTalentPool() {
                         <p className="text-sm font-semibold text-brand-600">{exp.company_name}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}</p>
                         {exp.certificate_url && (
-                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
+                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
                             <FileText className="w-3 h-3" /> {'Certificado Adjunto'}
                           </a>
                         )}
@@ -380,7 +380,7 @@ export default function CompanyTalentPool() {
                         <p className="text-sm font-semibold text-brand-600">{edu.institution}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : 'En curso'}</p>
                         {edu.diploma_url && (
-                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
+                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
                             <FileText className="w-3 h-3" /> {'Diploma Adjunto'}
                           </a>
                         )}

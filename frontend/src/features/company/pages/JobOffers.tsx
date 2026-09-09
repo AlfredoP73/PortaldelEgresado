@@ -79,6 +79,7 @@ export default function JobOffers() {
         min_experience_years: Number(formData.get('min_experience_years')) || 0,
         program_id: Number(formData.get('program_id')),
         closing_date: formData.get('closing_date'),
+        available_slots: Number(formData.get('available_slots')) || 1,
         required_skills: selectedSkills.map(id => ({ skill_id: id, required_level: "Intermedio" }))
       });
       setIsModalOpen(false);
@@ -235,7 +236,7 @@ export default function JobOffers() {
           <>
             <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <h3 className="text-2xl font-bold text-ink font-heading">{selectedJob.title}</h3>
-              <button onClick={() => setSelectedJob(null)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              <button onClick={() => setSelectedJob(null)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -291,7 +292,7 @@ export default function JobOffers() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="max-w-3xl">
         <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
           <h3 className="text-xl font-bold text-ink font-heading">Publicar Nueva Vacante</h3>
-          <button onClick={() => setIsModalOpen(false)} className="text-ink-tertiary hover:text-ink p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+          <button onClick={() => setIsModalOpen(false)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -324,7 +325,7 @@ export default function JobOffers() {
               <input name="salary_max" type="number" className="input" placeholder="5000000" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-ink-secondary mb-1">Programa Académico</label>
               <select name="program_id" className="input" required>
@@ -335,6 +336,10 @@ export default function JobOffers() {
             <div>
               <label className="block text-sm font-semibold text-ink-secondary mb-1">Fecha de Cierre</label>
               <input name="closing_date" type="date" className="input" required />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Cupos Disponibles</label>
+              <input name="available_slots" type="number" className="input" defaultValue={1} min="1" required />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
