@@ -10,7 +10,7 @@ echo "Iniciando configuración del entorno de ejecución (Fase 6)..."
 
 # 1. Actualizar e instalar dependencias básicas y Docker
 sudo dnf update -y
-sudo dnf install -y docker git curl unzip
+sudo dnf install -y docker git unzip
 
 # Habilitar y arrancar Docker
 sudo systemctl start docker
