@@ -43,6 +43,12 @@ fi
 
 # 3. Lanzar la aplicación usando el docker-compose de la raíz que orquesta todo
 echo "Iniciando contenedores (Lift & Shift)..."
+
+# Obtener IP pública dinámica de AWS (usando IMDSv2 para Amazon Linux 2023) e inyectarla
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" -s)
+PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/public-ipv4)
+sed -i "s|PUBLIC_IP_PLACEHOLDER|$PUBLIC_IP|g" docker-compose.yml
+
 sudo docker-compose pull
 sudo docker-compose up -d
 

@@ -20,6 +20,17 @@ backend/uploads/
 .vscode/
 *.swp
 
-# Sistema
-.DS_Store
-Thumbs.db
+# Terraform files
+.terraform/
+.terraform.*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
