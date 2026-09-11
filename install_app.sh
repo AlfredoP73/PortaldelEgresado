@@ -21,6 +21,11 @@ sudo usermod -aG docker ec2-user
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
+# Instalar Docker Buildx (Requerido por Docker Compose v2 para hacer builds)
+sudo mkdir -p /usr/libexec/docker/cli-plugins
+sudo curl -L "https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64" -o /usr/libexec/docker/cli-plugins/docker-buildx
+sudo chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+
 # 2. Replicar el entorno de ejecución
 echo "Clonando repositorio de la aplicación..."
 mkdir -p /home/ec2-user/app
