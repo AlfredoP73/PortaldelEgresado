@@ -4,7 +4,7 @@ import { graduatesApi } from '../../../api';
 import { GraduationCap, Plus, Trash2, Upload, Loader2, X, Save, FileText } from 'lucide-react';
 import Modal from '../../../components/Modal';
 
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
 interface AcademicHistory {
   id: number;

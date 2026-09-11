@@ -40,7 +40,7 @@ export default function VerifyPin() {
 
     setIsLoading(true);
     try {
-      const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8080';
+      const AUTH_URL = import.meta.env.VITE_AUTH_URL !== undefined ? import.meta.env.VITE_AUTH_URL : 'http://localhost:8080';
       const res = await fetch(`${AUTH_URL}/api/auth/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

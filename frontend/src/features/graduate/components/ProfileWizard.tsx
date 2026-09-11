@@ -55,7 +55,7 @@ export default function ProfileWizard({ initialProfile, programs, onClose, onCom
   const [diplomaFile, setDiplomaFile] = useState<File | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
 
-  const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+  const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
   // --- Handlers ---
   const handleSaveStep1 = async (e: React.FormEvent) => {

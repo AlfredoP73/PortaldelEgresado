@@ -5,7 +5,7 @@ import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
 
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
 interface JobOffer {
   id: number;

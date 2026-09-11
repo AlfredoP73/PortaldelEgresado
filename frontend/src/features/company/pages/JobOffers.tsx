@@ -52,7 +52,7 @@ export default function JobOffers() {
       const [jobsRes, progRes, skillsRes] = await Promise.all([
         api.get('/jobs'),
         api.get('/programs').catch(() => ({ data: [] })),
-        fetch(import.meta.env.VITE_GRADUATES_URL ? `${import.meta.env.VITE_GRADUATES_URL}/api/modulo1/skills` : 'http://localhost:8003/api/modulo1/skills').then(r => r.json()).catch(() => [])
+        fetch(import.meta.env.VITE_GRADUATES_URL !== undefined ? `${import.meta.env.VITE_GRADUATES_URL}/api/modulo1/skills` : 'http://localhost:8003/api/modulo1/skills').then(r => r.json()).catch(() => [])
       ]);
       setJobs(jobsRes.data);
       setPrograms(progRes.data);

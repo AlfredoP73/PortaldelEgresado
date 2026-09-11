@@ -1,5 +1,5 @@
 const DASHBOARD_URL =
-  import.meta.env.VITE_DASHBOARD_URL || 'http://localhost:8004'
+  import.meta.env.VITE_DASHBOARD_URL !== undefined ? import.meta.env.VITE_DASHBOARD_URL : 'http://localhost:8004'
 
 export interface DashboardData {
   summary: {

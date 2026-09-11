@@ -4,7 +4,7 @@ import api from '../../../api';
 import { X, ExternalLink, GraduationCap, Briefcase, FileText, Star } from 'lucide-react';
 import Modal from '../../../components/Modal';
 
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
 interface WorkExperience {
   id: number;

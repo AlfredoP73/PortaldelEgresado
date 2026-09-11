@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
 interface WorkExperience {
   id: number;
