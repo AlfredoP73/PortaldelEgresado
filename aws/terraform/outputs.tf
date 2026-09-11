@@ -1,9 +1,9 @@
-output "alb_dns_name" {
-  description = "DNS del Balanceador de Carga. Usar esta URL para acceder a la aplicación."
-  value       = aws_lb.main_alb.dns_name
+output "public_ip" {
+  description = "Dirección IP pública del servidor"
+  value       = aws_instance.main_server.public_ip
 }
 
-output "db_private_ip" {
-  description = "IP privada de la instancia de Base de Datos"
-  value       = aws_instance.db_instance.private_ip
+output "public_dns" {
+  description = "DNS público del servidor para acceder a la aplicación"
+  value       = aws_instance.main_server.public_dns
 }

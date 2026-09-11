@@ -1,8 +1,0 @@
-version: '3.8'
-
-services:
-  frontend:
-    image: ${DOCKER_USER}/portal_frontend:latest
-    ports:
-      - "80:80"
-    restart: always
