@@ -92,3 +92,9 @@ resource "aws_instance" "main_server" {
     Name = "PortalEgresado-Server"
   }
 }
+
+# --- Configuración Dinámica de la App Móvil ---
+resource "local_file" "mobile_env" {
+  content  = "# Generado automáticamente por Terraform\nAPI_BASE_URL=http://${aws_instance.main_server.public_ip}/api\n"
+  filename = "${path.module}/../../mobile_app/.env"
+}

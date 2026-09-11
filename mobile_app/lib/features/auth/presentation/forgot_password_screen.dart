@@ -27,6 +27,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _errorMessage = 'Por favor ingresa tu correo');
       return;
     }
+    
+    // Validación estricta con Regex
+    final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+    if (!emailRegex.hasMatch(email)) {
+      setState(() => _errorMessage = 'Ingresa un correo con formato válido (ej. usuario@upc.edu.co)');
+      return;
+    }
 
     setState(() { _isLoading = true; _errorMessage = null; _successMessage = null; });
     try {
