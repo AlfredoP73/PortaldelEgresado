@@ -3,25 +3,28 @@ set -e
 
 # ==============================================================================
 # Script de inicialización para AWS EC2 (User Data o ejecución manual)
-# Diseñado para ubuntu 22.04 LTS (según Fase 1)
+# Diseñado para Amazon Linux 2023
 # ==============================================================================
 
 echo "Iniciando configuración del entorno de ejecución (Fase 6)..."
 
 # 1. Actualizar e instalar dependencias básicas y Docker
-sudo apt-get update -y
-sudo apt-get install -y docker.io curl git unzip
-sudo apt-get install -y docker-compose
+sudo dnf update -y
+sudo dnf install -y docker git curl unzip
 
 # Habilitar y arrancar Docker
 sudo systemctl start docker
 sudo systemctl enable docker
-sudo usermod -aG docker ubuntu
+sudo usermod -aG docker ec2-user
+
+# Instalar Docker Compose (binario independiente)
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
 
 # 2. Replicar el entorno de ejecución
 echo "Clonando repositorio de la aplicación..."
-mkdir -p /home/ubuntu/app
-cd /home/ubuntu/app
+mkdir -p /home/ec2-user/app
+cd /home/ec2-user/app
 
 # Variables del repositorio (ajustar si es privado)
 GITHUB_USER="AlfredoP73"

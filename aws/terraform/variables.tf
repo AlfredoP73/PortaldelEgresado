@@ -9,8 +9,8 @@ variable "instance_type" {
 }
 
 variable "ami_id" {
-  description = "ID de la AMI de Ubuntu 22.04 LTS (us-east-1)"
-  default     = "ami-0c7217cdde317cfec" 
+  description = "ID de la AMI de Amazon Linux 2023 (us-east-1)"
+  default     = "ami-0354c98ae10b02961" 
 }
 
 variable "key_name" {
