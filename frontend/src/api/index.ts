@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8002';
-const COMPANIES_URL = import.meta.env.VITE_COMPANIES_URL || 'http://localhost:8001';
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
-const MATCHMAKING_URL = import.meta.env.VITE_MATCHMAKING_URL || 'http://localhost:8005';
+const AUTH_URL = import.meta.env.VITE_AUTH_URL !== undefined ? import.meta.env.VITE_AUTH_URL : 'http://localhost:8002';
+const COMPANIES_URL = import.meta.env.VITE_COMPANIES_URL !== undefined ? import.meta.env.VITE_COMPANIES_URL : 'http://localhost:8001';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
+const MATCHMAKING_URL = import.meta.env.VITE_MATCHMAKING_URL !== undefined ? import.meta.env.VITE_MATCHMAKING_URL : 'http://localhost:8005';
 
 // ── Cliente de autenticación ─────────────────────────────────────────────────
 export const authApi = axios.create({
