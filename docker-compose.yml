@@ -133,7 +133,7 @@ services:
 
   # ── MinIO para Almacenamiento de Archivos (S3) ─────────────────────────
   minio:
-    image: minio/minio:RELEASE.2024-01-28T22-35-53Z
+    image: quay.io/minio/minio
     container_name: portaldel_egresado_minio
     ports:
       - "9000:9000"
