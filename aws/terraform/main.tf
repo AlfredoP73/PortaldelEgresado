@@ -28,19 +28,24 @@ data "aws_subnets" "default" {
   }
 }
 
+# Obtener IP Pública Dinámicamente para SSH
+data "http" "myip" {
+  url = "http://ipv4.icanhazip.com"
+}
+
 # --- Security Group de Mínimo Privilegio ---
 resource "aws_security_group" "instance_sg" {
   name        = "portal-egresado-sg"
   description = "Grupo de seguridad con minimo privilegio para el servidor principal"
   vpc_id      = data.aws_vpc.default.id
 
-  # Acceso Administrativo
+  # Acceso Administrativo (Restringido solo a tu IP)
   ingress {
     description = "SSH para administracion manual"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${chomp(data.http.myip.response_body)}/32"]
   }
 
   # Tráfico web
