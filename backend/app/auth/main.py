@@ -19,9 +19,11 @@ app.add_middleware(
 )
 
 from app.auth.controllers.auth_controller import router, internal_router
+from app.auth.controllers.privacy_controller import router as privacy_router
 
 app.include_router(router)
 app.include_router(internal_router)
+app.include_router(privacy_router)
 
 
 @app.get("/")

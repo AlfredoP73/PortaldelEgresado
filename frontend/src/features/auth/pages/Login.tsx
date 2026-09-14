@@ -35,6 +35,8 @@ export default function Login() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+    const [authorizeData, setAuthorizeData] = useState(false);
     
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -48,7 +50,18 @@ export default function Login() {
         setLoading(true);
         try {
             if (isRegistering) {
-                await authApi.post('/register', { email, password, role_id: roleId });
+                if (!acceptPrivacy || !authorizeData) {
+                    setError('Debes aceptar las políticas y autorizar el tratamiento de datos para continuar.');
+                    setLoading(false);
+                    return;
+                }
+                await authApi.post('/register', { 
+                    email, 
+                    password, 
+                    role_id: roleId,
+                    accept_privacy_policy: acceptPrivacy,
+                    authorize_data_treatment: authorizeData
+                });
                 setRegistrationSuccess(true);
             } else {
                 const { data } = await authApi.post('/login', { email, password });
@@ -415,16 +428,33 @@ export default function Login() {
                                         </div>
                                     )}
 
+                                    {isRegistering && (
+                                        <div className="space-y-3 pt-2">
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input type="checkbox" checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                <span className="text-[12px] text-slate-600 leading-tight">
+                                                    He leído y acepto el <a href="/aviso-privacidad" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Aviso de Privacidad</a> de la Universidad Popular del Cesar. <span className="text-red-500">*</span>
+                                                </span>
+                                            </label>
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input type="checkbox" checked={authorizeData} onChange={e => setAuthorizeData(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                <span className="text-[12px] text-slate-600 leading-tight">
+                                                    Autorizo de manera previa, expresa e informada a la UPC para el <a href="/tratamiento-datos" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Tratamiento de mis Datos Personales</a> conforme a la Ley 1581 de 2012. <span className="text-red-500">*</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    )}
+
                                     {/* Submit */}
                                     <button type="submit"
-                                        disabled={loading || (isRegistering && strength < 2)}
+                                        disabled={loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))}
                                         style={{
                                             width: '100%', padding: '0.95rem', borderRadius: '14px', marginTop: '0.5rem',
                                             background: 'linear-gradient(135deg, #22a86e 0%, #0e4832 100%)',
                                             boxShadow: '0 4px 18px rgba(21,138,88,0.32)',
                                             color: '#fff', fontWeight: 700, fontSize: '15px',
                                             border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                                            opacity: (loading || (isRegistering && strength < 2)) ? 0.55 : 1,
+                                            opacity: (loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))) ? 0.55 : 1,
                                             transition: 'all 0.18s ease',
                                         }}
                                         onMouseEnter={e => { if (!loading) { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 26px rgba(21,138,88,0.42)'; } }}

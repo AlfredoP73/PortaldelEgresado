@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
+import PrivacyBlocker from "./PrivacyBlocker";
 
 interface ProtectedRouteProps {
   allowedRoles?: string[];
@@ -16,6 +17,10 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
     if (!token || !user) {
         return <Navigate to="/login" replace />;
+    }
+
+    if (!user.privacy_policy_accepted) {
+        return <PrivacyBlocker onAccepted={() => window.location.reload()} />;
     }
 
     if (allowedRoles && !allowedRoles.includes(user.role_name)) {

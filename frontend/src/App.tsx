@@ -8,6 +8,7 @@ import VerifyEmail from './features/auth/pages/VerifyEmail';
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import VerifyPin from './features/auth/pages/VerifyPin';
 import ResetPassword from './features/auth/pages/ResetPassword';
+import PrivacySettings from './features/auth/pages/PrivacySettings';
 import Maintenance from './pages/Maintenance';
 import Companies from './features/company/pages/Companies';
 import JobOffers from './features/company/pages/JobOffers';
@@ -64,6 +65,14 @@ export default function App() {
             <Route
               path="/admin/settings"
               element={<Layout><AdminSettings /></Layout>}
+            />
+          </Route>
+
+          {/* Rutas para todos los roles logueados */}
+          <Route element={<ProtectedRoute />}>
+            <Route
+              path="/privacy-settings"
+              element={<Layout><PrivacySettings /></Layout>}
             />
           </Route>
 

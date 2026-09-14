@@ -26,8 +26,6 @@ services:
       dockerfile: ./app/auth/Dockerfile
     container_name: portaldel_egresado_auth
     command: uvicorn app.auth.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8002:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/auth_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}
@@ -47,8 +45,6 @@ services:
       dockerfile: ./app/companies/Dockerfile
     container_name: portaldel_egresado_companies
     command: uvicorn app.companies.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8001:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/companies_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}
@@ -71,8 +67,6 @@ services:
       dockerfile: ./app/graduates/Dockerfile
     container_name: portaldel_egresado_graduates
     command: uvicorn app.graduates.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8003:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/graduates_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}
@@ -99,8 +93,6 @@ services:
       dockerfile: ./app/dashboard/Dockerfile
     container_name: portaldel_egresado_dashboard
     command: uvicorn app.dashboard.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8004:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/auth_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}
@@ -125,8 +117,6 @@ services:
       dockerfile: ./app/matchmaking/Dockerfile
     container_name: portaldel_egresado_matchmaking
     command: uvicorn app.matchmaking.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8005:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/matchmaking_db
       SECRET_KEY: ${SECRET_KEY:-cambia_esto_en_produccion_usa_32_chars}
@@ -223,14 +213,12 @@ services:
     build:
       context: ./frontend
     container_name: portaldel_egresado_frontend
-    ports:
-      - "5176:5176"
     environment:
-      VITE_AUTH_URL: "http://localhost:8002"
-      VITE_COMPANIES_URL: "http://localhost:8001"
-      VITE_GRADUATES_URL: "http://localhost:8003"
-      VITE_DASHBOARD_URL: "http://localhost:8004"
-      VITE_MATCHMAKING_URL: "http://localhost:8005"
+      VITE_AUTH_URL: ""
+      VITE_COMPANIES_URL: ""
+      VITE_GRADUATES_URL: ""
+      VITE_DASHBOARD_URL: ""
+      VITE_MATCHMAKING_URL: ""
     depends_on:
       - auth
       - companies

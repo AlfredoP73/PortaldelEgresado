@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from jose import JWTError, jwt
 import os
 import uuid
@@ -28,7 +29,22 @@ def get_user_from_token(token: str, db: Session) -> models.User:
                             detail="Usuario no encontrado")
     return user
 
-def authenticate_user(body: schemas.LoginRequest, db: Session) -> schemas.TokenResponse:
+def log_audit_action(db: Session, user_id: int | None, action: str, target_id: str = None, details: dict = None, ip_address: str = None):
+    try:
+        audit = models.AuditLog(
+            user_id=user_id,
+            action=action,
+            target_id=target_id,
+            details=details,
+            ip_address=ip_address
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Error saving audit log: {e}")
+        db.rollback()
+
+def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = "unknown") -> schemas.TokenResponse:
     user = db.query(models.User).filter(
         models.User.email == body.email,
         models.User.is_active == True,
@@ -60,6 +76,10 @@ def authenticate_user(body: schemas.LoginRequest, db: Session) -> schemas.TokenR
         "role_id": user.role_id
     }
     token = create_access_token(data=data_payload)
+    
+    # Registro de auditoría
+    log_audit_action(db, user_id=user.id, action="LOGIN", ip_address=client_ip)
+    
     return schemas.TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -69,10 +89,12 @@ def authenticate_user(body: schemas.LoginRequest, db: Session) -> schemas.TokenR
             role_id=user.role_id,
             role_name=user.role.name,
             email_verified=user.email_verified,
+            privacy_policy_accepted=user.privacy_policy_accepted,
+            data_treatment_authorized=user.data_treatment_authorized,
         ),
     )
 
-def register_user(body: schemas.RegisterRequest, db: Session) -> dict:
+def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "unknown") -> dict:
     if db.query(models.User).filter(models.User.email == body.email).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Ya existe un usuario con ese email")
@@ -89,10 +111,18 @@ def register_user(body: schemas.RegisterRequest, db: Session) -> dict:
         role_id=body.role_id,
         email_verified=False,
         verification_token=verification_token,
+        privacy_policy_accepted=body.accept_privacy_policy,
+        data_treatment_authorized=body.authorize_data_treatment,
+        consent_version="v1.0",
+        consent_date=func.now(),
+        consent_ip=client_ip
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Registro de auditoría
+    log_audit_action(db, user_id=new_user.id, action="REGISTER", details={"role_id": body.role_id}, ip_address=client_ip)
 
     # Send verification email
     notifier = NotificationFactory.get_notifier("email")
@@ -148,6 +178,10 @@ def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, 
         "role_id": target_user.role_id
     }
     new_token = create_access_token(data=data_payload)
+    
+    # Auditoria de impersonacion
+    log_audit_action(db, user_id=admin_user.id, action="IMPERSONATE", target_id=str(target_user.id))
+    
     return schemas.TokenResponse(
         access_token=new_token,
         token_type="bearer",
@@ -157,6 +191,8 @@ def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, 
             role_id=target_user.role_id,
             role_name=target_user.role.name,
             email_verified=target_user.email_verified,
+            privacy_policy_accepted=target_user.privacy_policy_accepted,
+            data_treatment_authorized=target_user.data_treatment_authorized,
         ),
     )
 
@@ -172,6 +208,8 @@ def get_all_users(admin_user: models.User, db: Session) -> list[schemas.UserInfo
             role_id=u.role_id,
             role_name=u.role.name,
             email_verified=u.email_verified,
+            privacy_policy_accepted=u.privacy_policy_accepted,
+            data_treatment_authorized=u.data_treatment_authorized,
         )
         for u in users
     ]

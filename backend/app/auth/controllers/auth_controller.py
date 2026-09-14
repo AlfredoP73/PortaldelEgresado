@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -14,9 +14,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 # ── POST /api/auth/login ─────────────────────────────────────────────────────
 @router.post("/login", response_model=schemas.TokenResponse)
-def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, body: schemas.LoginRequest, db: Session = Depends(get_db)):
     """Recibe email + password y devuelve JWT."""
-    return auth_service.authenticate_user(body, db)
+    client_ip = request.client.host if request.client else "unknown"
+    return auth_service.authenticate_user(body, db, client_ip)
 
 
 # ── GET /api/auth/users ──────────────────────────────────────────────────────
@@ -37,9 +38,10 @@ def impersonate(body: schemas.ImpersonateRequest, token: str = Depends(oauth2_sc
 
 # ── POST /api/auth/register ──────────────────────────────────────────────────
 @router.post("/register", response_model=schemas.RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register(body: schemas.RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, body: schemas.RegisterRequest, db: Session = Depends(get_db)):
     """Crea un nuevo usuario. Rol por defecto: COMPANY (role_id=2)."""
-    return auth_service.register_user(body, db)
+    client_ip = request.client.host if request.client else "unknown"
+    return auth_service.register_user(body, db, client_ip)
 
 
 # ── GET /api/auth/verify ─────────────────────────────────────────────────────
