@@ -226,11 +226,11 @@ services:
     ports:
       - "5176:5176"
     environment:
-      VITE_AUTH_URL: "http://localhost:8002"
-      VITE_COMPANIES_URL: "http://localhost:8001"
-      VITE_GRADUATES_URL: "http://localhost:8003"
-      VITE_DASHBOARD_URL: "http://localhost:8004"
-      VITE_MATCHMAKING_URL: "http://localhost:8005"
+      VITE_AUTH_URL: "${VITE_AUTH_URL:-}"
+      VITE_COMPANIES_URL: "${VITE_COMPANIES_URL:-}"
+      VITE_GRADUATES_URL: "${VITE_GRADUATES_URL:-}"
+      VITE_DASHBOARD_URL: "${VITE_DASHBOARD_URL:-}"
+      VITE_MATCHMAKING_URL: "${VITE_MATCHMAKING_URL:-}"
     depends_on:
       - auth
       - companies
