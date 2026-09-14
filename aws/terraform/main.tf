@@ -39,13 +39,13 @@ resource "aws_security_group" "instance_sg" {
   description = "Grupo de seguridad con minimo privilegio para el servidor principal"
   vpc_id      = data.aws_vpc.default.id
 
-  # Acceso Administrativo (Restaurado a 0.0.0.0/0 para permitir la consola web de AWS)
+  # Acceso Administrativo (Restringido solo a tu IP actual)
   ingress {
     description = "SSH para administracion manual"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${chomp(data.http.myip.response_body)}/32"]
   }
 
   # Tráfico web
