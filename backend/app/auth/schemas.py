@@ -15,6 +15,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role_id: int = 2  # Default: COMPANY
+    accept_privacy_policy: bool
+    authorize_data_treatment: bool
 
     @model_validator(mode='after')
     def validate_graduate_email(self):
@@ -22,6 +24,12 @@ class RegisterRequest(BaseModel):
             domain = self.email.split('@')[-1].lower()
             if domain not in ALLOWED_GRADUATE_EMAIL_DOMAINS:
                 raise ValueError("Debes registrarte con tu correo institucional @unicesar.edu.co")
+        
+        if not self.accept_privacy_policy:
+            raise ValueError("Debes aceptar el aviso de privacidad para registrarte.")
+        if not self.authorize_data_treatment:
+            raise ValueError("Debes autorizar el tratamiento de tus datos personales.")
+            
         return self
 
 
@@ -42,6 +50,8 @@ class UserInfo(BaseModel):
     role_id: int
     role_name: str
     email_verified: bool = False
+    privacy_policy_accepted: bool = False
+    data_treatment_authorized: bool = False
 
     class Config:
         from_attributes = True

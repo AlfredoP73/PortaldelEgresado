@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -26,6 +26,12 @@ class User(Base):
     password_reset_pin = Column(String(6), nullable=True)
     pin_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    privacy_policy_accepted = Column(Boolean, default=False)
+    data_treatment_authorized = Column(Boolean, default=False)
+    consent_version = Column(String(50), nullable=True)
+    consent_date = Column(DateTime(timezone=True), nullable=True)
+    consent_ip = Column(String(50), nullable=True)
 
     role = relationship("Role", back_populates="users")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
@@ -43,3 +49,15 @@ class Notification(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="notifications")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String(100), nullable=False)
+    target_id = Column(String(100), nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

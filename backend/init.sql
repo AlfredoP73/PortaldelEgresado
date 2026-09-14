@@ -27,7 +27,12 @@ CREATE TABLE users (
     verification_token VARCHAR(255),
     password_reset_pin VARCHAR(10),
     pin_expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    privacy_policy_accepted BOOLEAN DEFAULT FALSE,
+    data_treatment_authorized BOOLEAN DEFAULT FALSE,
+    consent_version VARCHAR(50),
+    consent_date TIMESTAMP,
+    consent_ip VARCHAR(50)
 );
 
 CREATE TABLE notifications (
@@ -37,6 +42,16 @@ CREATE TABLE notifications (
     message TEXT NOT NULL,
     type VARCHAR(50),
     is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    target_id VARCHAR(100),
+    details JSONB,
+    ip_address VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
