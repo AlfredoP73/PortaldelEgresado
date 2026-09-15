@@ -5,6 +5,10 @@ import { Search, MapPin, Building2, Briefcase, CalendarDays, CheckCircle2, Dolla
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import { Joyride } from 'react-joyride';
+import type { Step } from 'react-joyride';
 
 interface JobOffer {
   id: number;
@@ -47,6 +51,25 @@ export default function GraduateMatchmaking() {
   const pageSize = 9;
   
   const [successMessage, setSuccessMessage] = useState('');
+
+  const [{ run, steps }] = useState({
+    run: true,
+    steps: [
+      {
+        target: '.page-title',
+        content: '¡Descubre ofertas hechas a tu medida! Aquí te sugerimos vacantes basadas en la afinidad con tu perfil.',
+        disableBeacon: true,
+      },
+      {
+        target: '.filters-section',
+        content: 'Usa estos filtros para afinar tu búsqueda por salario, sector, ciudad o modalidad.',
+      },
+      {
+        target: '.job-card',
+        content: 'Haz clic en una oferta para ver los detalles completos y postularte.',
+      }
+    ] as Step[]
+  });
 
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
@@ -132,13 +155,13 @@ export default function GraduateMatchmaking() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Sugeridas para ti</h2>
+          <h2 className="text-2xl font-bold tracking-tight page-title" style={{ color: 'var(--text-main)' }}>Sugeridas para ti</h2>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Vacantes recomendadas según la afinidad de tu perfil y habilidades.</p>
         </div>
       </div>
 
       {/* Filters/Search */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden filters-section">
         <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
@@ -215,9 +238,25 @@ export default function GraduateMatchmaking() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-        </div>
+        <SkeletonTheme baseColor="var(--bg-muted)" highlightColor="var(--bg-surface)">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="card p-6 flex flex-col h-[280px]">
+                <div className="mb-4">
+                  <Skeleton height={24} width="80%" className="mb-2" />
+                  <Skeleton height={16} width="60%" />
+                  <Skeleton height={20} width={100} className="mt-3 rounded-full" />
+                </div>
+                <div className="space-y-3 mb-6 flex-1">
+                  <Skeleton height={16} width="90%" />
+                  <Skeleton height={16} width="70%" />
+                  <Skeleton height={16} width="80%" />
+                </div>
+                <Skeleton height={40} className="rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </SkeletonTheme>
       ) : (
         filteredJobs.length === 0 ? (
           <div className="card p-12 text-center">
@@ -228,7 +267,7 @@ export default function GraduateMatchmaking() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedJobs.map(job => (
-              <div key={job.id} className="card p-6 flex flex-col hover:-translate-y-1 transition-all duration-300 group cursor-pointer" onClick={() => setSelectedJob(job)}>
+              <div key={job.id} className="card p-6 flex flex-col hover:-translate-y-1 transition-all duration-300 group cursor-pointer job-card" onClick={() => setSelectedJob(job)}>
                 <div className="mb-4">
                   <h3 className="text-lg font-bold text-ink group-hover:text-brand-600 transition-colors line-clamp-1">{job.title}</h3>
                   <p className="text-ink-secondary font-medium mt-1 flex items-center gap-1.5">
@@ -465,6 +504,16 @@ export default function GraduateMatchmaking() {
           </>
         )}
       </Modal>
+      <Joyride
+        steps={steps}
+        run={run}
+        continuous={true}
+        options={{
+          showProgress: true,
+          buttons: ['back', 'skip', 'primary']
+        }}
+        locale={{ last: 'Finalizar', next: 'Siguiente', skip: 'Saltar Tour', back: 'Atrás' }}
+      />
     </div>
   );
 }

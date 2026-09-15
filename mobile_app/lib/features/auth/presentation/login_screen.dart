@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:ui';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
@@ -44,10 +45,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         'password': _passwordController.text,
       });
       final token = response.data['access_token'];
+      final user = response.data['user'];
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('jwt_token', token);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
+
+      if (user['privacy_policy_accepted'] == false) {
+        Navigator.pushReplacementNamed(context, '/privacy_settings');
+      } else {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
     } catch (e) {
       setState(() { _errorMessage = 'Credenciales incorrectas'; });
     } finally {
@@ -60,12 +67,31 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: FadeTransition(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Stack(
+        children: [
+          // Background ambient glows
+          Positioned(
+            top: -150, left: -50,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
+            ),
+          ),
+          Positioned(
+            bottom: -50, right: -100,
+            child: Container(
+              width: 250, height: 250,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
+              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: FadeTransition(
               opacity: _fadeIn,
               child: Column(
                 children: [
@@ -150,12 +176,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
                   ],
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
                     decoration: BoxDecoration(
-                      color: AppTheme.surfaceDark,
+                      color: Colors.white.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 40, offset: const Offset(0, 20)),
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 20)),
                       ],
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -242,9 +269,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   SizedBox(height: 32),
                 ],
               ),
-            ),
-          ),
-        ),
+              ), // FadeTransition
+            ), // SingleChildScrollView
+          ), // Center
+        ), // SafeArea
+        ],
       ),
     );
   }

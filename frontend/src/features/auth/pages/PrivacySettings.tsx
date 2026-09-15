@@ -64,17 +64,17 @@ export default function PrivacySettings() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+            <div className="rounded-3xl p-8 border shadow-sm transition-colors" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600">
                         <Shield className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800">Gestión de Privacidad (Ley 1581)</h1>
-                        <p className="text-slate-500 text-sm">Ejerce tus derechos de Habeas Data</p>
+                        <h1 className="text-2xl font-black" style={{ color: 'var(--text-main)' }}>Gestión de Privacidad (Ley 1581)</h1>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Ejerce tus derechos de Habeas Data</p>
                     </div>
                 </div>
-                <div className="prose prose-sm text-slate-600 max-w-none">
+                <div className="prose prose-sm max-w-none" style={{ color: 'var(--text-secondary)' }}>
                     <p>
                         Como titular de datos personales, tienes derecho a conocer, actualizar y rectificar tu información, 
                         así como a revocar la autorización o solicitar la supresión de tus datos del sistema institucional de la Universidad Popular del Cesar.
@@ -85,31 +85,33 @@ export default function PrivacySettings() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Consultas y Reclamos (PQRS) */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm md:col-span-2">
+                <div className="rounded-3xl p-6 border shadow-sm md:col-span-2 transition-colors" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
                     <div className="flex items-center gap-3 mb-4">
                         <Mail className="w-5 h-5 text-blue-500" />
-                        <h2 className="text-lg font-bold text-slate-800">Consultas y Reclamos</h2>
+                        <h2 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>Consultas y Reclamos</h2>
                     </div>
                     <form onSubmit={handlePqrsSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">Asunto</label>
+                            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-secondary)' }}>Asunto</label>
                             <input 
                                 type="text" 
                                 value={pqrsSubject} 
                                 onChange={(e) => setPqrsSubject(e.target.value)} 
                                 required
-                                className="w-full p-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-all"
+                                className="w-full p-3 rounded-xl border focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-all"
+                                style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border-color)', color: 'var(--text-main)' }}
                                 placeholder="Ej: Actualización de documento"
                             />
                         </div>
                         <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">Mensaje</label>
+                            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-secondary)' }}>Mensaje</label>
                             <textarea 
                                 value={pqrsMessage} 
                                 onChange={(e) => setPqrsMessage(e.target.value)} 
                                 required
                                 rows={4}
-                                className="w-full p-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-all resize-none"
+                                className="w-full p-3 rounded-xl border focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-all resize-none"
+                                style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border-color)', color: 'var(--text-main)' }}
                                 placeholder="Describe tu consulta o reclamo relacionado con tus datos personales..."
                             />
                         </div>
@@ -125,12 +127,12 @@ export default function PrivacySettings() {
                 </div>
 
                 {/* Revocar Autorización */}
-                <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm">
+                <div className="rounded-3xl p-6 border shadow-sm transition-colors" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
                     <div className="flex items-center gap-3 mb-2">
                         <ShieldAlert className="w-5 h-5 text-orange-500" />
-                        <h2 className="text-lg font-bold text-slate-800">Revocar Autorización</h2>
+                        <h2 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>Revocar Autorización</h2>
                     </div>
-                    <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                    <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                         Retira tu consentimiento para el tratamiento de datos. Tu cuenta será desactivada de inmediato y ya no podrás acceder a las oportunidades del portal.
                     </p>
                     <button 
@@ -144,12 +146,12 @@ export default function PrivacySettings() {
                 </div>
 
                 {/* Suprimir Cuenta */}
-                <div className="bg-white rounded-3xl p-6 border border-red-100 shadow-sm">
+                <div className="rounded-3xl p-6 border shadow-sm transition-colors" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
                     <div className="flex items-center gap-3 mb-2">
                         <Trash2 className="w-5 h-5 text-red-500" />
-                        <h2 className="text-lg font-bold text-slate-800">Suprimir Datos Personales</h2>
+                        <h2 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>Suprimir Datos Personales</h2>
                     </div>
-                    <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                    <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                         Solicita la eliminación definitiva de tus datos personales del sistema. Esta acción es irreversible y anonimizará toda tu información.
                     </p>
                     <button 

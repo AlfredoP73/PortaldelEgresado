@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
+import { CVDocument } from '../components/CVDocument';
+import { PDFDownloadLink } from '@react-pdf/renderer';
 const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
 
 interface WorkExperience {
@@ -269,6 +271,21 @@ export default function GraduateProfile() {
                   {uploadingCV ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                   {'Actualizar CV PDF'}
                 </button>
+                {profile && (
+                  <PDFDownloadLink
+                    document={<CVDocument profile={profile} programName={programName} skills={availableSkills} />}
+                    fileName={`CV_${profile.first_name}_${profile.last_name}.pdf`}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20"
+                  >
+                    {/* @ts-ignore */}
+                    {({ loading }) => (
+                      <>
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                        {loading ? 'Generando...' : 'Exportar Perfil a PDF'}
+                      </>
+                    )}
+                  </PDFDownloadLink>
+                )}
               </div>
             </div>
           </div>

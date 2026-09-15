@@ -23,6 +23,7 @@ dependencies:
   intl: ^0.20.3
   url_launcher: ^6.3.2
   flutter_dotenv: ^6.0.1
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -39,4 +40,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21

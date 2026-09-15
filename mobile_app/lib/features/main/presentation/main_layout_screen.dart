@@ -30,7 +30,8 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.bgColor,
+      backgroundColor: const Color(0xFF0F172A),
+      extendBody: true,
       body: Stack(
         children: [
           IndexedStack(
@@ -43,16 +44,19 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
             right: 20,
             child: Container(
               decoration: BoxDecoration(
-                color: context.isDark ? AppTheme.surfaceDark.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.9),
+                color: const Color(0xFF1E1E2C).withValues(alpha: 0.8), // Deep elegant base
                 borderRadius: BorderRadius.circular(30),
-                boxShadow: AppTheme.premiumShadow,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 10)),
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(30),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -75,7 +79,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _currentIndex == index;
-    final Color activeColor = context.isDark ? AppTheme.primaryColor : AppTheme.primaryDark;
+    final Color activeColor = AppTheme.primaryColor;
 
     return GestureDetector(
       onTap: () {
@@ -87,7 +91,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 8, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 10, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(100),
@@ -97,11 +101,11 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected ? activeColor : context.secondaryText.withValues(alpha: 0.6),
-              size: 20,
+              color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.5),
+              size: 22,
             ),
             if (isSelected) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(

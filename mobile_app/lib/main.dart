@@ -9,6 +9,7 @@ import 'features/auth/presentation/email_verification_screen.dart';
 import 'features/auth/presentation/forgot_password_screen.dart';
 import 'features/auth/presentation/verify_pin_screen.dart';
 import 'features/auth/presentation/reset_password_screen.dart';
+import 'features/auth/presentation/privacy_settings_screen.dart';
 import 'features/main/presentation/main_layout_screen.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -48,6 +49,7 @@ class EgresadoApp extends StatelessWidget {
             '/register': (context) => const RegisterScreen(),
             '/verify_email': (context) => const EmailVerificationScreen(),
             '/forgot_password': (context) => const ForgotPasswordScreen(),
+            '/privacy_settings': (context) => const PrivacySettingsScreen(),
             '/dashboard': (context) => const MainLayoutScreen(),
           },
           onGenerateRoute: (settings) {

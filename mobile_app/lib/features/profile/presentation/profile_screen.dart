@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: context.bgColor,
+        backgroundColor: const Color(0xFF0F172A),
         body: SafeArea(
           child: Column(
             children: [
@@ -174,7 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: AppTheme.primaryDark, width: 4),
-                              color: context.surfaceColor,
+                              color: Colors.white.withValues(alpha: 0.03),
                               boxShadow: [
                                 BoxShadow(color: AppTheme.primaryDark.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
                               ],
@@ -197,16 +197,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: context.primaryText, // Botón contrastante con el fondo
+                              color: Colors.white, // Botón contrastante con el fondo
                               shape: BoxShape.circle,
-                              border: Border.all(color: context.bgColor, width: 3),
+                              border: Border.all(color: const Color(0xFF0F172A), width: 3),
                             ),
                             child: _isUploading
                                 ? Padding(
                                     padding: EdgeInsets.all(8.0),
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.bgColor),
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: const Color(0xFF0F172A)),
                                   )
-                                : Icon(Icons.camera_alt_rounded, size: 18, color: context.bgColor),
+                                : Icon(Icons.camera_alt_rounded, size: 18, color: const Color(0xFF0F172A)),
                           ),
                         ],
                       ),
@@ -214,10 +214,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(height: 16),
                     Text(
                       _userName,
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: context.primaryText),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
                     SizedBox(height: 4),
-                    Text(_userEmail, style: TextStyle(color: context.secondaryText, fontSize: 14)),
+                    Text(_userEmail, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 14)),
                     SizedBox(height: 12),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -237,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: context.surfaceColor,
+                    color: Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2))],
@@ -248,14 +248,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 24, height: 24,
                         child: CircularProgressIndicator(
                           value: _profileProgress,
-                          backgroundColor: context.secondaryText.withValues(alpha: 0.2),
+                          backgroundColor: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.2),
                           valueColor: const AlwaysStoppedAnimation(AppTheme.primaryColor),
                           strokeWidth: 4,
                         ),
                       ),
                       SizedBox(width: 12),
                       Expanded(
-                        child: Text('Tu perfil está al ${(_profileProgress * 100).toInt()}% completo', style: TextStyle(color: context.primaryText, fontSize: 13, fontWeight: FontWeight.w600)),
+                        child: Text('Tu perfil está al ${(_profileProgress * 100).toInt()}% completo', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -267,7 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
-                  color: context.surfaceColor,
+                  color: Colors.white.withValues(alpha: 0.03),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
                 ),
@@ -279,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   dividerColor: Colors.transparent,
                   labelColor: context.isDark ? AppTheme.primaryColor : AppTheme.primaryDark,
-                  unselectedLabelColor: context.secondaryText,
+                  unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
                   labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                   tabs: [
