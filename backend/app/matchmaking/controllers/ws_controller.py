@@ -1,7 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
 
-router = APIRouter(prefix="/api/matchmaking", tags=["WebSockets"])
+router = APIRouter(prefix="/matching/ws", tags=["WebSockets"])
 
 class ConnectionManager:
     def __init__(self):
@@ -24,7 +24,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.websocket("/ws/{user_id}")
+@router.websocket("/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
     await manager.connect(websocket, user_id)
     try:

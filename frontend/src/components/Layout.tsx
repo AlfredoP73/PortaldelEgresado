@@ -221,8 +221,9 @@ export default function Layout({ children }: LayoutProps) {
 
     let ws: WebSocket;
     const connectWs = () => {
-      const baseUrl = import.meta.env.VITE_MATCHMAKING_URL || 'http://localhost:8005';
-      const wsUrl = baseUrl.replace('http', 'ws') + `/api/matchmaking/ws/${user.id}`;
+      const envUrl = import.meta.env.VITE_MATCHMAKING_URL;
+      const baseUrl = (envUrl !== undefined && envUrl !== "") ? envUrl : window.location.origin;
+      const wsUrl = baseUrl.replace('http', 'ws') + `/matching/ws/${user.id}`;
       
       ws = new WebSocket(wsUrl);
       
