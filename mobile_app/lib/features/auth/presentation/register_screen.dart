@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
@@ -18,6 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   String? _errorMessage;
   double _passwordStrength = 0.0;
+  bool _acceptPrivacy = false;
 
   @override
   void dispose() {
@@ -45,12 +47,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     setState(() { _isLoading = true; _errorMessage = null; });
+    if (!_acceptPrivacy) {
+      setState(() { _errorMessage = 'Debes aceptar las políticas de privacidad y el tratamiento de datos para registrarte.'; });
+      setState(() { _isLoading = false; });
+      return;
+    }
+
     try {
       await ApiClient.instance.post('/auth/register', data: {
         'email': _emailController.text.trim(),
         'password': _passwordController.text,
         'full_name': _nameController.text.trim(),
-        'role_id': 3
+        'role_id': 3,
+        'accept_privacy_policy': _acceptPrivacy,
+        'authorize_data_treatment': _acceptPrivacy,
       });
       
       if (!mounted) return;
@@ -72,12 +82,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Stack(
+        children: [
+          // Background ambient glows
+          Positioned(
+            top: -150, right: -50,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
+            ),
+          ),
+          Positioned(
+            bottom: -50, left: -100,
+            child: Container(
+              width: 250, height: 250,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
+              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
               children: [
                 SizedBox(height: 20),
                 Container(
@@ -112,12 +141,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
 
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
                   decoration: BoxDecoration(
-                    color: AppTheme.surfaceDark,
+                    color: Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 40, offset: const Offset(0, 20)),
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 20)),
                     ],
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -160,7 +190,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       )),
                     ),
-                    SizedBox(height: 28),
+                    SizedBox(height: 16),
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        unselectedWidgetColor: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      child: CheckboxListTile(
+                        value: _acceptPrivacy,
+                        onChanged: (val) {
+                          setState(() {
+                            _acceptPrivacy = val ?? false;
+                          });
+                        },
+                        title: Text(
+                          'Acepto la Política de Privacidad y autorizo el tratamiento de mis datos personales.',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, height: 1.3),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppTheme.primaryColor,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                    SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -189,8 +241,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 SizedBox(height: 32),
               ],
             ),
-          ),
-        ),
+            ), // SingleChildScrollView
+          ), // Center
+        ), // SafeArea
+        ],
       ),
     );
   }

@@ -7,6 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CandidateDetailsModal from '../../graduate/components/CandidateDetailsModal';
 import AddSubProcessModal from '../components/AddSubProcessModal';
 import RejectionModal from '../components/RejectionModal';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import { Joyride } from 'react-joyride';
+import type { Step } from 'react-joyride';
 
 interface JobOffer {
   id: number;
@@ -49,6 +53,25 @@ export default function Kanban() {
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
   const isAdmin = user?.role_name === 'ADMIN';
+
+  const [{ run, steps }] = useState({
+    run: true,
+    steps: [
+      {
+        target: '.page-title',
+        content: '¡Bienvenido a tu Tablero Kanban! Aquí puedes gestionar el progreso de los postulantes de forma visual.',
+        disableBeacon: true,
+      },
+      {
+        target: '.job-selector',
+        content: 'Primero, selecciona una vacante para ver a los candidatos que han aplicado.',
+      },
+      {
+        target: '.kanban-column',
+        content: 'Puedes arrastrar y soltar a los candidatos entre estas columnas para avanzar su proceso de selección.',
+      }
+    ] as Step[]
+  });
 
   useEffect(() => {
     fetchJobs();
@@ -179,7 +202,7 @@ export default function Kanban() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="relative min-w-[240px] w-full md:w-auto">
+          <div className="relative min-w-[240px] w-full md:w-auto job-selector">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Briefcase className="h-5 w-5 text-brand-500" />
             </div>
@@ -252,9 +275,33 @@ export default function Kanban() {
           <p className="text-ink-secondary">Crea una vacante o selecciona una del menú para ver sus candidatos.</p>
         </motion.div>
       ) : loading ? (
-        <div className="flex-1 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-        </div>
+        <SkeletonTheme baseColor="var(--bg-muted)" highlightColor="var(--bg-surface)">
+          <div className="flex-1 overflow-x-auto pb-4">
+            <div className="flex gap-6 h-full min-w-max">
+              {KANBAN_COLUMNS.map((col, index) => (
+                <div key={col.id} className="w-80 rounded-[12px] flex flex-col border shadow-sm border-[var(--border-color)] bg-[var(--bg-muted)] kanban-column">
+                  <div className="px-4 py-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
+                    <Skeleton height={20} width={120} />
+                  </div>
+                  <div className="flex-1 p-4 space-y-4">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="card p-4 bg-white border border-[var(--border-color)]">
+                        <div className="flex items-start gap-3 mb-2">
+                          <Skeleton circle height={40} width={40} />
+                          <div className="flex-1">
+                            <Skeleton height={16} width="80%" />
+                            <Skeleton height={12} width="40%" className="mt-1" />
+                          </div>
+                        </div>
+                        <Skeleton height={24} className="mt-4" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SkeletonTheme>
       ) : (
         <div className="flex-1 overflow-x-auto pb-4">
           <div className="flex gap-6 h-full min-w-max">
@@ -265,7 +312,7 @@ export default function Kanban() {
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}
                   key={col.id} 
-                  className={twMerge("w-80 rounded-[12px] flex flex-col overflow-hidden transition-colors border shadow-sm", !isAdmin && draggingAppId ? "border-dashed border-brand-500 bg-brand-50/50" : "border-[var(--border-color)] bg-[var(--bg-muted)]")}
+                  className={twMerge("w-80 rounded-[12px] flex flex-col overflow-hidden transition-colors border shadow-sm kanban-column", !isAdmin && draggingAppId ? "border-dashed border-brand-500 bg-brand-50/50" : "border-[var(--border-color)] bg-[var(--bg-muted)]")}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col.id)}
                 >
@@ -376,6 +423,7 @@ export default function Kanban() {
       <AnimatePresence>
         {selectedApplicationId && (
           <CandidateDetailsModal 
+            key="candidate-modal"
             applicationId={selectedApplicationId}
             application={applications.find(a => a.id === selectedApplicationId)}
             onUpdateSubProcess={() => selectedJob && fetchApplications(selectedJob)}
@@ -385,6 +433,7 @@ export default function Kanban() {
         
         {addingSubProcessStage && selectedJob && (
           <AddSubProcessModal 
+            key="subprocess-modal"
             jobId={selectedJob}
             stage={addingSubProcessStage}
             onClose={() => setAddingSubProcessStage(null)}
@@ -412,6 +461,16 @@ export default function Kanban() {
           }}
         />
       </AnimatePresence>
+      <Joyride
+        steps={steps}
+        run={run && !isAdmin}
+        continuous={true}
+        options={{
+          showProgress: true,
+          buttons: ['back', 'skip', 'primary']
+        }}
+        locale={{ last: 'Finalizar', next: 'Siguiente', skip: 'Saltar Tour', back: 'Atrás' }}
+      />
     </div>
   );
 }

@@ -78,10 +78,12 @@ class _JobCardState extends State<JobCard> {
 
     return Container(
       decoration: BoxDecoration(
-        color: context.surfaceColor,
-        borderRadius: AppTheme.cardRadius,
-        boxShadow: AppTheme.premiumShadow,
-        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
+        ],
       ),
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -102,7 +104,7 @@ class _JobCardState extends State<JobCard> {
                     Icon(Icons.auto_awesome, size: 14, color: AppTheme.primaryColor),
                     const SizedBox(width: 6),
                     Text(
-                      '${(widget.matchScore! * 100).toInt()}% Afinidad',
+                      '${(widget.matchScore!).toInt()}% Afinidad',
                       style: TextStyle(
                         color: AppTheme.primaryColor,
                         fontSize: 12,
@@ -134,16 +136,16 @@ class _JobCardState extends State<JobCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: TextStyle(color: context.primaryText, fontSize: 16, fontWeight: FontWeight.w700)),
-                      SizedBox(height: 2),
-                      Text(company, style: TextStyle(color: context.secondaryText, fontSize: 13)),
+                      Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(company, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
                     ],
                   ),
                 ),
-                Icon(Icons.bookmark_border_rounded, color: context.secondaryText.withValues(alpha: 0.5), size: 24),
+                Icon(Icons.bookmark_border_rounded, color: Colors.white.withValues(alpha: 0.3), size: 24),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 _buildTag(context, Icons.work_outline, sector),

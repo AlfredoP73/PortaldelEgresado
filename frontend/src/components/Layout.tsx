@@ -25,6 +25,7 @@ import {
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
 import { useTheme } from '../context/ThemeContext';
+import toast from 'react-hot-toast';
 
 interface LayoutProps {
   children: ReactNode;
@@ -213,6 +214,47 @@ export default function Layout({ children }: LayoutProps) {
 
   const roleName = user?.role_name || '';
   const navItems = getNavItems(roleName);
+
+  // WebSocket Connection
+  useEffect(() => {
+    if (!user || !user.id) return;
+
+    let ws: WebSocket;
+    const connectWs = () => {
+      const baseUrl = import.meta.env.VITE_MATCHMAKING_URL || 'http://localhost:8005';
+      const wsUrl = baseUrl.replace('http', 'ws') + `/api/matchmaking/ws/${user.id}`;
+      
+      ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'NEW_MATCH') {
+            toast.success(`¡Nueva vacante sugerida! Compatibilidad: ${data.score}%`, {
+              icon: '✨',
+              duration: 5000,
+            });
+          }
+        } catch (e) {
+          console.error("Error parsing WS message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        // Retry connection after 5 seconds
+        setTimeout(connectWs, 5000);
+      };
+    };
+
+    connectWs();
+
+    return () => {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [user?.id]);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');

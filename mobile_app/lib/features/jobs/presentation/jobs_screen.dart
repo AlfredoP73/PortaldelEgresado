@@ -86,7 +86,7 @@ class _JobsScreenState extends State<JobsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.bgColor,
+      backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
         child: Column(
           children: [
@@ -96,23 +96,25 @@ class _JobsScreenState extends State<JobsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Vacantes', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: context.primaryText, letterSpacing: -0.5)),
-                  SizedBox(height: 4),
-                  Text('Encuentra tu próximo reto profesional', style: TextStyle(fontSize: 14, color: context.secondaryText)),
-                  SizedBox(height: 20),
+                  Text('Vacantes', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+                  const SizedBox(height: 4),
+                  Text('Encuentra tu próximo reto profesional', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6))),
+                  const SizedBox(height: 20),
                   TextField(
                     controller: _searchController,
-                    style: TextStyle(color: context.primaryText, fontSize: 14),
-                    decoration: AppTheme.inputDecoration(context, 
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: AppTheme.inputDecorationDark( 
                       label: '',
                       hint: 'Buscar por cargo o empresa...',
                       icon: Icons.search_rounded,
+                    ).copyWith(
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
                       suffixIcon: Container(
-                        margin: EdgeInsets.all(8),
+                        margin: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppTheme.primaryDark, borderRadius: BorderRadius.circular(8)),
-                        child: Icon(Icons.tune_rounded, color: Colors.white, size: 20),
+                        child: const Icon(Icons.tune_rounded, color: Colors.white, size: 20),
                       ),
-                    ).copyWith(contentPadding: EdgeInsets.symmetric(vertical: 14)),
+                    ),
                   ),
                 ],
               ),
@@ -138,11 +140,12 @@ class _JobsScreenState extends State<JobsScreen> {
             // ── Lista de Vacantes ──
             Expanded(
               child: _isLoading 
-                ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
                 : _error != null
-                  ? Center(child: Text(_error!, style: TextStyle(color: AppTheme.statusRechazado)))
+                  ? Center(child: Text(_error!, style: const TextStyle(color: AppTheme.statusRechazado)))
                   : RefreshIndicator(
                       color: AppTheme.primaryColor,
+                      backgroundColor: const Color(0xFF1E293B),
                       onRefresh: _fetchJobs,
                       child: ListView.separated(
                         padding: EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 100),
@@ -177,11 +180,11 @@ class _JobsScreenState extends State<JobsScreen> {
           }
         },
         selectedColor: AppTheme.primaryColor,
-        backgroundColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: isSelected ? AppTheme.primaryColor : Color(0xFFE5E7EB).withValues(alpha: 0.5),
+            color: isSelected ? AppTheme.primaryColor : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         showCheckmark: false,

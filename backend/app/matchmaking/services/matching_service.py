@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 
 from app.matchmaking.models import Match, MatchNotification
 from app.matchmaking.services.criteria_service import get_weights
+from app.matchmaking.controllers.ws_controller import manager
+import asyncio
 
 # Umbral de compatibilidad a partir del cual se genera una notificación (Módulo 3.2)
 UMBRAL_NOTIFICACION = Decimal("75.00")
@@ -95,6 +97,16 @@ def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict
                 )
             )
             db.commit()
+            
+            # Notificar en tiempo real por WebSockets
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(manager.send_personal_message({"type": "NEW_MATCH", "job_offer_id": job_offer_id, "score": float(result["score"])}, graduate_id))
+                else:
+                    asyncio.run(manager.send_personal_message({"type": "NEW_MATCH", "job_offer_id": job_offer_id, "score": float(result["score"])}, graduate_id))
+            except Exception as e:
+                print(f"Error sending ws message: {e}")
 
     return match
 
