@@ -143,7 +143,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                         Container(
                           padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: context.isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -421,7 +421,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Color(0xFFF3F4F6),
+                  color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05) : Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(

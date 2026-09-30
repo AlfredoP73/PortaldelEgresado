@@ -82,7 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.bgColor,
       body: Stack(
         children: [
           // Background ambient glows
@@ -119,7 +119,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 SizedBox(height: 20),
                 Text('Únete al Portal',
-                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+                  style: TextStyle(color: context.primaryText, fontSize: 24, fontWeight: FontWeight.w800)),
                 SizedBox(height: 24),
 
 
@@ -135,7 +135,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Row(children: [
                       Icon(Icons.error_outline, size: 16, color: Color(0xFFEF4444)),
                       SizedBox(width: 8),
-                      Expanded(child: Text(_errorMessage!, style: TextStyle(color: Colors.white, fontSize: 13))),
+                      Expanded(child: Text(_errorMessage!, style: TextStyle(color: context.primaryText, fontSize: 13))),
                     ]),
                   ),
                 ],
@@ -143,36 +143,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
+                    color: context.surfaceColor,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05)),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 20)),
+                      BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05), blurRadius: 40, offset: Offset(0, 20)),
                     ],
                   ),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     TextField(
                       controller: _nameController,
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(label: 'Nombre Completo', icon: Icons.person_outline),
+                      keyboardType: TextInputType.name,
+                      style: TextStyle(color: context.primaryText, fontSize: 15),
+                      decoration: context.isDark 
+                          ? AppTheme.inputDecoration(context, label: 'Nombre completo', icon: Icons.person_outline, hint: 'Juan Perez')
+                          : AppTheme.inputDecorationLight(label: 'Nombre completo', icon: Icons.person_outline, hint: 'Juan Perez'),
                     ),
                     SizedBox(height: 18),
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co'),
+                      style: TextStyle(color: context.primaryText, fontSize: 15),
+                      decoration: context.isDark 
+                          ? AppTheme.inputDecoration(context, label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co')
+                          : AppTheme.inputDecorationLight(label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co'),
                     ),
                     SizedBox(height: 18),
                     TextField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       onChanged: _checkPasswordStrength,
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(
-                        label: 'Contraseña', icon: Icons.lock_outline_rounded,
+                      style: TextStyle(color: context.primaryText, fontSize: 15),
+                      decoration: (context.isDark 
+                          ? AppTheme.inputDecoration(context, label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')
+                          : AppTheme.inputDecorationLight(label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')).copyWith(
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white.withValues(alpha: 0.5), size: 20),
+                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: context.secondaryText, size: 20),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
@@ -184,33 +192,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           height: 4,
                           margin: EdgeInsets.only(right: index < 3 ? 4 : 0),
                           decoration: BoxDecoration(
-                            color: _passwordStrength > (index * 0.25) ? _getStrengthColor() : Colors.white.withValues(alpha: 0.1),
+                            color: _passwordStrength > (index * 0.25) ? _getStrengthColor() : context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       )),
                     ),
                     SizedBox(height: 16),
-                    Theme(
-                      data: Theme.of(context).copyWith(
-                        unselectedWidgetColor: Colors.white.withValues(alpha: 0.5),
+                    CheckboxListTile(
+                      value: _acceptPrivacy,
+                      onChanged: (val) {
+                        setState(() {
+                          _acceptPrivacy = val ?? false;
+                        });
+                      },
+                      title: Text(
+                        'Acepto la Política de Privacidad y el tratamiento de mis datos personales.',
+                        style: TextStyle(color: context.secondaryText, fontSize: 12, height: 1.4),
                       ),
-                      child: CheckboxListTile(
-                        value: _acceptPrivacy,
-                        onChanged: (val) {
-                          setState(() {
-                            _acceptPrivacy = val ?? false;
-                          });
-                        },
-                        title: Text(
-                          'Acepto la Política de Privacidad y autorizo el tratamiento de mis datos personales.',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, height: 1.3),
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: AppTheme.primaryColor,
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: AppTheme.primaryColor,
+                      checkColor: Colors.white,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
                     ),
                     SizedBox(height: 24),
                     SizedBox(
@@ -224,6 +228,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ]),
+                  ), // Material
                 ),
                 SizedBox(height: 24),
                 Center(
@@ -233,11 +238,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: TextStyle(fontSize: 14, color: context.secondaryText),
                       children: [
                         TextSpan(text: '¿Ya tienes cuenta? '),
-                        TextSpan(text: 'Inicia sesión', style: TextStyle(color: AppTheme.accentAmber, fontWeight: FontWeight.w700)),
+                        TextSpan(text: 'Inicia sesión', style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700)),
                       ],
                     )),
                   ),
                 ),
+                SizedBox(height: 20),
                 SizedBox(height: 32),
               ],
             ),

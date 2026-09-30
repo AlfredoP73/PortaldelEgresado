@@ -102,7 +102,7 @@ class _VerifyPinScreenState extends State<VerifyPinScreen> {
                       maxLength: 6,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white, fontSize: 24, letterSpacing: 8),
-                      decoration: AppTheme.inputDecorationDark(label: 'PIN', icon: Icons.pin, hint: '000000'),
+                      decoration: AppTheme.inputDecoration(context, label: 'PIN', icon: Icons.pin, hint: '000000'),
                     ),
                     SizedBox(height: 24),
                     SizedBox(

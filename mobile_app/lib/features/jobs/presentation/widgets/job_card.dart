@@ -78,11 +78,11 @@ class _JobCardState extends State<JobCard> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
+          BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 10)),
         ],
       ),
       child: Padding(
@@ -138,11 +138,11 @@ class _JobCardState extends State<JobCard> {
                     children: [
                       Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
-                      Text(company, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
+                      Text(company, style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3), fontSize: 13)),
                     ],
                   ),
                 ),
-                Icon(Icons.bookmark_border_rounded, color: Colors.white.withValues(alpha: 0.3), size: 24),
+                Icon(Icons.bookmark_border_rounded, color: context.isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.15), size: 24),
               ],
             ),
             const SizedBox(height: 16),

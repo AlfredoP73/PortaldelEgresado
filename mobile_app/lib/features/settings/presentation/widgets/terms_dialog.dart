@@ -53,7 +53,7 @@ Si tiene alguna duda sobre estos términos, puede contactar a la Oficina de Segu
             padding: EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: context.surfaceColor,
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+              boxShadow: [BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, -5))],
             ),
             child: SizedBox(
               width: double.infinity,

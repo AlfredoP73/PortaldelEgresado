@@ -66,7 +66,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               Text(
                 'Para continuar usando la plataforma, debes aceptar nuestra política de tratamiento de datos personales y aviso de privacidad actualizados.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 15, height: 1.5),
+                style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.35), fontSize: 15, height: 1.5),
               ),
               const SizedBox(height: 32),
 
@@ -94,7 +94,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceDark,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
                   ),
                   child: SingleChildScrollView(
                     child: Text(
@@ -105,7 +105,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                       'Tus datos serán tratados de acuerdo con la Ley 1581 de 2012 de Protección '
                       'de Datos Personales (Colombia). Puedes revocar este consentimiento en cualquier '
                       'momento desde la configuración de tu cuenta.',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14, height: 1.6),
+                      style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.35), fontSize: 14, height: 1.6),
                     ),
                   ),
                 ),
@@ -126,7 +126,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               const SizedBox(height: 16),
               TextButton(
                 onPressed: _logout,
-                child: Text('Rechazar y salir', style: TextStyle(color: Colors.white.withValues(alpha: 0.54), fontSize: 14)),
+                child: Text('Rechazar y salir', style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.54) : Colors.black.withValues(alpha: 0.27), fontSize: 14)),
               ),
             ],
           ),

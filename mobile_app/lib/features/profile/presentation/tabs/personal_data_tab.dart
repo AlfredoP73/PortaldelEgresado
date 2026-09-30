@@ -248,7 +248,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> with AutomaticKeepAli
               decoration: BoxDecoration(
                 color: context.surfaceColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
               ),
               child: Row(
                 children: [
@@ -293,7 +293,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> with AutomaticKeepAli
               decoration: BoxDecoration(
                 color: context.surfaceColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
