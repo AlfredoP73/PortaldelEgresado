@@ -34,3 +34,7 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# Scripts de automatización (ignorar para evitar subir secretos)
+*.ps1
+*.sh
