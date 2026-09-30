@@ -62,7 +62,7 @@ class _JobsScreenState extends State<JobsScreen> {
     if (_selectedFilter == 'Remoto' || _selectedFilter == 'Presencial' || _selectedFilter == 'Híbrido') {
       String filterNormal = _selectedFilter.toLowerCase().replaceAll('í', 'i');
       return filtered.where((j) {
-        String mod = j['modality']?.toString().toLowerCase().replaceAll('í', 'i') ?? '';
+        String mod = (j['modality']?.toString() ?? 'Presencial').toLowerCase().replaceAll('í', 'i');
         return mod == filterNormal;
       }).toList();
     }
@@ -86,7 +86,7 @@ class _JobsScreenState extends State<JobsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.bgColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -96,15 +96,14 @@ class _JobsScreenState extends State<JobsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Vacantes', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+                  Text('Vacantes', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: context.primaryText, letterSpacing: -0.5)),
                   const SizedBox(height: 4),
-                  Text('Encuentra tu próximo reto profesional', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6))),
+                  Text('Encuentra tu próximo reto profesional', style: TextStyle(fontSize: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3))),
                   const SizedBox(height: 20),
                   TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: AppTheme.inputDecorationDark( 
-                      label: '',
+                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                    decoration: AppTheme.inputDecoration(context, label: '',
                       hint: 'Buscar por cargo o empresa...',
                       icon: Icons.search_rounded,
                     ).copyWith(
@@ -112,7 +111,7 @@ class _JobsScreenState extends State<JobsScreen> {
                       suffixIcon: Container(
                         margin: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppTheme.primaryDark, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.tune_rounded, color: Colors.white, size: 20),
+                        child: Icon(Icons.tune_rounded, color: context.primaryText, size: 20),
                       ),
                     ),
                   ),
@@ -145,7 +144,7 @@ class _JobsScreenState extends State<JobsScreen> {
                   ? Center(child: Text(_error!, style: const TextStyle(color: AppTheme.statusRechazado)))
                   : RefreshIndicator(
                       color: AppTheme.primaryColor,
-                      backgroundColor: const Color(0xFF1E293B),
+                      backgroundColor: context.surfaceColor,
                       onRefresh: _fetchJobs,
                       child: ListView.separated(
                         padding: EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 100),
@@ -180,11 +179,11 @@ class _JobsScreenState extends State<JobsScreen> {
           }
         },
         selectedColor: AppTheme.primaryColor,
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        backgroundColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: isSelected ? AppTheme.primaryColor : Colors.white.withValues(alpha: 0.1),
+            color: isSelected ? AppTheme.primaryColor : context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
           ),
         ),
         showCheckmark: false,

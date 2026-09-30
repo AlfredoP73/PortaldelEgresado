@@ -136,10 +136,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(
-                        label: 'Nueva contraseña', icon: Icons.lock_outline, hint: '••••••••',
+                      decoration: AppTheme.inputDecoration(context, label: 'Nueva contraseña', icon: Icons.lock_outline, hint: '••••••••',
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white.withValues(alpha: 0.5), size: 20),
+                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: context.isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.25), size: 20),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
@@ -149,7 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       controller: _confirmController,
                       obscureText: _obscurePassword,
                       style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(label: 'Confirmar contraseña', icon: Icons.lock_outline, hint: '••••••••'),
+                      decoration: AppTheme.inputDecoration(context, label: 'Confirmar contraseña', icon: Icons.lock_outline, hint: '••••••••'),
                     ),
                     SizedBox(height: 24),
                     SizedBox(

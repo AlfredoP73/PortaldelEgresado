@@ -138,7 +138,7 @@ class _AcademicTabState extends State<AcademicTab> with AutomaticKeepAliveClient
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Color(0xFFE5E7EB)),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
+                    BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))
                   ],
                 ),
                 child: Column(

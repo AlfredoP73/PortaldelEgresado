@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/password_dialog.dart';
 import 'widgets/terms_dialog.dart';
 import 'widgets/support_dialog.dart';
-import 'widgets/two_factor_dialog.dart';
+import 'widgets/privacy_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,9 +16,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _jobAlerts = true;
-  bool _emailNotifications = true;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -28,9 +26,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             // ── Header ──
             Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 20),
+              padding: EdgeInsets.fromLTRB(12, 20, 20, 20),
               child: Row(
                 children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back_rounded, color: context.primaryText),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  SizedBox(width: 8),
                   Container(
                     width: 48,
                     height: 48,
@@ -73,23 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 physics: const BouncingScrollPhysics(),
                 children: [
-                  _sectionTitle('Notificaciones'),
-                  _settingSwitch(
-                    title: 'Alertas de empleo',
-                    subtitle: 'Notificaciones push para vacantes que encajan con tu perfil',
-                    icon: Icons.notifications_active_outlined,
-                    value: _jobAlerts,
-                    onChanged: (val) => setState(() => _jobAlerts = val),
-                  ),
-                  _settingSwitch(
-                    title: 'Boletines por correo',
-                    subtitle: 'Recibe noticias del portal y seguimientos por correo',
-                    icon: Icons.email_outlined,
-                    value: _emailNotifications,
-                    onChanged: (val) => setState(() => _emailNotifications = val),
-                  ),
-                  
-                  SizedBox(height: 32),
                   _sectionTitle('Seguridad'),
                   _settingAction(
                     title: 'Cambiar Contraseña',
@@ -99,17 +85,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       showDialog(
                         context: context,
                         builder: (ctx) => const PasswordDialog(),
-                      );
-                    },
-                  ),
-                  _settingAction(
-                    title: 'Autenticación en 2 pasos',
-                    subtitle: 'Añade una capa extra de seguridad a tu cuenta',
-                    icon: Icons.security_rounded,
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => const TwoFactorDialog(),
                       );
                     },
                   ),
@@ -152,6 +127,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     },
                   ),
+                  _settingAction(
+                    title: 'Política de Privacidad',
+                    subtitle: 'Tratamiento de datos personales',
+                    icon: Icons.privacy_tip_outlined,
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => const PrivacyDialog(),
+                      );
+                    },
+                  ),
+
+                  SizedBox(height: 32),
+                  GestureDetector(
+                    onTap: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('jwt_token');
+                      if (context.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                      }
+                    },
+                    child: Container(
+                      margin: EdgeInsets.only(bottom: 16),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.logout_rounded, color: Colors.redAccent, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'Cerrar Sesión',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.redAccent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   SizedBox(height: 120), // Para el navbar flotante
                 ],
@@ -191,9 +210,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: context.surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Color(0xFFE5E7EB)),
+        border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Color(0xFFE5E7EB)),
         boxShadow: [
-          BoxShadow(color: context.isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: Offset(0, 4))
         ],
       ),
       child: Row(
@@ -242,9 +261,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         decoration: BoxDecoration(
           color: context.surfaceColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Color(0xFFE5E7EB)),
+          border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Color(0xFFE5E7EB)),
           boxShadow: [
-            BoxShadow(color: context.isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))
+            BoxShadow(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: Offset(0, 4))
           ],
         ),
         child: Row(
