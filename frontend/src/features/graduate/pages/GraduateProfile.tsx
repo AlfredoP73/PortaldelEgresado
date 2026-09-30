@@ -12,7 +12,7 @@ import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
 import { CVDocument } from '../components/CVDocument';
 import { PDFDownloadLink } from '@react-pdf/renderer';
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL !== undefined ? import.meta.env.VITE_GRADUATES_URL : 'http://localhost:8003';
+const GRADUATES_URL = (import.meta.env.VITE_GRADUATES_URL ?? '');
 
 interface WorkExperience {
   id: number;
