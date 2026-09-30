@@ -19,18 +19,6 @@ services:
       timeout: 5s
       retries: 5
 
-  minio:
-    image: bitnami/minio:latest
-    container_name: portaldel_egresado_minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/bitnami/minio/data
-
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: portaldel_egresado_rabbitmq

@@ -96,9 +96,12 @@ def upload_subprocess_deliverable(
             ExtraArgs={"ContentType": file.content_type}
         )
         
-        # En Minio (y S3) público, la URL sería:
-        minio_url = MinioClient().minio_url
-        file_url = f"{minio_url}/{bucket_name}/{file_key}"
+        # Generar presigned URL válida por 7 días (604800 seg)
+        file_url = minio_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket_name, 'Key': file_key},
+            ExpiresIn=604800
+        )
         
         db_sub.archivo_respuesta = file_url
         db_sub.estado = models.SubProcessStatus.en_progreso
