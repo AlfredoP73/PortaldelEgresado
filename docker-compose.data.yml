@@ -20,7 +20,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio
+    image: bitnami/minio:latest
     container_name: portaldel_egresado_minio
     ports:
       - "9000:9000"
@@ -28,9 +28,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    command: server /data --console-address ":9001"
     volumes:
-      - minio_data:/data
+      - minio_data:/bitnami/minio/data
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
