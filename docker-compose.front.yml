@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: portaldel_egresado_frontend
+    ports:
+      - "80:80"
+    environment:
+      - BACK_HOST=${BACK_HOST}

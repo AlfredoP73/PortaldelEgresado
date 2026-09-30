@@ -120,7 +120,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       style: TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: AppTheme.inputDecorationDark(label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'tu@correo.com'),
+                      decoration: AppTheme.inputDecoration(context, label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'tu@correo.com'),
                     ),
                     SizedBox(height: 24),
                     SizedBox(

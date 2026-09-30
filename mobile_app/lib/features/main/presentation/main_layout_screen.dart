@@ -30,7 +30,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.bgColor,
       extendBody: true,
       body: Stack(
         children: [
@@ -44,11 +44,11 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
             right: 20,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E2C).withValues(alpha: 0.8), // Deep elegant base
+                color: context.surfaceColor,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 10)),
+                  BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.12), blurRadius: 30, offset: const Offset(0, 10)),
                 ],
               ),
               child: ClipRRect(
@@ -101,7 +101,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.5),
+              color: isSelected ? activeColor : context.isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.25),
               size: 22,
             ),
             if (isSelected) ...[

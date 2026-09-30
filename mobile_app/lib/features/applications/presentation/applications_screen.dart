@@ -113,7 +113,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                       SizedBox(height: 2),
                       Text(
                         'Seguimiento en tiempo real',
-                        style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.8)),
+                        style: TextStyle(fontSize: 13, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.8)),
                       ),
                     ],
                   ),
@@ -133,7 +133,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                 icon: Icons.search,
               ).copyWith(
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                 contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               ),
             ),
@@ -158,7 +158,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                       pill['label']!,
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                        color: isSelected ? Colors.white : context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3),
                       ),
                     ),
                     selected: isSelected,
@@ -168,11 +168,11 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                       }
                     },
                     selectedColor: AppTheme.primaryColor,
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    backgroundColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                       side: BorderSide(
-                        color: isSelected ? AppTheme.primaryColor : Colors.white.withValues(alpha: 0.08),
+                        color: isSelected ? AppTheme.primaryColor : context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
                       ),
                     ),
                     showCheckmark: false,
@@ -198,15 +198,15 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                             Container(
                               padding: EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
+                                color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.inbox_outlined, size: 48, color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.5)),
+                              child: Icon(Icons.inbox_outlined, size: 48, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.5)),
                             ),
                             SizedBox(height: 16),
                             Text("No hay postulaciones", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                             SizedBox(height: 8),
-                            Text("Intenta ajustando los filtros de búsqueda.", style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                            Text("Intenta ajustando los filtros de búsqueda.", style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3))),
                           ],
                         ),
                       )
@@ -246,9 +246,9 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                               margin: EdgeInsets.only(bottom: 16),
                               padding: EdgeInsets.all(20),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.03),
+                                color: context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor,
                                 borderRadius: AppTheme.cardRadius,
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
                                 boxShadow: AppTheme.premiumShadow,
                               ),
                               child: Column(
@@ -275,7 +275,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                                                 Expanded(
                                                   child: Text(
                                                     companyName,
-                                                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w600),
+                                                    style: TextStyle(fontSize: 13, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3), fontWeight: FontWeight.w600),
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
                                                   ),
@@ -285,18 +285,18 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                                             SizedBox(height: 4),
                                             Row(
                                               children: [
-                                                Icon(Icons.location_on_outlined, size: 14, color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.7)),
+                                                Icon(Icons.location_on_outlined, size: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.7)),
                                                 SizedBox(width: 4),
                                                 Text(
                                                   location,
-                                                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                                                  style: TextStyle(fontSize: 12, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3)),
                                                 ),
                                                 SizedBox(width: 12),
-                                                Icon(Icons.calendar_today_outlined, size: 14, color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.7)),
+                                                Icon(Icons.calendar_today_outlined, size: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.7)),
                                                 SizedBox(width: 4),
                                                 Text(
                                                   date,
-                                                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                                                  style: TextStyle(fontSize: 12, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3)),
                                                 ),
                                               ],
                                             ),
@@ -310,7 +310,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                                   Container(
                                     padding: EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: context.isDark ? Colors.white.withValues(alpha: 0.03) : Colors.transparent,
+                                      color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.transparent,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
@@ -347,14 +347,14 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                                                 style: TextStyle(
                                                   fontSize: 9,
                                                   fontWeight: FontWeight.w900,
-                                                  color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.6),
+                                                  color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.6),
                                                   letterSpacing: 1.2,
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                        Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.5)),
+                                        Icon(Icons.chevron_right, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.5)),
                                       ],
                                     ),
                                   ),

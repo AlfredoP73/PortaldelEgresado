@@ -129,7 +129,7 @@ class _ExperienceTabState extends State<ExperienceTab> with AutomaticKeepAliveCl
                 decoration: BoxDecoration(
                   color: context.surfaceColor,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+                  boxShadow: [BoxShadow(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

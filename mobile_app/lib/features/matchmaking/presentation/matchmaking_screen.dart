@@ -132,7 +132,7 @@ class _MatchmakingScreenState extends State<MatchmakingScreen> with TickerProvid
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.bgColor,
       body: Stack(
         children: [
           // Background ambient glows
@@ -177,11 +177,11 @@ class _MatchmakingScreenState extends State<MatchmakingScreen> with TickerProvid
                                 child: const Icon(Icons.auto_awesome, color: AppTheme.primaryColor, size: 24),
                               ),
                               const SizedBox(width: 12),
-                              const Text('Sugeridas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+                              Text('Sugeridas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: context.primaryText, letterSpacing: -0.5)),
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text('Vacantes recomendadas en vivo según tu perfil', style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6))),
+                          Text('Vacantes recomendadas en vivo según tu perfil', style: TextStyle(fontSize: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3))),
                         ],
                       ),
                     ),
@@ -200,7 +200,7 @@ class _MatchmakingScreenState extends State<MatchmakingScreen> with TickerProvid
                               ElevatedButton(
                                 onPressed: _fetchRecommendations,
                                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
-                                child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+                                child: Text('Reintentar', style: TextStyle(color: context.primaryText)),
                               )
                             ],
                           )
@@ -212,13 +212,13 @@ class _MatchmakingScreenState extends State<MatchmakingScreen> with TickerProvid
                               child: Text(
                                 'No hay recomendaciones por ahora.\nAsegúrate de completar tus habilidades en el perfil.', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 15),
+                                style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.25), fontSize: 15),
                               ),
                             )
                           )
                         : RefreshIndicator(
                             color: AppTheme.primaryColor,
-                            backgroundColor: const Color(0xFF1E293B),
+                            backgroundColor: context.surfaceColor,
                             onRefresh: _fetchRecommendations,
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

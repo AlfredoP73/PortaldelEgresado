@@ -1,0 +1,15 @@
+# Etapa 1: Build de Vite
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+# En este punto se asume que las variables de entorno de Vite se inyectan o se resuelven relativas a /api/
+RUN npm run build
+
+# Etapa 2: Nginx Servidor Web
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

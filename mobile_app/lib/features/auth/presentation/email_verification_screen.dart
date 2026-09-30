@@ -58,7 +58,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     color: context.surfaceColor, borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.08), blurRadius: 40, offset: const Offset(0, 16)),
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                      BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.02), blurRadius: 12, offset: const Offset(0, 4)),
                     ],
                   ),
                   child: Column(children: [

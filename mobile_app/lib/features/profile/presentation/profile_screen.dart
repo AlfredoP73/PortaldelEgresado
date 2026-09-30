@@ -7,6 +7,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
+import '../../settings/presentation/settings_screen.dart';
 import 'tabs/personal_data_tab.dart';
 import 'tabs/experience_tab.dart';
 import 'tabs/academic_tab.dart';
@@ -154,13 +155,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: context.bgColor,
         body: SafeArea(
           child: Column(
             children: [
+              // ── Botón de Configuración ──
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  icon: Icon(Icons.settings_outlined, color: context.primaryText),
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  },
+                ),
+              ),
               // ── Header con Foto ──
               Padding(
-                padding: EdgeInsets.only(top: 32, bottom: 24),
+                padding: EdgeInsets.only(top: 0, bottom: 24),
                 child: Column(
                   children: [
                     GestureDetector(
@@ -174,7 +185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: AppTheme.primaryDark, width: 4),
-                              color: Colors.white.withValues(alpha: 0.03),
+                              color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.white,
                               boxShadow: [
                                 BoxShadow(color: AppTheme.primaryDark.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
                               ],
@@ -197,16 +208,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: Colors.white, // Botón contrastante con el fondo
+                              color: context.primaryText, // Botón contrastante con el fondo
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF0F172A), width: 3),
+                              border: Border.all(color: context.bgColor, width: 3),
                             ),
                             child: _isUploading
                                 ? Padding(
                                     padding: EdgeInsets.all(8.0),
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: const Color(0xFF0F172A)),
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.bgColor),
                                   )
-                                : Icon(Icons.camera_alt_rounded, size: 18, color: const Color(0xFF0F172A)),
+                                : Icon(Icons.camera_alt_rounded, size: 18, color: context.bgColor),
                           ),
                         ],
                       ),
@@ -214,10 +225,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(height: 16),
                     Text(
                       _userName,
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: context.primaryText),
                     ),
                     SizedBox(height: 4),
-                    Text(_userEmail, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 14)),
+                    Text(_userEmail, style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3), fontSize: 14)),
                     SizedBox(height: 12),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -237,10 +248,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
+                    color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.white,
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2))],
+                    border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
+                    boxShadow: [BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2))],
                   ),
                   child: Row(
                     children: [
@@ -248,14 +259,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 24, height: 24,
                         child: CircularProgressIndicator(
                           value: _profileProgress,
-                          backgroundColor: Colors.white.withValues(alpha: 0.6).withValues(alpha: 0.2),
+                          backgroundColor: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.2),
                           valueColor: const AlwaysStoppedAnimation(AppTheme.primaryColor),
                           strokeWidth: 4,
                         ),
                       ),
                       SizedBox(width: 12),
                       Expanded(
-                        child: Text('Tu perfil está al ${(_profileProgress * 100).toInt()}% completo', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        child: Text('Tu perfil está al ${(_profileProgress * 100).toInt()}% completo', style: TextStyle(color: context.primaryText, fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -267,9 +278,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
+                  color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.white,
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                  border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
                 ),
                 child: TabBar(
                   indicatorSize: TabBarIndicatorSize.tab,
@@ -279,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   dividerColor: Colors.transparent,
                   labelColor: context.isDark ? AppTheme.primaryColor : AppTheme.primaryDark,
-                  unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+                  unselectedLabelColor: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3),
                   labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                   tabs: [
