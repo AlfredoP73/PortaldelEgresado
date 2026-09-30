@@ -20,11 +20,21 @@ class MinioStorageAdapter(StoragePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def upload_file(self, file: UploadFile, bucket: str, content_type: str = "application/pdf") -> str:
+        import boto3
+        from botocore.exceptions import ClientError
+        s3_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         try:
             self.s3_client.head_bucket(Bucket=bucket)
-        except Exception:
+        except ClientError:
             try:
-                self.s3_client.create_bucket(Bucket=bucket)
+                # us-east-1 no acepta LocationConstraint, las demás regiones sí
+                if s3_region == "us-east-1":
+                    self.s3_client.create_bucket(Bucket=bucket)
+                else:
+                    self.s3_client.create_bucket(
+                        Bucket=bucket,
+                        CreateBucketConfiguration={"LocationConstraint": s3_region}
+                    )
             except Exception as e:
                 print(f"Error creating bucket {bucket}: {e}")
 
