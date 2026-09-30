@@ -62,7 +62,7 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      const AUTH_URL = import.meta.env.VITE_AUTH_URL !== undefined ? import.meta.env.VITE_AUTH_URL : 'http://localhost:8080';
+      const AUTH_URL = (import.meta.env.VITE_AUTH_URL ?? '');
       const res = await fetch(`${AUTH_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,3 +291,4 @@ export default function ResetPassword() {
     </div>
   );
 }
+
