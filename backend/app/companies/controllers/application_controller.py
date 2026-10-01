@@ -77,14 +77,15 @@ def upload_subprocess_deliverable(
             raise HTTPException(status_code=403, detail="Unauthorized to upload to this sub-process")
             
     try:
+        import os
         minio_client = MinioClient.get_client()
-        bucket_name = "subprocess-deliverables"
+        bucket_name = os.getenv("S3_BUCKET_DELIVERABLES", "subprocess-deliverables")
         
-        # Crear bucket si no existe
+        # El bucket ya fue creado por deploy.ps1, solo verificar
         try:
             minio_client.head_bucket(Bucket=bucket_name)
         except:
-            minio_client.create_bucket(Bucket=bucket_name)
+            pass  # Si no existe, el upload fallará con error descriptivo
             
         file_ext = file.filename.split('.')[-1] if '.' in file.filename else ''
         file_key = f"deliverable_{sub_process_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
