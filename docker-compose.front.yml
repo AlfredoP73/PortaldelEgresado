@@ -6,6 +6,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     container_name: portaldel_egresado_frontend
+    restart: always
     ports:
       - "80:80"
     environment:

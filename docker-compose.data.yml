@@ -4,6 +4,7 @@ services:
   db:
     image: postgres:15-alpine
     container_name: portaldel_egresado_db
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -22,6 +23,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: portaldel_egresado_rabbitmq
+    restart: always
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -37,6 +39,7 @@ services:
   loki:
     image: grafana/loki:2.8.2
     container_name: portaldel_egresado_loki
+    restart: always
     user: "0:0"
     ports:
       - "3100:3100"
@@ -47,6 +50,7 @@ services:
   promtail:
     image: grafana/promtail:2.8.2
     container_name: portaldel_egresado_promtail
+    restart: always
     volumes:
       - ./logging/promtail-config.yaml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
@@ -58,6 +62,7 @@ services:
   grafana:
     image: grafana/grafana-oss:latest
     container_name: portaldel_egresado_grafana
+    restart: always
     ports:
       - "3000:3000"
     volumes:

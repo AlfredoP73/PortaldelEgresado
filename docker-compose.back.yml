@@ -6,6 +6,7 @@ services:
       context: ./backend
       dockerfile: ./app/auth/Dockerfile
     container_name: portaldel_egresado_auth
+    restart: always
     command: uvicorn app.auth.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DATA_HOST}:5432/auth_db
@@ -19,6 +20,7 @@ services:
       context: ./backend
       dockerfile: ./app/companies/Dockerfile
     container_name: portaldel_egresado_companies
+    restart: always
     command: uvicorn app.companies.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DATA_HOST}:5432/companies_db
@@ -35,6 +37,7 @@ services:
       context: ./backend
       dockerfile: ./app/graduates/Dockerfile
     container_name: portaldel_egresado_graduates
+    restart: always
     command: uvicorn app.graduates.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DATA_HOST}:5432/graduates_db
@@ -54,6 +57,7 @@ services:
       context: ./backend
       dockerfile: ./app/dashboard/Dockerfile
     container_name: portaldel_egresado_dashboard
+    restart: always
     command: uvicorn app.dashboard.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DATA_HOST}:5432/auth_db
@@ -70,6 +74,7 @@ services:
       context: ./backend
       dockerfile: ./app/matchmaking/Dockerfile
     container_name: portaldel_egresado_matchmaking
+    restart: always
     command: uvicorn app.matchmaking.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${DATA_HOST}:5432/matchmaking_db
@@ -83,6 +88,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: portaldel_egresado_nginx
+    restart: always
     ports:
       - "80:80"
     volumes:
