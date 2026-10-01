@@ -16,19 +16,22 @@ from sqlalchemy.orm import Session
 
 from app.matchmaking.models import Match, MatchNotification
 from app.matchmaking.services.criteria_service import get_weights
+from app.matchmaking.controllers.ws_controller import manager
+import asyncio
 
 # Umbral de compatibilidad a partir del cual se genera una notificación (Módulo 3.2)
 UMBRAL_NOTIFICACION = Decimal("75.00")
 
 
 # ── Lectura de datos de otros dominios (API Composition) ──
-import httpx
+from app.core.adapters import HttpGraduatesAdapter, HttpCompaniesAdapter
+
+graduates_adapter = HttpGraduatesAdapter()
+companies_adapter = HttpCompaniesAdapter()
 
 def _get_graduate_data(db: Session, graduate_id: int) -> Optional[dict]:
     try:
-        resp = httpx.get(f"http://graduates:8000/api/internal/matchmaking/graduates/{graduate_id}", timeout=5.0)
-        resp.raise_for_status()
-        return resp.json()
+        return graduates_adapter.get_matchmaking_graduate(graduate_id)
     except Exception:
         return None
 
@@ -38,9 +41,7 @@ def _get_survey_context(db: Session, graduate_id: int) -> dict:
 
 def _get_job_offer_data(db: Session, job_offer_id: int) -> Optional[dict]:
     try:
-        resp = httpx.get(f"http://companies:8000/api/internal/matchmaking/jobs/{job_offer_id}", timeout=5.0)
-        resp.raise_for_status()
-        return resp.json()
+        return companies_adapter.get_matchmaking_job(job_offer_id)
     except Exception:
         return None
 
@@ -96,6 +97,16 @@ def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict
                 )
             )
             db.commit()
+            
+            # Notificar en tiempo real por WebSockets
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(manager.send_personal_message({"type": "NEW_MATCH", "job_offer_id": job_offer_id, "score": float(result["score"])}, graduate_id))
+                else:
+                    asyncio.run(manager.send_personal_message({"type": "NEW_MATCH", "job_offer_id": job_offer_id, "score": float(result["score"])}, graduate_id))
+            except Exception as e:
+                print(f"Error sending ws message: {e}")
 
     return match
 
@@ -115,11 +126,7 @@ def calcular_match_individual(db: Session, graduate_id: int, job_offer_id: int) 
 def recalcular_por_egresado(db: Session, graduate_id: int) -> list[Match]:
     """Se dispara cuando el egresado actualiza su perfil/hoja de vida."""
     try:
-        resp = httpx.get("http://companies:8000/api/internal/matchmaking/jobs", timeout=5.0)
-        if resp.status_code == 200:
-            job_offer_ids = resp.json()
-        else:
-            job_offer_ids = []
+        job_offer_ids = companies_adapter.get_matchmaking_job_ids()
     except Exception:
         job_offer_ids = []
     resultados = []
@@ -133,11 +140,7 @@ def recalcular_por_egresado(db: Session, graduate_id: int) -> list[Match]:
 def recalcular_por_vacante(db: Session, job_offer_id: int) -> list[Match]:
     """Se dispara cuando la empresa publica o edita una vacante."""
     try:
-        resp = httpx.get("http://graduates:8000/api/internal/matchmaking/graduates", timeout=5.0)
-        if resp.status_code == 200:
-            graduate_ids = resp.json()
-        else:
-            graduate_ids = []
+        graduate_ids = graduates_adapter.get_matchmaking_graduate_ids()
     except Exception:
         graduate_ids = []
     resultados = []

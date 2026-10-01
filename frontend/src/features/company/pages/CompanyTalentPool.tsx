@@ -3,8 +3,9 @@ import api, { matchmakingApi } from '../../../api';
 import { Users, GraduationCap, Phone, ExternalLink, X, FileText, Mail, Briefcase, Search } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
+import Modal from '../../../components/Modal';
 
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+const GRADUATES_URL = (import.meta.env.VITE_GRADUATES_URL ?? '');
 
 interface JobOffer {
   id: number;
@@ -49,7 +50,7 @@ interface Graduate {
 }
 
 export default function CompanyTalentPool() {
-  const [graduates, setGraduates] = useState<Graduate[]>([]);
+    const [graduates, setGraduates] = useState<Graduate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGraduate, setSelectedGraduate] = useState<Graduate | null>(null);
   const [jobOffers, setJobOffers] = useState<JobOffer[]>([]);
@@ -101,7 +102,7 @@ export default function CompanyTalentPool() {
   const fetchGraduates = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/talent-pool');
+      const res = await api.get('/jobs');
       setGraduates(res.data);
     } catch (error) {
       console.error('Error fetching talent pool:', error);
@@ -114,18 +115,18 @@ export default function CompanyTalentPool() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-ink font-heading">Directorio de Egresados</h2>
-          <p className="text-sm mt-1 text-ink-secondary">Explora el talento disponible y contacta directamente a los perfiles que se ajusten a tu empresa.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-ink font-heading">{'Talento Humano'}</h2>
+          <p className="text-sm mt-1 text-ink-secondary">{'Explora el banco de talentos disponibles.'}</p>
         </div>
         <div className="flex flex-col gap-1 w-full sm:w-80">
-          <label htmlFor="job-select" className="text-xs font-bold text-ink-secondary uppercase tracking-wider">Vacante para calcular afinidad</label>
+          <label htmlFor="job-select" className="text-xs font-bold text-ink-secondary uppercase tracking-wider">{'Vacante para calcular afinidad'}</label>
           <select
             id="job-select"
             className="input w-full"
             value={selectedJobId}
             onChange={(e) => setSelectedJobId(e.target.value ? Number(e.target.value) : '')}
           >
-            <option value="">Selecciona una vacante...</option>
+            <option value="">{'Selecciona una vacante...'}</option>
             {jobOffers.map((job) => (
               <option key={job.id} value={job.id}>{job.title}</option>
             ))}
@@ -140,7 +141,7 @@ export default function CompanyTalentPool() {
       ) : graduates.length === 0 ? (
         <div className="card p-12 text-center">
           <Users className="w-12 h-12 text-ink-tertiary mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-bold text-ink">No hay talento registrado aún</h3>
+          <h3 className="text-lg font-bold text-ink">{'No hay talento registrado aún'}</h3>
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -150,7 +151,7 @@ export default function CompanyTalentPool() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
                 <input
                   type="text"
-                  placeholder="Buscar por nombre del profesional..."
+                  placeholder={'Buscar por nombre del profesional...'}
                   className="input w-full pl-9"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -163,10 +164,10 @@ export default function CompanyTalentPool() {
                   onChange={(e) => { setMinMatchFilter(e.target.value); setCurrentPage(1); }}
                   disabled={!selectedJobId}
                 >
-                  <option value="ALL">Cualquier Afinidad</option>
-                  <option value="50">Mayor a 50%</option>
-                  <option value="75">Mayor a 75%</option>
-                  <option value="90">Mayor a 90%</option>
+                  <option value="ALL">{'Cualquier Afinidad'}</option>
+                  <option value="50">{'Mayor a 50%'}</option>
+                  <option value="75">{'Mayor a 75%'}</option>
+                  <option value="90">{'Mayor a 90%'}</option>
                 </select>
               </div>
             </div>
@@ -176,11 +177,11 @@ export default function CompanyTalentPool() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Profesional</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Formación</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Afinidad</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Contacto Directo</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Acciones</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Profesional'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Formación'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Afinidad'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Contacto Directo'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">{'ACCIONES'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -213,7 +214,7 @@ export default function CompanyTalentPool() {
                     return (
                       <tr>
                         <td colSpan={5} className="px-6 py-8 text-center text-ink-secondary italic">
-                          No se encontraron talentos que coincidan con los filtros.
+                          {'No se encontraron talentos que coincidan con los filtros.'}
                         </td>
                       </tr>
                     );
@@ -231,14 +232,14 @@ export default function CompanyTalentPool() {
                           {grad.profile_summary ? (
                             <p className="text-xs text-ink-secondary truncate max-w-[200px] mt-0.5">{grad.profile_summary}</p>
                           ) : (
-                            <p className="text-xs text-ink-secondary mt-0.5 italic">Sin resumen</p>
+                            <p className="text-xs text-ink-secondary mt-0.5 italic">{'Sin resumen'}</p>
                           )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-xs text-ink-secondary">
-                        <span className="flex items-center gap-1.5 font-semibold text-brand-700"><GraduationCap className="w-3.5 h-3.5" /> Año: {grad.graduation_year}</span>
+                        <span className="flex items-center gap-1.5 font-semibold text-brand-700"><GraduationCap className="w-3.5 h-3.5" /> {'Año'}: {grad.graduation_year}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -252,7 +253,7 @@ export default function CompanyTalentPool() {
                           {Math.round(matches[grad.user_id])}%
                         </span>
                       ) : (
-                        <span className="text-xs text-ink-tertiary italic">Sin vacante seleccionada</span>
+                        <span className="text-xs text-ink-tertiary italic">{'Sin vacante seleccionada'}</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -262,7 +263,7 @@ export default function CompanyTalentPool() {
                              <Mail className="w-3.5 h-3.5" /> {grad.email}
                            </a>
                         ) : (
-                          <span className="text-ink-tertiary">Correo N/A</span>
+                          <span className="text-ink-tertiary">{'Correo N/A'}</span>
                         )}
                         <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {grad.phone || 'Teléfono N/A'}</span>
                       </div>
@@ -270,7 +271,7 @@ export default function CompanyTalentPool() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setSelectedGraduate(grad)} className="inline-flex items-center gap-1 bg-ink-50 text-ink hover:bg-ink-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-transparent hover:border-ink-200 shadow-sm">
-                          Ver Perfil Completo
+                          {'Ver Perfil Completo'}
                         </button>
                       </div>
                     </td>
@@ -291,46 +292,48 @@ export default function CompanyTalentPool() {
         </div>
       )}
 
-      {selectedGraduate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
-          <div className="w-full max-w-7xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl animate-fade-in-up" style={{ backgroundColor: 'var(--bg-modal)' }}>
-            <div className="sticky top-0 bg-[var(--bg-modal)] flex justify-between items-center p-6 border-b z-10" style={{ borderColor: 'var(--border-color)' }}>
+      <Modal isOpen={!!selectedGraduate} onClose={() => setSelectedGraduate(null)} maxWidth="max-w-4xl">
+        {selectedGraduate && (
+          <>
+            <div className="flex justify-between items-center p-6 border-b shrink-0" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}>
               <div>
-                <h3 className="text-xl font-bold text-ink">Perfil de Talento</h3>
+                <h3 className="text-xl font-bold text-ink font-heading">{'Perfil de Talento'}</h3>
                 <p className="text-sm text-brand-600 font-semibold">{selectedGraduate.first_name} {selectedGraduate.last_name}</p>
               </div>
-              <button onClick={() => setSelectedGraduate(null)} className="text-ink-tertiary hover:text-ink p-1 rounded-full hover:bg-black/5"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSelectedGraduate(null)} className="transition-colors p-1.5 rounded-full hover-bg-muted" style={{ color: 'var(--text-muted)' }}>
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Contact & CV Row */}
               <div className="flex flex-col md:flex-row gap-6 items-start">
-                <div className="flex-1 bg-brand-50 p-5 rounded-2xl border border-brand-100 w-full">
-                  <h4 className="text-lg font-bold text-brand-900 mb-3">Información de Contacto</h4>
+                <div className="flex-1 p-5 rounded-2xl border w-full" style={{ backgroundColor: 'rgba(8, 116, 67, 0.05)', borderColor: 'rgba(8, 116, 67, 0.2)' }}>
+                  <h4 className="text-lg font-bold mb-3" style={{ color: 'var(--accent-primary)' }}>{'Información de Contacto'}</h4>
                   <div className="space-y-2">
                     {selectedGraduate.email && (
-                      <p className="text-sm text-brand-800"><span className="font-semibold">Correo:</span> {selectedGraduate.email}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-main)' }}><span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{'Correo'}:</span> {selectedGraduate.email}</p>
                     )}
                     {selectedGraduate.phone && (
-                      <p className="text-sm text-brand-800"><span className="font-semibold">Teléfono:</span> {selectedGraduate.phone}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-main)' }}><span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{'Teléfono:'}</span> {selectedGraduate.phone}</p>
                     )}
                   </div>
                   {selectedGraduate.email && (
                     <a href={`mailto:${selectedGraduate.email}`} className="mt-4 inline-flex items-center justify-center w-full gap-2 bg-brand-600 text-white px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-700 shadow-sm">
-                      Contactar Directamente
+                      {'Contactar Directamente'}
                     </a>
                   )}
                 </div>
                 
                 <div className="flex-1 bg-[var(--bg-muted)] p-5 rounded-2xl border border-[var(--border-color)] w-full">
-                  <h4 className="text-lg font-bold text-ink mb-3">Hoja de Vida (CV)</h4>
+                  <h4 className="text-lg font-bold text-ink mb-3">{'Hoja de Vida (CV)'}</h4>
                   {selectedGraduate.cv_url ? (
-                    <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-white text-brand-700 px-4 py-2 rounded-xl font-bold transition-colors hover:bg-brand-50 border border-brand-200 shadow-sm w-full justify-center">
-                      <ExternalLink className="w-4 h-4" /> Ver Hoja de Vida
+                    <a href={`${GRADUATES_URL}${selectedGraduate.cv_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-colors shadow-sm w-full justify-center" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--accent-primary)', border: '1px solid var(--border-color)' }}>
+                      <ExternalLink className="w-4 h-4" /> {'Ver Hoja de Vida'}
                     </a>
                   ) : (
                     <p className="text-sm text-ink-secondary italic text-center py-2">
-                      El talento no ha subido su hoja de vida.
+                      {'El talento no ha subido su hoja de vida.'}
                     </p>
                   )}
                 </div>
@@ -338,15 +341,15 @@ export default function CompanyTalentPool() {
 
               {selectedGraduate.profile_summary && (
                 <div>
-                  <h4 className="text-lg font-bold text-ink mb-4">Perfil Profesional</h4>
-                  <p className="text-sm text-ink-secondary bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">
+                  <h4 className="text-lg font-bold text-ink mb-2">{'Perfil Profesional'}</h4>
+                  <p className="text-sm text-ink-secondary bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)] leading-relaxed">
                     {selectedGraduate.profile_summary}
                   </p>
                 </div>
               )}
 
               <div>
-                <h4 className="text-lg font-bold text-ink mb-4 flex items-center gap-2"><Briefcase className="w-5 h-5" /> Experiencia Laboral</h4>
+                <h4 className="text-lg font-bold text-ink mb-3 flex items-center gap-2"><Briefcase className="w-5 h-5 text-brand-600" /> {'Experiencia Laboral'}</h4>
                 {selectedGraduate.experiences && selectedGraduate.experiences.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.experiences.map(exp => (
@@ -355,20 +358,20 @@ export default function CompanyTalentPool() {
                         <p className="text-sm font-semibold text-brand-600">{exp.company_name}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(exp.start_date).toLocaleDateString()} - {exp.end_date ? new Date(exp.end_date).toLocaleDateString() : 'Presente'}</p>
                         {exp.certificate_url && (
-                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-green-100">
-                            <FileText className="w-3 h-3" /> Certificado Adjunto
+                          <a href={`${GRADUATES_URL}${exp.certificate_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                            <FileText className="w-3 h-3" /> {'Certificado Adjunto'}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">El talento no ha registrado experiencia laboral.</p>
+                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{'El talento no ha registrado experiencia laboral.'}</p>
                 )}
               </div>
 
               <div>
-                <h4 className="text-lg font-bold text-ink mb-4 flex items-center gap-2"><GraduationCap className="w-5 h-5" /> Formación Académica</h4>
+                <h4 className="text-lg font-bold text-ink mb-3 flex items-center gap-2"><GraduationCap className="w-5 h-5 text-brand-600" /> {'Formación Académica'}</h4>
                 {selectedGraduate.academic_histories && selectedGraduate.academic_histories.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     {selectedGraduate.academic_histories.map(edu => (
@@ -377,21 +380,23 @@ export default function CompanyTalentPool() {
                         <p className="text-sm font-semibold text-brand-600">{edu.institution}</p>
                         <p className="text-xs text-ink-secondary mt-1">{new Date(edu.start_date).toLocaleDateString()} - {edu.end_date ? new Date(edu.end_date).toLocaleDateString() : 'En curso'}</p>
                         {edu.diploma_url && (
-                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold w-fit transition-colors hover:bg-blue-100">
-                            <FileText className="w-3 h-3" /> Diploma Adjunto
+                          <a href={`${GRADUATES_URL}${edu.diploma_url}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold w-fit transition-colors" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+                            <FileText className="w-3 h-3" /> {'Diploma Adjunto'}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">El talento no ha registrado formación académica.</p>
+                  <p className="text-sm text-ink-secondary italic bg-[var(--bg-muted)] p-4 rounded-xl border border-[var(--border-color)]">{'El talento no ha registrado formación académica.'}</p>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
+
+

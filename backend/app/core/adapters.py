@@ -20,11 +20,21 @@ class MinioStorageAdapter(StoragePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def upload_file(self, file: UploadFile, bucket: str, content_type: str = "application/pdf") -> str:
+        import boto3
+        from botocore.exceptions import ClientError
+        s3_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         try:
             self.s3_client.head_bucket(Bucket=bucket)
-        except Exception:
+        except ClientError:
             try:
-                self.s3_client.create_bucket(Bucket=bucket)
+                # us-east-1 no acepta LocationConstraint, las demás regiones sí
+                if s3_region == "us-east-1":
+                    self.s3_client.create_bucket(Bucket=bucket)
+                else:
+                    self.s3_client.create_bucket(
+                        Bucket=bucket,
+                        CreateBucketConfiguration={"LocationConstraint": s3_region}
+                    )
             except Exception as e:
                 print(f"Error creating bucket {bucket}: {e}")
 
@@ -76,3 +86,137 @@ class RabbitMQMatchmakingAdapter(MatchmakingPort):
         except Exception as e:
             print(f"Error publishing to RabbitMQ: {e}")
             return False
+
+# ── Inter-Service HTTP Communication Ports & Adapters ──
+
+class GraduatesServicePort(ABC):
+    @abstractmethod
+    def get_all_graduates(self) -> list: pass
+    
+    @abstractmethod
+    def get_graduate(self, graduate_id: int) -> Optional[dict]: pass
+
+    @abstractmethod
+    def get_matchmaking_graduate(self, graduate_id: int) -> Optional[dict]: pass
+
+    @abstractmethod
+    def get_matchmaking_graduate_ids(self) -> list: pass
+
+class HttpGraduatesAdapter(GraduatesServicePort):
+    def __init__(self):
+        self.base_url = os.getenv("GRADUATES_URL", "http://graduates:8000")
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_all_graduates(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/graduates", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_graduate(self, graduate_id: int) -> Optional[dict]:
+        resp = httpx.get(f"{self.base_url}/api/internal/graduates/{graduate_id}", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_matchmaking_graduate(self, graduate_id: int) -> Optional[dict]:
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates/{graduate_id}", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_matchmaking_graduate_ids(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+class CompaniesServicePort(ABC):
+    @abstractmethod
+    def get_all_companies(self) -> list: pass
+
+    @abstractmethod
+    def get_all_applications(self) -> list: pass
+    
+    @abstractmethod
+    def get_jobs(self, params: dict) -> dict: pass
+    
+    @abstractmethod
+    def apply_for_job(self, payload: dict) -> dict: pass
+    
+    @abstractmethod
+    def get_my_applications(self, graduate_id: int) -> list: pass
+
+    @abstractmethod
+    def get_programs(self) -> list: pass
+
+    @abstractmethod
+    def get_matchmaking_job(self, job_offer_id: int) -> Optional[dict]: pass
+
+    @abstractmethod
+    def get_matchmaking_job_ids(self) -> list: pass
+
+class HttpCompaniesAdapter(CompaniesServicePort):
+    def __init__(self):
+        self.base_url = os.getenv("COMPANIES_URL", "http://companies:8000")
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_all_companies(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/companies", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_all_applications(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/applications", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+        
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_jobs(self, params: dict) -> dict:
+        resp = httpx.get(f"{self.base_url}/api/internal/jobs", params=params, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def apply_for_job(self, payload: dict) -> dict:
+        resp = httpx.post(f"{self.base_url}/api/internal/applications/apply", json=payload, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_my_applications(self, graduate_id: int) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/applications/graduate/{graduate_id}", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_programs(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/programs", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_matchmaking_job(self, job_offer_id: int) -> Optional[dict]:
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs/{job_offer_id}", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_matchmaking_job_ids(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+class AuthServicePort(ABC):
+    @abstractmethod
+    def create_user(self, payload: dict) -> dict: pass
+
+class HttpAuthAdapter(AuthServicePort):
+    def __init__(self):
+        self.base_url = os.getenv("AUTH_URL", "http://auth:8000")
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def create_user(self, payload: dict) -> dict:
+        resp = httpx.post(f"{self.base_url}/api/internal/users", json=payload, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()

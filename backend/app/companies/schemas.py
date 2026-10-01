@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import date, datetime
-from .models import CompanyStatus, JobOfferStatus, ApplicationStatus
+from .models import CompanyStatus, JobOfferStatus, ApplicationStatus, SubProcessType, SubProcessStatus
 
 # --- Catalogs ---
 class SectorBase(BaseModel):
@@ -93,8 +93,11 @@ class JobOfferBase(BaseModel):
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
     min_experience_years: int = 0
+    modality: str = "Presencial"
+    contract_type: str = "Indefinido"
     program_id: int
     closing_date: date
+    available_slots: int = 1
 
 class JobOfferCreate(JobOfferBase):
     required_skills: List[JobOfferSkillCreate] = []
@@ -120,10 +123,17 @@ class ApplicationCreate(ApplicationBase):
 
 class ApplicationUpdateStatus(BaseModel):
     status: ApplicationStatus
+    rejection_reason: Optional[str] = None
+
+class BulkApplicationUpdate(BaseModel):
+    application_ids: List[int]
+    status: ApplicationStatus
+    rejection_reason: Optional[str] = None
 
 class Application(ApplicationBase):
     id: int
     status: ApplicationStatus
+    rejection_reason: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -138,8 +148,40 @@ class GraduateBasicInfo(BaseModel):
     class Config:
         from_attributes = True
 
+class SubProcessBase(BaseModel):
+    tipo: SubProcessType
+    nombre: str
+    descripcion: Optional[str] = None
+    etapa_kanban: str
+    fecha_limite: Optional[datetime] = None
+    es_formulario: bool = False
+    preguntas_json: Optional[Any] = None
+    enlace_adjunto: Optional[str] = None
+    archivo_respuesta: Optional[str] = None
+
+class SubProcessCreate(SubProcessBase):
+    application_id: int
+
+class SubProcessUpdate(BaseModel):
+    estado: Optional[SubProcessStatus] = None
+    respuestas_json: Optional[Any] = None
+    score: Optional[int] = None
+
+class ApplicationSubProcessSchema(SubProcessBase):
+    id: int
+    application_id: int
+    estado: SubProcessStatus
+    respuestas_json: Optional[Any] = None
+    archivo_respuesta: Optional[str] = None
+    score: Optional[int] = None
+    
+    class Config:
+        from_attributes = True
+
 class ApplicationWithCandidate(Application):
     graduate: GraduateBasicInfo
+    sub_processes: List[ApplicationSubProcessSchema] = []
+    match_score: Optional[float] = None
     
     class Config:
         from_attributes = True

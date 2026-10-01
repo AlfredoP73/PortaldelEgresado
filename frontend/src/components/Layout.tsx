@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect } from 'react';
+import React, { type ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -16,9 +16,16 @@ import {
   GraduationCap,
   Search,
   Settings,
+  Menu,
+  MapPin,
+  Trophy,
+  Sparkles,
+  ShieldAlert
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
+import { useTheme } from '../context/ThemeContext';
+import toast from 'react-hot-toast';
 
 interface LayoutProps {
   children: ReactNode;
@@ -35,7 +42,7 @@ const getNavItems = (role: string) => {
       section: 'Administración Global',
     },
     {
-      name: 'Directorio Egresados',
+      name: 'Egresados',
       path: '/admin/graduates',
       icon: Users,
       roles: ['ADMIN'],
@@ -63,28 +70,27 @@ const getNavItems = (role: string) => {
       section: 'Administración Global',
     },
     {
-      name: 'Sectores',
+      name: 'Sectores Emp.',
       path: '/admin/sectors',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
       section: 'Administración Global',
     },
     {
-      name: 'Ciudades',
+      name: 'Gestión Ciudades',
       path: '/admin/cities',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
       section: 'Administración Global',
     },
     {
-      name: 'Programas',
+      name: 'Gestión Programas',
       path: '/admin/programs',
       icon: LayoutDashboard,
       roles: ['ADMIN'],
       section: 'Administración Global',
     },
 
-    // Module Companies
     {
       name: 'Dashboard',
       path: '/company/dashboard',
@@ -93,21 +99,15 @@ const getNavItems = (role: string) => {
       section: 'Módulo Empresas',
     },
     {
-      name: role === 'COMPANY' ? 'Mi Perfil Empresarial' : 'Directorio Empresas',
+      name: role === 'COMPANY' ? 'Mi Perfil Empresarial' : 'Empresas Aliadas',
       path: '/companies',
       icon: Building2,
       roles: ['ADMIN', 'COMPANY'],
       section: 'Módulo Empresas',
     },
+
     {
-      name: 'Directorio Egresados',
-      path: '/talent-pool',
-      icon: Users,
-      roles: ['COMPANY'],
-      section: 'Módulo Empresas',
-    },
-    {
-      name: 'Vacantes',
+      name: 'Vacantes Activas',
       path: '/job-offers',
       icon: Briefcase,
       roles: ['ADMIN', 'COMPANY'],
@@ -121,7 +121,6 @@ const getNavItems = (role: string) => {
       section: 'Módulo Empresas',
     },
 
-    // Module Graduates
     {
       name: 'Dashboard',
       path: '/graduate/dashboard',
@@ -158,6 +157,13 @@ const getNavItems = (role: string) => {
       section: 'Empleabilidad',
     },
     {
+      name: 'Recomendaciones',
+      path: '/matchmaking',
+      icon: Sparkles,
+      roles: ['GRADUATE'],
+      section: 'Empleabilidad',
+    },
+    {
       name: 'Mis Postulaciones',
       path: '/applications',
       icon: CheckCircle,
@@ -176,40 +182,80 @@ const getNavItems = (role: string) => {
   return allItems.filter((item) => item.roles.includes(role));
 };
 
-const pageTitles: Record<string, string> = {
-  '/admin/dashboard': 'Dashboard Administrativo',
-  '/company/dashboard': 'Dashboard Empresa',
-  '/graduate/dashboard': 'Dashboard Egresado',
-  '/companies': 'Directorio de Empresas',
-  '/job-offers': 'Ofertas Laborales',
-  '/kanban': 'Gestión de Candidatos',
-  '/profile': 'Mi Perfil Profesional',
-  '/jobs': 'Explorar Ofertas Laborales',
-};
+
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
 
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
+  const pageTitles: Record<string, string> = {
+    '/admin/dashboard': 'Dashboard Administrativo',
+    '/company/dashboard': 'Dashboard Empresa',
+    '/graduate/dashboard': 'Dashboard Egresado',
+    '/companies': 'Directorio de Empresas',
+    '/job-offers': 'Ofertas Laborales',
+    '/kanban': 'Gestión de Candidatos',
+    '/profile': 'Mi Perfil Profesional',
+    '/jobs': 'Explorar Ofertas Laborales',
+  };
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('sidebarOpen');
+    return saved !== null ? saved === 'true' : true;
   });
 
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.body.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
+    localStorage.setItem('sidebarOpen', String(isSidebarOpen));
+  }, [isSidebarOpen]);
 
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
 
   const roleName = user?.role_name || '';
   const navItems = getNavItems(roleName);
+
+  // WebSocket Connection
+  useEffect(() => {
+    if (!user || !user.id) return;
+
+    let ws: WebSocket;
+    const connectWs = () => {
+      const envUrl = import.meta.env.VITE_MATCHMAKING_URL;
+      const baseUrl = (envUrl !== undefined && envUrl !== "") ? envUrl : window.location.origin;
+      const wsUrl = baseUrl.replace('http', 'ws') + `/matching/ws/${user.id}`;
+      
+      ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'NEW_MATCH') {
+            toast.success(`¡Nueva vacante sugerida! Compatibilidad: ${data.score}%`, {
+              icon: '✨',
+              duration: 5000,
+            });
+          }
+        } catch (e) {
+          console.error("Error parsing WS message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        // Retry connection after 5 seconds
+        setTimeout(connectWs, 5000);
+      };
+    };
+
+    connectWs();
+
+    return () => {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [user?.id]);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -244,33 +290,39 @@ export default function Layout({ children }: LayoutProps) {
         ? 'Portal Egresado'
         : 'Portal Administrativo');
 
+  const currentNavItem = navItems.find((item) => item.path === location.pathname);
+  const CurrentIcon = currentNavItem?.icon;
+
   return (
     <div
-      className="h-screen flex font-sans" 
+      className="h-screen flex font-sans p-4 overflow-hidden" 
       style={{
         backgroundColor: 'var(--bg-main)',
       }}
     >
 
       {/* =========================================================
-          SIDEBAR FIJO
+          SIDEBAR FLOTANTE
           ========================================================= */}
       <aside
-        className="
-          fixed
-          left-0
-          top-0
-          bottom-0
-          w-[252px]
+        className={twMerge(
+          `
+          relative
           flex
           flex-col
           z-30
+          rounded-3xl
           overflow-hidden
-          transition-colors
+          transition-all
           duration-300
-        "
+          shadow-lg shadow-black/5
+          h-full
+          `,
+          isSidebarOpen ? 'w-[252px]' : 'w-[80px]'
+        )}
         style={{
-          backgroundColor: 'var(--bg-sidebar)',
+          backgroundColor: 'var(--bg-surface)',
+          borderRight: '1px solid var(--border-color)'
         }}
       >
         {/* Subtle glow */}
@@ -278,7 +330,8 @@ export default function Layout({ children }: LayoutProps) {
           className="absolute top-0 left-0 w-full h-28 pointer-events-none"
           style={{
             background:
-              'radial-gradient(ellipse at top left, rgba(34,168,110,0.15), transparent)',
+              'radial-gradient(ellipse at top left, var(--accent-primary), transparent)',
+            opacity: 0.15
           }}
         />
 
@@ -294,9 +347,6 @@ export default function Layout({ children }: LayoutProps) {
             relative
             z-10
           "
-          style={{
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-          }}
         >
           <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
             <img
@@ -306,20 +356,25 @@ export default function Layout({ children }: LayoutProps) {
             />
           </div>
 
-          <div className="leading-tight min-w-0">
-            <p className="text-white font-bold text-[13px] truncate">
+          <div
+            className={twMerge(
+              "leading-tight min-w-0 transition-all duration-300 overflow-hidden",
+              isSidebarOpen ? "opacity-100 w-auto" : "opacity-0 w-0"
+            )}
+          >
+            <span className="block text-[13px] font-black tracking-tight" style={{ color: 'var(--text-main)' }}>
               Portal Empleo
-            </p>
+            </span>
 
-            <p
-              className="text-xs truncate"
-              style={{
-                color: 'rgba(255,255,255,0.35)',
-              }}
-            >
+            <span className="block text-[9px] font-medium" style={{ color: 'var(--text-ink-secondary)' }}>
               Universidad UPC
-            </p>
+            </span>
           </div>
+        </div>
+
+        {/* Separator */}
+        <div className="px-5">
+           <div className="w-full h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
         </div>
 
         {/* =====================================================
@@ -329,12 +384,13 @@ export default function Layout({ children }: LayoutProps) {
           className="
             flex-1
             px-3
-            pt-5
+            pt-4
             pb-2
             space-y-1
             relative
             z-10
             overflow-y-auto
+            scrollbar-hide
           "
         >
           {(() => {
@@ -352,23 +408,26 @@ export default function Layout({ children }: LayoutProps) {
                 return (
                   <div key={path}>
                     {showSection && section && (
-                      <p
-                        className="
-                          text-[10px]
-                          font-bold
-                          uppercase
-                          px-3
-                          mb-3
-                          mt-4
-                          first:mt-0
-                        "
-                        style={{
-                          color: 'rgba(255,255,255,0.45)',
-                          letterSpacing: '0.15em',
-                        }}
-                      >
-                        {section}
-                      </p>
+                      <div className={twMerge(
+                        "overflow-hidden transition-all duration-300",
+                        isSidebarOpen ? "opacity-100 max-h-10 mt-5 mb-2" : "opacity-0 max-h-0 mt-0 mb-0"
+                      )}>
+                        <p
+                          className="
+                            text-[9px]
+                            font-bold
+                            uppercase
+                            px-3
+                            whitespace-nowrap
+                          "
+                          style={{
+                            color: 'var(--text-ink-tertiary)',
+                            letterSpacing: '0.12em',
+                          }}
+                        >
+                          {section}
+                        </p>
+                      </div>
                     )}
 
                     <Link
@@ -377,74 +436,51 @@ export default function Layout({ children }: LayoutProps) {
                         `
                         flex
                         items-center
-                        gap-3
                         px-3
                         py-2.5
                         rounded-xl
                         text-[13px]
-                        font-semibold
+                        font-medium
                         transition-all
                         duration-200
                         group
                         relative
                         `,
                         active
-                          ? 'text-white'
-                          : 'hover:text-white'
+                          ? 'shadow-sm'
+                          : ''
                       )}
                       style={{
                         backgroundColor: active
-                          ? 'rgba(255,255,255,0.1)'
+                          ? 'var(--accent-primary)'
                           : 'transparent',
 
                         color: active
-                          ? '#fff'
-                          : 'rgba(255,255,255,0.5)',
+                          ? 'var(--text-inverse)'
+                          : 'var(--text-ink-secondary)',
                       }}
                     >
                       <Icon
                         className="
-                          w-[17px]
-                          h-[17px]
+                          w-[18px]
+                          h-[18px]
                           flex-shrink-0
                         "
                         style={{
                           color: active
-                            ? '#7cdaac'
-                            : 'rgba(255,255,255,0.35)',
+                            ? 'var(--text-inverse)'
+                            : 'var(--text-ink-tertiary)',
                         }}
                       />
 
-                      <span className="flex-1 truncate">
+                      <span
+                        className={twMerge(
+                          "whitespace-nowrap overflow-hidden transition-all duration-300",
+                          isSidebarOpen ? "opacity-100 w-auto ml-3 flex-1 truncate" : "opacity-0 w-0 ml-0 flex-none"
+                        )}
+                      >
                         {name}
                       </span>
-
-                      {active && (
-                        <ChevronRight
-                          className="
-                            w-3.5
-                            h-3.5
-                            opacity-50
-                          "
-                        />
-                      )}
-
-                      {active && (
-                        <div
-                          className="
-                            absolute
-                            left-0
-                            top-1/2
-                            -translate-y-1/2
-                            w-[3px]
-                            h-5
-                            rounded-r-full
-                          "
-                          style={{
-                            backgroundColor: '#7cdaac',
-                          }}
-                        />
-                      )}
                     </Link>
                   </div>
                 );
@@ -456,102 +492,79 @@ export default function Layout({ children }: LayoutProps) {
         {/* =====================================================
             USER FOOTER
             ===================================================== */}
-        <div
-          className="p-3 flex-shrink-0"
-          style={{
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
+        <div className="p-4 flex-shrink-0 relative z-10">
           <div
-            className="
-              flex
-              items-center
-              gap-2.5
-              px-2.5
-              py-2
-              rounded-xl
-              mb-2
-            "
+            className={twMerge(
+              "flex flex-col rounded-2xl mb-1 transition-all duration-300 overflow-hidden",
+              isSidebarOpen ? "p-3 gap-3" : "p-0 h-0 opacity-0"
+            )}
             style={{
-              backgroundColor: 'rgba(0,0,0,0.2)',
+              backgroundColor: 'var(--bg-muted)',
+              border: '1px solid var(--border-color)'
             }}
           >
-            <div
-              className="
-                w-8
-                h-8
-                rounded-lg
-                flex
-                items-center
-                justify-center
-                text-white
-                text-sm
-                font-bold
-                flex-shrink-0
-              "
-              style={{
-                background:
-                  'linear-gradient(135deg, #158a58, #22a86e)',
-              }}
-            >
-              {user?.email?.[0]?.toUpperCase() ?? (
-                <UserCircle className="w-4 h-4" />
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-[12px] font-semibold truncate">
-                {user?.email ?? 'Usuario'}
-              </p>
-
-              <p
+            <div className="flex items-center gap-3">
+              <div
                 className="
-                  text-[10px]
-                  font-semibold
-                  uppercase
+                  w-8
+                  h-8
+                  rounded-lg
+                  flex
+                  items-center
+                  justify-center
+                  text-white
+                  text-[13px]
+                  font-bold
+                  flex-shrink-0
                 "
                 style={{
-                  color: 'rgba(255,255,255,0.35)',
-                  letterSpacing: '0.08em',
+                  background: 'var(--accent-primary)',
                 }}
               >
-                {roleName}
-              </p>
+                {user?.email?.[0]?.toUpperCase() ?? (
+                  <UserCircle className="w-4 h-4" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>
+                  {user?.email ?? 'Usuario'}
+                </p>
+
+                <p
+                  className="
+                    text-[9px]
+                    font-bold
+                    uppercase
+                  "
+                  style={{
+                    color: 'var(--text-ink-tertiary)',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {roleName}
+                </p>
+              </div>
             </div>
+            
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-[11px] font-bold text-red-300 hover:bg-red-500/10 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" /> {'Cerrar Sesión'}
+            </button>
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="
-              w-full
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-2
-              rounded-xl
-              text-[12px]
-              font-semibold
-              transition-all
-              group
-            "
-            style={{
-              color: 'rgba(252,165,165,0.7)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                'rgba(239,68,68,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor =
-                'transparent';
-            }}
-          >
-            <LogOut className="w-3.5 h-3.5" />
-
-            Cerrar Sesión
-          </button>
+          
+          {/* Collapsed logout icon */}
+          {!isSidebarOpen && (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center py-2.5 rounded-xl text-red-300 hover:bg-red-500/10 transition-colors mt-2"
+              title={'Cerrar Sesión'}
+            >
+              <LogOut className="w-[18px] h-[18px]" />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -560,30 +573,25 @@ export default function Layout({ children }: LayoutProps) {
           ========================================================= */}
       <div
         className="
-          ml-[252px]
           flex-1
           flex
           flex-col
-          h-screen   
-          overflow-hidden
-          relative
-          transition-colors
+          min-w-0
+          h-full
+          pl-4
+          transition-all
           duration-300
         "
-        style={{
-          backgroundColor: 'var(--bg-main)',
-        }}
       >
         {/* Background pattern */}
         <div
           className="
-            fixed
+            absolute
             inset-0
             pointer-events-none
             z-0
           "
           style={{
-            left: '252px',
             backgroundImage:
               'radial-gradient(var(--pattern-dot) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
@@ -600,6 +608,8 @@ export default function Layout({ children }: LayoutProps) {
               text-yellow-800
               px-4
               py-2
+              rounded-2xl
+              mb-4
               text-sm
               font-bold
               flex
@@ -612,8 +622,7 @@ export default function Layout({ children }: LayoutProps) {
             "
           >
             <span>
-              Estás actuando en nombre de este usuario.
-              Tienes todos sus permisos.
+              {'Estás actuando en nombre de este usuario.'}
             </span>
 
             <button
@@ -628,65 +637,98 @@ export default function Layout({ children }: LayoutProps) {
                 transition-colors
               "
             >
-              Volver a Administrador
+              {'Volver a mi cuenta'}
             </button>
           </div>
         )}
 
         {/* =====================================================
-            HEADER FIJO
+            HEADER FLOTANTE
             ===================================================== */}
           <header
             className="
               h-[64px]
+              rounded-3xl
               flex
               items-center
-              px-8
+              px-6
               gap-4
+              shadow-sm
               flex-shrink-0
               z-20
+              mb-4
               transition-colors
               duration-300
             "
             style={{
-              backgroundColor: 'var(--bg-header)',
-              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
             }}
           >
-            <div className="flex-1">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1.5 -ml-2 rounded-lg transition-colors"
+              style={{ color: 'var(--text-ink-secondary)' }}
+              title={isSidebarOpen ? 'Colapsar menú' : 'Expandir menú'}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex-1 flex items-center gap-3">
               <h1
-                className="text-sm font-medium"
+                className="text-[15px] font-bold"
                 style={{
                   color: 'var(--text-main)',
                 }}
               >
                 {currentTitle}
               </h1>
+              
+              {/* badge */}
+              <span className="px-2.5 py-1 text-[9px] font-bold tracking-widest rounded-full uppercase" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)' }}>
+                 {roleName === 'ADMIN' ? 'ADMINISTRACIÓN' : (roleName === 'COMPANY' ? 'EMPRESA' : 'EGRESADO')}
+              </span>
             </div>
 
-            {roleName === 'GRADUATE' && <NotificationsBell />}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+                style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-ink-secondary)' }}
+                title={theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+              >
+                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </button>
 
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="
-                p-2
-                rounded-lg
-                transition-all
-                duration-200
-              "
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-secondary)',
-              }}
-              title={darkMode ? 'Modo claro' : 'Modo oscuro'}
-            >
-              {darkMode ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
+              <Link
+                to="/privacy-settings"
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+                style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-ink-secondary)' }}
+                title="Gestión de Privacidad (Habeas Data)"
+              >
+                <ShieldAlert className="w-4 h-4" />
+              </Link>
+
+              {roleName === 'GRADUATE' && <NotificationsBell />}
+
+              {roleName === 'ADMIN' && (
+                <Link
+                  to="/admin/settings"
+                  className="
+                    w-8 h-8 flex items-center justify-center
+                    rounded-full
+                    transition-all
+                    duration-200
+                  "
+                  style={{
+                    backgroundColor: 'var(--bg-muted)',
+                    color: 'var(--text-ink-secondary)',
+                  }}
+                  title={'Configuración'}
+                >
+                  <Settings className="w-4 h-4" />
+                </Link>
               )}
-            </button>
+            </div>
           </header>
 
         {/* =====================================================
@@ -697,9 +739,9 @@ export default function Layout({ children }: LayoutProps) {
             flex-1
             overflow-y-auto
             overflow-x-hidden
-            p-8
             relative
             z-10
+            rounded-3xl
           "
         >
           <div

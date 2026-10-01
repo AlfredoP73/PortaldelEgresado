@@ -13,15 +13,17 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 from app.auth.controllers.auth_controller import router, internal_router
+from app.auth.controllers.privacy_controller import router as privacy_router
 
 app.include_router(router)
 app.include_router(internal_router)
+app.include_router(privacy_router)
 
 
 @app.get("/")

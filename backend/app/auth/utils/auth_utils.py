@@ -28,7 +28,9 @@ if not SECRET_KEY:
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # tokenUrl apunta al microservicio de auth
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="http://localhost:8002/api/auth/login")
+import os
+AUTH_URL = os.getenv("AUTH_URL", "http://auth:8000")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_URL}/api/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

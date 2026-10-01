@@ -1,9 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../../api';
-import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical } from 'lucide-react';
+import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical, Plus } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
 import CandidateDetailsModal from '../../graduate/components/CandidateDetailsModal';
+import AddSubProcessModal from '../components/AddSubProcessModal';
+import RejectionModal from '../components/RejectionModal';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import { Joyride } from 'react-joyride';
+import type { Step } from 'react-joyride';
 
 interface JobOffer {
   id: number;
@@ -16,6 +23,7 @@ interface Application {
   candidate_id: number;
   status: string;
   application_date: string;
+  match_score?: number;
   graduate?: {
     first_name: string;
     last_name: string;
@@ -25,10 +33,11 @@ interface Application {
 }
 
 const KANBAN_COLUMNS = [
-  { id: 'POSTULADO', title: 'Postulados', dotColor: 'bg-slate-400' },
-  { id: 'EN_EVALUACION', title: 'En Evaluación', dotColor: 'bg-yellow-400' },
-  { id: 'ENTREVISTADO', title: 'Entrevistados', dotColor: 'bg-blue-400' },
-  { id: 'CONTRATADO', title: 'Contratados', dotColor: 'bg-brand-400' },
+  { id: 'POSTULADO', title: 'POSTULADOS', dotColor: 'bg-purple-400' },
+  { id: 'EN_EVALUACION', title: 'EN EVALUACIÓN', dotColor: 'bg-yellow-400' },
+  { id: 'ENTREVISTADO', title: 'ENTREVISTADOS', dotColor: 'bg-blue-400' },
+  { id: 'CONTRATADO', title: 'CONTRATADOS', dotColor: 'bg-brand-400' },
+  { id: 'RECHAZADO', title: 'RECHAZADOS', dotColor: 'bg-red-400' },
 ];
 
 export default function Kanban() {
@@ -39,10 +48,30 @@ export default function Kanban() {
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
   const [draggingAppId, setDraggingAppId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [addingSubProcessStage, setAddingSubProcessStage] = useState<string | null>(null);
 
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
   const isAdmin = user?.role_name === 'ADMIN';
+
+  const [{ run, steps }] = useState({
+    run: true,
+    steps: [
+      {
+        target: '.page-title',
+        content: '¡Bienvenido a tu Tablero Kanban! Aquí puedes gestionar el progreso de los postulantes de forma visual.',
+        disableBeacon: true,
+      },
+      {
+        target: '.job-selector',
+        content: 'Primero, selecciona una vacante para ver a los candidatos que han aplicado.',
+      },
+      {
+        target: '.kanban-column',
+        content: 'Puedes arrastrar y soltar a los candidatos entre estas columnas para avanzar su proceso de selección.',
+      }
+    ] as Step[]
+  });
 
   useEffect(() => {
     fetchJobs();
@@ -79,11 +108,35 @@ export default function Kanban() {
     }
   };
 
-  const moveApplication = async (appId: number, newStatus: string) => {
+  const [selectedApps, setSelectedApps] = useState<number[]>([]);
+  const [rejectingAppId, setRejectingAppId] = useState<number | null>(null);
+  const [bulkRejecting, setBulkRejecting] = useState(false);
+
+  const toggleAppSelection = (appId: number) => {
+    setSelectedApps(prev => prev.includes(appId) ? prev.filter(id => id !== appId) : [...prev, appId]);
+  };
+
+  const handleBulkMove = async (newStatus: string, rejectionReason?: string) => {
+    if (isAdmin || selectedApps.length === 0) return;
+    try {
+      await api.post('/applications/bulk-update', {
+        application_ids: selectedApps,
+        status: newStatus,
+        rejection_reason: rejectionReason
+      });
+      setSelectedApps([]);
+      if (selectedJob) fetchApplications(selectedJob);
+      toast.success('Aplicaciones actualizadas');
+    } catch (error) {
+      toast.error('Error al actualizar');
+    }
+  };
+
+  const moveApplication = async (appId: number, newStatus: string, rejectionReason?: string) => {
     if (isAdmin) return;
     try {
       setApplications(prev => prev.map(app => app.id === appId ? { ...app, status: newStatus } : app));
-      await api.put(`/applications/${appId}/status`, { status: newStatus });
+      await api.put(`/applications/${appId}/status`, { status: newStatus, rejection_reason: rejectionReason });
       if (selectedJob) fetchApplications(selectedJob);
     } catch (error) {
       console.error('Error updating application status:', error);
@@ -112,7 +165,11 @@ export default function Kanban() {
     const appId = parseInt(appIdStr, 10);
     setDraggingAppId(null);
     if (!isNaN(appId)) {
-      moveApplication(appId, statusId);
+      if (statusId === 'RECHAZADO') {
+        setRejectingAppId(appId);
+      } else {
+        moveApplication(appId, statusId);
+      }
     }
   };
 
@@ -128,8 +185,8 @@ export default function Kanban() {
     <div className="h-full flex flex-col space-y-6">
       <div className="page-header flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="page-title">Gestión de Candidatos</h2>
-          <p className="text-sm mt-1 text-ink-secondary">Revisa y mueve a los postulantes a través del proceso de selección.</p>
+          <h2 className="page-title">{'Gestión de Candidatos'}</h2>
+          <p className="text-sm mt-1 text-ink-secondary">{'Revisa y mueve a los postulantes a través del proceso de selección.'}</p>
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-3">
@@ -139,13 +196,13 @@ export default function Kanban() {
             </div>
             <input
               type="text"
-              placeholder="Buscar candidato..."
+              placeholder={'Buscar candidato...'}
               className="input pl-10 bg-white w-full shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="relative min-w-[240px] w-full md:w-auto">
+          <div className="relative min-w-[240px] w-full md:w-auto job-selector">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Briefcase className="h-5 w-5 text-brand-500" />
             </div>
@@ -167,6 +224,47 @@ export default function Kanban() {
         </div>
       </div>
 
+      <AnimatePresence>
+        {selectedApps.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0, y: -10 }} 
+            animate={{ opacity: 1, height: 'auto', y: 0 }} 
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            className="bg-brand-50 border border-brand-200 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-brand-700 bg-white px-3 py-1 rounded-lg border border-brand-200 shadow-sm">{selectedApps.length} seleccionados</span>
+              <button 
+                onClick={() => setSelectedApps([])}
+                className="text-sm font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+              >
+                Limpiar selección
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-brand-700">Mover a:</span>
+              <select 
+                className="input py-1.5 px-3 text-sm min-w-[150px]"
+                onChange={(e) => {
+                  if (e.target.value === 'RECHAZADO') {
+                    setBulkRejecting(true);
+                  } else if (e.target.value) {
+                    handleBulkMove(e.target.value);
+                  }
+                  e.target.value = "";
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>Selecciona etapa...</option>
+                {KANBAN_COLUMNS.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!selectedJob ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -177,9 +275,33 @@ export default function Kanban() {
           <p className="text-ink-secondary">Crea una vacante o selecciona una del menú para ver sus candidatos.</p>
         </motion.div>
       ) : loading ? (
-        <div className="flex-1 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-        </div>
+        <SkeletonTheme baseColor="var(--bg-muted)" highlightColor="var(--bg-surface)">
+          <div className="flex-1 overflow-x-auto pb-4">
+            <div className="flex gap-6 h-full min-w-max">
+              {KANBAN_COLUMNS.map((col, index) => (
+                <div key={col.id} className="w-80 rounded-[12px] flex flex-col border shadow-sm border-[var(--border-color)] bg-[var(--bg-muted)] kanban-column">
+                  <div className="px-4 py-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
+                    <Skeleton height={20} width={120} />
+                  </div>
+                  <div className="flex-1 p-4 space-y-4">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="card p-4 bg-white border border-[var(--border-color)]">
+                        <div className="flex items-start gap-3 mb-2">
+                          <Skeleton circle height={40} width={40} />
+                          <div className="flex-1">
+                            <Skeleton height={16} width="80%" />
+                            <Skeleton height={12} width="40%" className="mt-1" />
+                          </div>
+                        </div>
+                        <Skeleton height={24} className="mt-4" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SkeletonTheme>
       ) : (
         <div className="flex-1 overflow-x-auto pb-4">
           <div className="flex gap-6 h-full min-w-max">
@@ -190,18 +312,27 @@ export default function Kanban() {
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}
                   key={col.id} 
-                  className={twMerge("w-80 rounded-[12px] flex flex-col overflow-hidden transition-colors border shadow-sm", !isAdmin && draggingAppId ? "border-dashed border-brand-500 bg-brand-50/50" : "border-[var(--border-color)] bg-[var(--bg-muted)]")}
+                  className={twMerge("w-80 rounded-[12px] flex flex-col overflow-hidden transition-colors border shadow-sm kanban-column", !isAdmin && draggingAppId ? "border-dashed border-brand-500 bg-brand-50/50" : "border-[var(--border-color)] bg-[var(--bg-muted)]")}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col.id)}
                 >
-                  <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)]">
+                  <div className="px-4 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)] group">
                     <div className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${col.dotColor}`} />
                       <h3 className="font-semibold text-ink tracking-wide text-sm uppercase">{col.title}</h3>
+                      <span className="flex items-center justify-center bg-[var(--bg-muted)] text-ink-secondary w-5 h-5 rounded-full text-xs font-bold ml-1">
+                        {columnApps.length}
+                      </span>
                     </div>
-                    <span className="flex items-center justify-center bg-[var(--bg-muted)] text-ink-secondary w-7 h-7 rounded-full text-xs font-bold border border-[var(--border-color)]">
-                      {columnApps.length}
-                    </span>
+                    {!isAdmin && col.id !== 'CONTRATADO' && col.id !== 'RECHAZADO' && (
+                      <button 
+                        onClick={() => setAddingSubProcessStage(col.id)}
+                        title="Añadir Sub-proceso a esta etapa"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-brand-50 hover:text-brand-600 text-ink-tertiary rounded-md flex items-center justify-center"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   
                   <div className="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar relative">
@@ -209,9 +340,10 @@ export default function Kanban() {
                       {columnApps.length === 0 ? (
                         <motion.div 
                           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                          className="h-full flex items-center justify-center text-center p-4 absolute inset-0"
+                          className="flex flex-col items-center justify-center p-8 text-ink-tertiary"
                         >
-                          <p className="text-sm font-medium text-ink-tertiary">Sin candidatos</p>
+                          <User className="w-8 h-8 mb-2 opacity-50" />
+                          <p className="text-sm font-semibold">{'Sin candidatos'}</p>
                         </motion.div>
                       ) : (
                         columnApps.map((app) => (
@@ -231,7 +363,29 @@ export default function Kanban() {
                               draggingAppId === app.id ? "opacity-50 border-brand-500 scale-95 shadow-none" : ""
                             )}
                           >
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className={`absolute top-3 left-3 z-10 transition-opacity ${selectedApps.includes(app.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              {!isAdmin && (
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer shadow-sm border-gray-300"
+                                  checked={selectedApps.includes(app.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleAppSelection(app.id);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              )}
+                            </div>
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 z-10">
+                              {app.match_score !== undefined && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  app.match_score >= 80 ? 'bg-green-100 text-green-700' : 
+                                  app.match_score >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {Math.round(app.match_score)}% Match
+                                </span>
+                              )}
                                <button className="p-1 hover:bg-slate-100 rounded-md text-ink-tertiary hover:text-ink" onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }}>
                                  <MoreVertical className="w-4 h-4" />
                                </button>
@@ -240,7 +394,7 @@ export default function Kanban() {
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center text-brand-600 font-bold shrink-0 border border-brand-100 shadow-sm">
                                 {app.graduate ? `${app.graduate.first_name.charAt(0)}${app.graduate.last_name.charAt(0)}` : <User className="w-5 h-5" />}
                               </div>
-                              <div className="pr-5">
+                              <div className="pr-16">
                                 <h4 className="font-bold text-ink text-sm leading-tight">
                                   {app.graduate ? `${app.graduate.first_name} ${app.graduate.last_name}` : `Candidato #${app.candidate_id}`}
                                 </h4>
@@ -251,7 +405,7 @@ export default function Kanban() {
                               </div>
                             </div>
                             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">Ver Perfil</span>
+                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{'Ver Perfil y Pruebas'}</span>
                               {!isAdmin && <span className="text-[10px] text-ink-tertiary uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">Arrastrar</span>}
                             </div>
                           </motion.div>
@@ -269,11 +423,54 @@ export default function Kanban() {
       <AnimatePresence>
         {selectedApplicationId && (
           <CandidateDetailsModal 
-            applicationId={selectedApplicationId} 
+            key="candidate-modal"
+            applicationId={selectedApplicationId}
+            application={applications.find(a => a.id === selectedApplicationId)}
+            onUpdateSubProcess={() => selectedJob && fetchApplications(selectedJob)}
             onClose={() => setSelectedApplicationId(null)} 
           />
         )}
+        
+        {addingSubProcessStage && selectedJob && (
+          <AddSubProcessModal 
+            key="subprocess-modal"
+            jobId={selectedJob}
+            stage={addingSubProcessStage}
+            onClose={() => setAddingSubProcessStage(null)}
+            onSuccess={() => fetchApplications(selectedJob)}
+          />
+        )}
+        
+        <RejectionModal 
+          isOpen={!!rejectingAppId}
+          onClose={() => setRejectingAppId(null)}
+          onConfirm={(reason) => {
+            if (rejectingAppId) {
+              moveApplication(rejectingAppId, 'RECHAZADO', reason);
+              setRejectingAppId(null);
+            }
+          }}
+        />
+
+        <RejectionModal 
+          isOpen={bulkRejecting}
+          onClose={() => setBulkRejecting(false)}
+          onConfirm={(reason) => {
+            handleBulkMove('RECHAZADO', reason);
+            setBulkRejecting(false);
+          }}
+        />
       </AnimatePresence>
+      <Joyride
+        steps={steps}
+        run={run && !isAdmin}
+        continuous={true}
+        options={{
+          showProgress: true,
+          buttons: ['back', 'skip', 'primary']
+        }}
+        locale={{ last: 'Finalizar', next: 'Siguiente', skip: 'Saltar Tour', back: 'Atrás' }}
+      />
     </div>
   );
 }

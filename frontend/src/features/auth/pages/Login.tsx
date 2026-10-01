@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
     Mail, Lock, AlertCircle, Loader2, Eye, EyeOff,
     BookOpen, Users, Award, Briefcase, GraduationCap,
@@ -35,14 +35,33 @@ export default function Login() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
-
+    const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+    const [authorizeData, setAuthorizeData] = useState(false);
+    
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
+        
+        if (isRegistering && roleId === 3 && !email.toLowerCase().endsWith('@unicesar.edu.co')) {
+            setError('Debes registrarte con tu correo institucional @unicesar.edu.co');
+            return;
+        }
+        
         setLoading(true);
         try {
             if (isRegistering) {
-                await authApi.post('/register', { email, password, role_id: roleId });
+                if (!acceptPrivacy || !authorizeData) {
+                    setError('Debes aceptar las políticas y autorizar el tratamiento de datos para continuar.');
+                    setLoading(false);
+                    return;
+                }
+                await authApi.post('/register', { 
+                    email, 
+                    password, 
+                    role_id: roleId,
+                    accept_privacy_policy: acceptPrivacy,
+                    authorize_data_treatment: authorizeData
+                });
                 setRegistrationSuccess(true);
             } else {
                 const { data } = await authApi.post('/login', { email, password });
@@ -233,19 +252,19 @@ export default function Login() {
                                 style={{ background: 'linear-gradient(135deg, #eefbf4, #d6f5e3)' }}>
                                 <Mail className="w-9 h-9 text-brand-600" />
                             </div>
-                            <h2 className="text-2xl font-bold text-slate-800 mb-3">Revisa tu correo</h2>
-                            <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                                Enviamos un enlace de verificación a{' '}
-                                <strong className="text-slate-800 font-semibold">{email}</strong>.<br />
-                                Haz clic en él para activar tu cuenta.
+                            <h2 className="text-2xl font-bold text-[#111827] mb-3">{'Revisa tu correo'}</h2>
+                            <p className="text-[#4B5563] text-sm leading-relaxed mb-8">
+                                {'Enviamos un enlace de verificación a '}
+                                <strong className="text-[#111827] font-semibold">{email}</strong>.<br />
+                                {'Haz clic en él para activar tu cuenta.'}
                             </p>
                             <div className="space-y-3">
                                 <button onClick={() => { setRegistrationSuccess(false); setIsRegistering(false); setPassword(''); }}
-                                    className="btn-primary w-full py-3.5 rounded-xl">
-                                    Volver al inicio de sesión
+                                    className="w-full py-3.5 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-lg shadow-brand-500/20">
+                                    {'Volver al inicio de sesión'}
                                 </button>
-                                <button onClick={handleResendEmail} className="btn-ghost w-full py-3.5 rounded-xl text-sm">
-                                    No recibí el correo, reenviar
+                                <button onClick={handleResendEmail} className="w-full py-3.5 bg-white text-[#374151] border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
+                                    {'No recibí el correo, reenviar'}
                                 </button>
                             </div>
                         </div>
@@ -263,11 +282,11 @@ export default function Login() {
                                             ? <Building2 className="w-5 h-5 text-white" />
                                             : <GraduationCap className="w-5 h-5 text-white" />}
                                     </div>
-                                    <h2 className="text-[1.6rem] font-black text-slate-900 tracking-tight leading-none">
+                                    <h2 className="text-[1.6rem] font-black text-[#111827] tracking-tight leading-none">
                                         {isRegistering ? 'Crear Cuenta' : 'Bienvenido'}
                                     </h2>
                                 </div>
-                                <p className="text-[13px] leading-relaxed pl-[54px]" style={{ color: '#9ca3af' }}>
+                                <p className="text-[13px] leading-relaxed pl-[54px] text-[#6B7280]">
                                     {isRegistering
                                         ? 'Únete al portal institucional y accede a oportunidades únicas.'
                                         : 'Ingresa tus credenciales para acceder al portal institucional.'}
@@ -315,32 +334,31 @@ export default function Login() {
 
                                     {/* Email */}
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: '#9ca3af' }}>
-                                            Correo electrónico
+                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                            {'Correo electrónico'}
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                <Mail className="w-4 h-4" style={{ color: '#c8d0d8' }} />
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                                                <Mail className="w-4 h-4" />
                                             </div>
                                             <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                placeholder="correo@upc.edu.co" value={email}
+                                                placeholder={'correo@upc.edu.co'} value={email}
                                                 onChange={e => setEmail(e.target.value)} required autoComplete="email" />
                                         </div>
                                     </div>
 
                                     {/* Password */}
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: '#9ca3af' }}>
-                                            Contraseña
+                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                            {'Contraseña'}
                                         </label>
                                         <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                <Lock className="w-4 h-4" style={{ color: '#c8d0d8' }} />
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                                                <Lock className="w-4 h-4" />
                                             </div>
                                             <input type={showPassword ? 'text' : 'password'}
-                                                style={{ ...fieldBase, paddingRight: '3rem' }}
-                                                onFocus={onFocus} onBlur={onBlur}
-                                                placeholder="••••••••" value={password}
+                                                style={fieldBase} onFocus={onFocus} onBlur={onBlur}
+                                                placeholder={'••••••••'} value={password}
                                                 onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
                                             <button type="button" onClick={() => setShowPassword(!showPassword)}
                                                 className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
@@ -365,14 +383,14 @@ export default function Login() {
                                                     </>
                                                 )}
                                                 
-                                                <div className="space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Requisitos de seguridad</p>
+                                                <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{'Requisitos de seguridad'}</p>
                                                     {[
-                                                        { label: 'Mínimo 8 caracteres', met: password.length >= 8 },
-                                                        { label: 'Una letra mayúscula', met: /[A-Z]/.test(password) },
-                                                        { label: 'Una letra minúscula', met: /[a-z]/.test(password) },
-                                                        { label: 'Un número', met: /[0-9]/.test(password) },
-                                                        { label: 'Un carácter especial', met: /[^A-Za-z0-9]/.test(password) },
+                                                        { label: 'Al menos 8 caracteres', met: password.length >= 8 },
+                                                        { label: 'Al menos una letra mayúscula', met: /[A-Z]/.test(password) },
+                                                        { label: 'Al menos una letra minúscula', met: /[a-z]/.test(password) },
+                                                        { label: 'Al menos un número', met: /[0-9]/.test(password) },
+                                                        { label: 'Al menos un carácter especial', met: /[^A-Za-z0-9]/.test(password) },
                                                     ].map((req, i) => (
                                                         <div key={i} className="flex items-center gap-2">
                                                             <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${req.met ? 'bg-brand-500 text-white' : 'bg-slate-200'}`}>
@@ -388,7 +406,20 @@ export default function Login() {
                                         )}
                                     </div>
 
-                                    {/* Error */}
+                                    {/* Forgot password - solo en modo login */}
+                                    {!isRegistering && (
+                                        <div className="text-right -mt-2">
+                                            <Link
+                                                to="/forgot-password"
+                                                style={{ fontSize: '13px', fontWeight: 600, color: '#22a86e', textDecoration: 'none' }}
+                                                onMouseEnter={e => (e.currentTarget.style.color = '#0e4832')}
+                                                onMouseLeave={e => (e.currentTarget.style.color = '#22a86e')}
+                                            >
+                                                ¿Olvidaste tu contraseña?
+                                            </Link>
+                                        </div>
+                                    )}
+
                                     {error && (
                                         <div className="flex items-start gap-3 rounded-xl px-4 py-3 text-sm animate-scale-in"
                                             style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>
@@ -397,16 +428,33 @@ export default function Login() {
                                         </div>
                                     )}
 
+                                    {isRegistering && (
+                                        <div className="space-y-3 pt-2">
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input type="checkbox" checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                <span className="text-[12px] text-slate-600 leading-tight">
+                                                    He leído y acepto el <a href="/aviso-privacidad" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Aviso de Privacidad</a> de la Universidad Popular del Cesar. <span className="text-red-500">*</span>
+                                                </span>
+                                            </label>
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input type="checkbox" checked={authorizeData} onChange={e => setAuthorizeData(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                <span className="text-[12px] text-slate-600 leading-tight">
+                                                    Autorizo de manera previa, expresa e informada a la UPC para el <a href="/tratamiento-datos" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Tratamiento de mis Datos Personales</a> conforme a la Ley 1581 de 2012. <span className="text-red-500">*</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    )}
+
                                     {/* Submit */}
                                     <button type="submit"
-                                        disabled={loading || (isRegistering && strength < 2)}
+                                        disabled={loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))}
                                         style={{
                                             width: '100%', padding: '0.95rem', borderRadius: '14px', marginTop: '0.5rem',
                                             background: 'linear-gradient(135deg, #22a86e 0%, #0e4832 100%)',
                                             boxShadow: '0 4px 18px rgba(21,138,88,0.32)',
                                             color: '#fff', fontWeight: 700, fontSize: '15px',
                                             border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                                            opacity: (loading || (isRegistering && strength < 2)) ? 0.55 : 1,
+                                            opacity: (loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))) ? 0.55 : 1,
                                             transition: 'all 0.18s ease',
                                         }}
                                         onMouseEnter={e => { if (!loading) { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 26px rgba(21,138,88,0.42)'; } }}

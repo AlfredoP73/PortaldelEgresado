@@ -22,7 +22,9 @@ def get_notifications(db: Session, graduate_id: int, solo_no_leidas: bool = Fals
         job_title = "Vacante Desconocida"
         company_name = "Empresa Desconocida"
         try:
-            resp = httpx.get(f"http://companies:8000/api/internal/matchmaking/jobs/{n.job_offer_id}", timeout=2.0)
+            import os
+            COMPANIES_URL = os.getenv("COMPANIES_URL", "http://companies:8000")
+            resp = httpx.get(f"{COMPANIES_URL}/api/internal/matchmaking/jobs/{n.job_offer_id}", timeout=2.0)
             if resp.status_code == 200:
                 data = resp.json()
                 job_title = data.get("title", job_title)

@@ -10,7 +10,9 @@ import {
 } from 'lucide-react';
 import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
+import { CVDocument } from '../components/CVDocument';
+import { PDFDownloadLink } from '@react-pdf/renderer';
+const GRADUATES_URL = (import.meta.env.VITE_GRADUATES_URL ?? '');
 
 interface WorkExperience {
   id: number;
@@ -58,14 +60,14 @@ export default function GraduateProfile() {
   const [newSkillName, setNewSkillName] = useState('');
   const [uploadingCV, setUploadingCV] = useState(false);
   const navigate = useNavigate();
-
+  
   const handleCompletenessAction = (actionId: string) => {
     switch (actionId) {
       case 'basic': setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
       case 'photo': document.getElementById('avatar-upload')?.click(); break;
       case 'cv': document.getElementById('cv-upload')?.click(); break;
       case 'skills': setIsEditingSkills(true); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100); break;
-      case 'exp': navigate('/graduate/experience'); break;
+      case 'exp': navigate('/experience'); break;
     }
   };
 
@@ -193,11 +195,11 @@ export default function GraduateProfile() {
       {/* Page header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="page-title">Mi Perfil Profesional</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Tu presencia pública ante empresas y empleadores</p>
+          <h2 className="page-title">{'Mi Perfil Profesional'}</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{'Tu presencia pública ante empresas y empleadores'}</p>
         </div>
         <button onClick={() => setIsEditing(true)} className="btn-primary flex items-center gap-2">
-          <Edit2 className="w-4 h-4" /> Editar Perfil
+          <Edit2 className="w-4 h-4" /> {'Editar Perfil'}
         </button>
       </div>
 
@@ -259,15 +261,31 @@ export default function GraduateProfile() {
                 </a>
               )}
               <div>
-                <input type="file" id="cv-upload" className="hidden" accept=".pdf" onChange={handleCVUpload} disabled={uploadingCV} />
-                <label htmlFor="cv-upload"
-                  className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all"
-                  style={{ color: 'var(--text-secondary)', background: 'var(--bg-muted)', border: '1px solid var(--border-color)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-color)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-muted)')}>
+                <input id="cv-upload" type="file" className="hidden" accept="application/pdf" onChange={handleCVUpload} />
+                <button
+                  onClick={() => document.getElementById('cv-upload')?.click()}
+                  disabled={uploadingCV}
+                  className="btn-outline flex items-center gap-2"
+                  style={{ background: 'var(--bg-surface)' }}
+                >
                   {uploadingCV ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploadingCV ? 'Subiendo...' : 'Actualizar CV PDF'}
-                </label>
+                  {'Actualizar CV PDF'}
+                </button>
+                {profile && (
+                  <PDFDownloadLink
+                    document={<CVDocument profile={profile} programName={programName} skills={availableSkills} />}
+                    fileName={`CV_${profile.first_name}_${profile.last_name}.pdf`}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20"
+                  >
+                    {/* @ts-ignore */}
+                    {({ loading }) => (
+                      <>
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                        {loading ? 'Generando...' : 'Exportar Perfil a PDF'}
+                      </>
+                    )}
+                  </PDFDownloadLink>
+                )}
               </div>
             </div>
           </div>

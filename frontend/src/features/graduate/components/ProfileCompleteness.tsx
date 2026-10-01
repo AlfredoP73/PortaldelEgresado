@@ -18,7 +18,7 @@ interface ProfileCompletenessProps {
 }
 
 export default function ProfileCompleteness({ profile, onAction }: ProfileCompletenessProps) {
-  if (!profile) return null;
+    if (!profile) return null;
 
   const checks = [
     { id: 'basic', label: 'Datos Básicos', points: 20, isComplete: !!(profile.first_name && profile.last_name && profile.phone && profile.profile_summary), action: 'Completa tu información personal y un resumen profesional.' },
@@ -56,7 +56,7 @@ export default function ProfileCompleteness({ profile, onAction }: ProfileComple
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-ink leading-none">Fuerza del Perfil</h3>
+              <h3 className="text-lg font-bold text-ink leading-none">{'Fuerza del Perfil'}</h3>
               <p className="text-xs mt-0.5 font-semibold" style={{ color: strengthColor }}>{strengthLabel}</p>
             </div>
           </div>
@@ -109,14 +109,12 @@ export default function ProfileCompleteness({ profile, onAction }: ProfileComple
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(34,168,110,0.08), rgba(21,138,88,0.05))'; }}>
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full"
                 style={{ background: 'radial-gradient(circle, rgba(34,168,110,0.15), transparent)', filter: 'blur(20px)' }} />
-              <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#158a58' }}>
-                Siguiente Paso Sugerido
-              </p>
+              <h4 className="text-[10px] font-bold text-ink-secondary tracking-widest uppercase mb-1">{'SIGUIENTE PASO SUGERIDO'}</h4>
               <p className="text-sm font-semibold leading-relaxed mb-4" style={{ color: 'var(--text-main)' }}>
                 {nextStep.action}
               </p>
               <div className="flex items-center gap-1.5 text-sm font-bold group-hover:gap-2.5 transition-all" style={{ color: '#22a86e' }}>
-                Completar ahora <ArrowRight className="w-4 h-4" />
+                {'Completar ahora'} <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </div>
             </div>
           ) : (

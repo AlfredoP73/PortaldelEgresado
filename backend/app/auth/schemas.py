@@ -1,5 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
+from datetime import datetime
+from typing import Optional, List, Any
 
+ALLOWED_GRADUATE_EMAIL_DOMAINS = ["unicesar.edu.co"]
 
 # --- Request bodies ---
 
@@ -12,6 +15,22 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role_id: int = 2  # Default: COMPANY
+    accept_privacy_policy: bool
+    authorize_data_treatment: bool
+
+    @model_validator(mode='after')
+    def validate_graduate_email(self):
+        if self.role_id == 3: # GRADUATE
+            domain = self.email.split('@')[-1].lower()
+            if domain not in ALLOWED_GRADUATE_EMAIL_DOMAINS:
+                raise ValueError("Debes registrarte con tu correo institucional @unicesar.edu.co")
+        
+        if not self.accept_privacy_policy:
+            raise ValueError("Debes aceptar el aviso de privacidad para registrarte.")
+        if not self.authorize_data_treatment:
+            raise ValueError("Debes autorizar el tratamiento de tus datos personales.")
+            
+        return self
 
 
 class ImpersonateRequest(BaseModel):
@@ -31,6 +50,8 @@ class UserInfo(BaseModel):
     role_id: int
     role_name: str
     email_verified: bool = False
+    privacy_policy_accepted: bool = False
+    data_treatment_authorized: bool = False
 
     class Config:
         from_attributes = True
@@ -49,6 +70,29 @@ class RegisterResponse(BaseModel):
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class VerifyPinRequest(BaseModel):
+    email: EmailStr
+    pin: str
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    pin: str
+    new_password: str
+
+
+class NotificationResponse(BaseModel):
+    id: int
+    title: str
+    message: str
+    type: Optional[str] = None
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 # Resolver referencia forward
 TokenResponse.model_rebuild()

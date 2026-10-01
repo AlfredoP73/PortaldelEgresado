@@ -83,6 +83,23 @@ class GraduateBase(BaseModel):
 class GraduateCreate(GraduateBase):
     user_id: Optional[int] = None
 
+class GraduateUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    program_id: Optional[int] = None
+    graduation_year: Optional[int] = None
+    phone: Optional[str] = None
+    cv_url: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    profile_summary: Optional[str] = None
+    
+    # Extra fields sent by mobile app that we can safely ignore
+    document_id: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    bio: Optional[str] = None
+    document_type: Optional[str] = None
+
 class GraduateSkillsUpdate(BaseModel):
     skills: List[GraduateSkillCreate]
 
@@ -130,6 +147,23 @@ class JobOffer(BaseModel):
     class Config:
         from_attributes = True
 
+class ApplicationSubProcessSchema(BaseModel):
+    id: int
+    application_id: int
+    tipo: str
+    nombre: str
+    descripcion: Optional[str] = None
+    etapa_kanban: str
+    fecha_limite: Optional[datetime] = None
+    estado: str
+    es_formulario: bool = False
+    preguntas_json: Optional[Any] = None
+    respuestas_json: Optional[Any] = None
+    enlace_adjunto: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class ApplicationCreate(BaseModel):
     job_offer_id: int
 
@@ -140,6 +174,7 @@ class Application(BaseModel):
     application_date: datetime
     status: str
     job_offer: Optional[JobOffer] = None
+    sub_processes: List[ApplicationSubProcessSchema] = []
 
     class Config:
         from_attributes = True

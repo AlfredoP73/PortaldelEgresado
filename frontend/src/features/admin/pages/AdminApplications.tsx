@@ -19,7 +19,7 @@ interface Application {
 export default function AdminApplications() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
-  
+    
   // Filters and Pagination
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -46,8 +46,8 @@ export default function AdminApplications() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>Reporte Global de Postulaciones</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Todas las postulaciones de todos los egresados a nivel del sistema.</p>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-main)' }}>{'Reporte Global de Postulaciones'}</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{'Todas las postulaciones de todos los egresados a nivel del sistema.'}</p>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ export default function AdminApplications() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-secondary" />
                 <input
                   type="text"
-                  placeholder="Buscar por vacante o empresa..."
+                  placeholder={'Buscar por vacante o empresa...'}
                   className="input w-full pl-9"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -80,11 +80,11 @@ export default function AdminApplications() {
                   value={statusFilter} 
                   onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                 >
-                  <option value="ALL">Todos los Estados</option>
-                  <option value="POSTULADO">Postulado</option>
+                  <option value="ALL">{'Todos los Estados'}</option>
+                  <option value="POSTULADO">{'POSTULADO'}</option>
                   <option value="EN_EVALUACION">En Evaluación</option>
-                  <option value="CONTRATADO">Contratado</option>
-                  <option value="RECHAZADO">Rechazado</option>
+                  <option value="CONTRATADO">{'CONTRATADO'}</option>
+                  <option value="RECHAZADO">{'RECHAZADO'}</option>
                 </select>
               </div>
             </div>
@@ -94,10 +94,10 @@ export default function AdminApplications() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-muted)] border-b border-[var(--border-color)]">
                 <tr>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Vacante / Empresa</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">ID Egresado</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Fecha</th>
-                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Estado</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Vacante / Empresa'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'ID Egresado'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">{'Fecha'}</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">{'Estado'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -138,7 +138,11 @@ export default function AdminApplications() {
                         app.status.toUpperCase() === 'CONTRATADO' ? "bg-green-50 text-green-600 border border-green-200" :
                         "bg-red-50 text-red-600 border border-red-200"
                       )}>
-                        {app.status}
+                        {app.status.toUpperCase() === 'POSTULADO' ? 'POSTULADO' :
+                         app.status.toUpperCase() === 'EN_EVALUACION' ? 'En Evaluación' :
+                         app.status.toUpperCase() === 'CONTRATADO' ? 'CONTRATADO' :
+                         app.status.toUpperCase() === 'ENTREVISTADO' ? 'ENTREVISTADO' :
+                         'RECHAZADO'}
                       </span>
                     </td>
                   </tr>

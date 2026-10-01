@@ -13,6 +13,7 @@ from app.matchmaking.controllers import (
     criteria_controller,
     match_controller,
     notification_controller,
+    ws_controller,
 )
 
 def start_rabbitmq_consumer():
@@ -69,12 +70,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5176",
-        "http://localhost:5173",
-        "http://127.0.0.1:5176",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +79,7 @@ app.add_middleware(
 app.include_router(match_controller.router)
 app.include_router(criteria_controller.router)
 app.include_router(notification_controller.router)
+app.include_router(ws_controller.router)
 
 
 @app.get("/health", tags=["Health"])

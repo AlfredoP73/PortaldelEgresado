@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DashboardHeader } from '../components/DashboardHeader';
 import { KpiGrid } from '../components/KpiGrid';
 import { EmploymentByProgram } from '../components/EmploymentByProgram';
@@ -21,8 +21,8 @@ export function AdminDashboard() {
       <DashboardHeader />
 
       {/* Filtros */}
-      <div className="flex gap-4 p-5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl items-end">
-        <div className="flex flex-col flex-1 max-w-sm">
+      <div className="card p-5 flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col flex-1 min-w-[200px] max-w-sm">
           <label className="text-sm font-medium text-[var(--text-secondary)] mb-1">Filtrar por Programa</label>
           <select 
             value={programId || ''} 

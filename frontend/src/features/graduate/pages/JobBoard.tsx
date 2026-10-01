@@ -1,9 +1,10 @@
 import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { graduatesApi, matchmakingApi } from '../../../api';
-import { Search, MapPin, Building2, Briefcase, CalendarDays, CheckCircle2, DollarSign } from 'lucide-react';
+import { Search, MapPin, Building2, Briefcase, CalendarDays, CheckCircle2, DollarSign, X, FileText } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
+import Modal from '../../../components/Modal';
 
 interface JobOffer {
   id: number;
@@ -14,6 +15,8 @@ interface JobOffer {
   salary_min: number;
   salary_max: number;
   closing_date: string;
+  modality: string;
+  contract_type: string;
   company: {
     name: string;
     sector?: { name: string };
@@ -38,6 +41,8 @@ export default function JobBoard() {
   const [sectorFilter, setSectorFilter] = useState('ALL');
   const [cityFilter, setCityFilter] = useState('ALL');
   const [matchFilter, setMatchFilter] = useState('ALL');
+  const [modalityFilter, setModalityFilter] = useState('ALL');
+  const [contractTypeFilter, setContractTypeFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 9;
   
@@ -97,6 +102,8 @@ export default function JobBoard() {
     const matchSalary = minSalaryFilter ? (job.salary_min && job.salary_min >= Number(minSalaryFilter)) : true;
     const matchSector = sectorFilter === 'ALL' || job.company.sector?.name === sectorFilter;
     const matchCity = cityFilter === 'ALL' || job.company.city?.name === cityFilter;
+    const matchModality = modalityFilter === 'ALL' || job.modality === modalityFilter;
+    const matchContract = contractTypeFilter === 'ALL' || job.contract_type === contractTypeFilter;
     
     let matchScorePassed = true;
     if (matchFilter !== 'ALL') {
@@ -104,7 +111,7 @@ export default function JobBoard() {
       matchScorePassed = score >= Number(matchFilter);
     }
     
-    return matchSearch && matchSalary && matchSector && matchCity && matchScorePassed;
+    return matchSearch && matchSalary && matchSector && matchCity && matchScorePassed && matchModality && matchContract;
   });
 
   // Ordenar por afinidad de mayor a menor
@@ -118,7 +125,7 @@ export default function JobBoard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, minSalaryFilter, sectorFilter, cityFilter, matchFilter]);
+  }, [searchTerm, minSalaryFilter, sectorFilter, cityFilter, matchFilter, modalityFilter, contractTypeFilter]);
 
   const uniqueSectors = Array.from(new Set(jobs.map(j => j.company.sector?.name).filter(Boolean))).sort();
   const uniqueCities = Array.from(new Set(jobs.map(j => j.company.city?.name).filter(Boolean))).sort();
@@ -178,6 +185,28 @@ export default function JobBoard() {
                 <option value="1500000">Desde $1.5M</option>
                 <option value="2500000">Desde $2.5M</option>
                 <option value="4000000">Desde $4.0M</option>
+              </select>
+
+              <select 
+                className="input w-full sm:w-40" 
+                value={modalityFilter}
+                onChange={(e) => setModalityFilter(e.target.value)}
+              >
+                <option value="ALL">Cualquier Modalidad</option>
+                <option value="Remoto">Remoto</option>
+                <option value="Presencial">Presencial</option>
+                <option value="Híbrido">Híbrido</option>
+              </select>
+
+              <select 
+                className="input w-full sm:w-40" 
+                value={contractTypeFilter}
+                onChange={(e) => setContractTypeFilter(e.target.value)}
+              >
+                <option value="ALL">Cualquier Contrato</option>
+                <option value="Indefinido">Indefinido</option>
+                <option value="Fijo">Término Fijo</option>
+                <option value="Prestación de Servicios">Prestación de Servicios</option>
               </select>
 
               <select 
@@ -245,6 +274,10 @@ export default function JobBoard() {
                     <CalendarDays className="w-4 h-4 text-brand-500" />
                     <span>Cierra: {new Date(job.closing_date).toLocaleDateString()}</span>
                   </div>
+                  <div className="flex items-center gap-2 text-sm text-ink-tertiary">
+                    <CheckCircle2 className="w-4 h-4 text-brand-500" />
+                    <span>{job.modality || 'Presencial'} • {job.contract_type || 'Indefinido'}</span>
+                  </div>
                 </div>
 
                 <button className="w-full btn-ghost border border-brand-200 text-brand-700 bg-brand-50 group-hover:bg-brand-600 group-hover:text-white transition-colors">
@@ -266,52 +299,168 @@ export default function JobBoard() {
       )}
 
       {/* Details Modal */}
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-          <div className="w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl animate-fade-in-up" style={{ backgroundColor: 'var(--bg-modal)' }}>
-            <div className="p-6 border-b border-brand-100 dark:border-gray-800 flex justify-between items-center bg-brand-50 dark:bg-gray-900/30">
-              <h3 className="text-2xl font-bold font-heading text-ink">{selectedJob.title}</h3>
-              <button onClick={() => setSelectedJob(null)} className="text-ink-tertiary hover:text-ink transition-colors p-2 hover:bg-black/5 rounded-full">
-                ✕
+      <Modal
+        isOpen={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        maxWidth="max-w-3xl"
+      >
+        {selectedJob && (
+          <>
+            {/* Modal Header */}
+            <div 
+              className="p-6 border-b flex justify-between items-start gap-4 shrink-0"
+              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}
+            >
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl sm:text-2xl font-bold font-heading text-ink leading-snug">
+                    {selectedJob.title}
+                  </h3>
+                  {matches[selectedJob.id] !== undefined && (
+                    <span className={twMerge(
+                      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shrink-0',
+                      matches[selectedJob.id] >= 75 ? 'bg-green-100 text-green-700' :
+                      matches[selectedJob.id] >= 50 ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-100 text-gray-600'
+                    )}>
+                      {Math.round(matches[selectedJob.id])}% de afinidad
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-secondary pt-0.5">
+                  <span className="font-semibold text-brand-600 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 shrink-0" />
+                    {selectedJob.company.name}
+                  </span>
+                  {selectedJob.company.sector?.name && (
+                    <span className="text-ink-tertiary">
+                      • {selectedJob.company.sector.name}
+                    </span>
+                  )}
+                  {selectedJob.company.city?.name && (
+                    <span className="flex items-center gap-1 text-ink-tertiary">
+                      <MapPin className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                      {selectedJob.company.city.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="transition-colors p-2 rounded-full hover-bg-muted shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="flex flex-col gap-1">
-                <h4 className="font-bold text-ink text-lg">{selectedJob.company.name}</h4>
-                <p className="text-brand-600 font-medium text-sm">
-                  {selectedJob.company.sector?.name || 'Sector no especificado'} • {selectedJob.company.city?.name || 'Ubicación no especificada'}
-                </p>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Summary Cards */}
+              <div 
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border"
+                style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 shrink-0">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-ink-tertiary uppercase tracking-wider">Rango Salarial</p>
+                    <p className="text-sm font-bold text-ink">
+                      {selectedJob.salary_min && selectedJob.salary_max
+                        ? `$${selectedJob.salary_min.toLocaleString()} - $${selectedJob.salary_max.toLocaleString()}`
+                        : 'Salario a convenir'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 shrink-0">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-ink-tertiary uppercase tracking-wider">Fecha de Cierre</p>
+                    <p className="text-sm font-bold text-ink">
+                      {selectedJob.closing_date 
+                        ? new Date(selectedJob.closing_date).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })
+                        : 'No especificada'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
+              {/* Vacancy Description */}
               {selectedJob.description && (
-                <div>
-                  <h4 className="font-bold text-ink mb-2">Descripción de la vacante</h4>
-                  <p className="text-ink-secondary text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.description}</p>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-ink text-sm flex items-center gap-2 uppercase tracking-wide">
+                    <Briefcase className="w-4 h-4 text-brand-600" />
+                    Descripción de la vacante
+                  </h4>
+                  <div 
+                    className="p-4 rounded-xl border text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    {selectedJob.description}
+                  </div>
                 </div>
               )}
+
+              {/* Requirements */}
               {selectedJob.requirements && (
-                <div>
-                  <h4 className="font-bold text-ink mb-2">Requisitos</h4>
-                  <p className="text-ink-secondary text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.requirements}</p>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-ink text-sm flex items-center gap-2 uppercase tracking-wide">
+                    <CheckCircle2 className="w-4 h-4 text-brand-600" />
+                    Requisitos
+                  </h4>
+                  <div 
+                    className="p-4 rounded-xl border text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    {selectedJob.requirements}
+                  </div>
                 </div>
               )}
+
+              {/* Functions */}
               {selectedJob.functions && (
-                <div>
-                  <h4 className="font-bold text-ink mb-2">Funciones</h4>
-                  <p className="text-ink-secondary text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.functions}</p>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-ink text-sm flex items-center gap-2 uppercase tracking-wide">
+                    <FileText className="w-4 h-4 text-brand-600" />
+                    Funciones del cargo
+                  </h4>
+                  <div 
+                    className="p-4 rounded-xl border text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    {selectedJob.functions}
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="p-6 border-t border-brand-100 dark:border-gray-800 bg-brand-50/50 dark:bg-gray-900/50">
+            {/* Modal Footer */}
+            <div 
+              className="p-6 border-t shrink-0 flex flex-col gap-3"
+              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}
+            >
               <div className="flex gap-4">
-                <button onClick={() => setSelectedJob(null)} className="btn-ghost flex-1">Cerrar</button>
-                <button onClick={handleApply} disabled={applying || !!successMessage} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                <button 
+                  onClick={() => setSelectedJob(null)} 
+                  className="btn-outline flex-1 justify-center"
+                >
+                  Cerrar
+                </button>
+                <button 
+                  onClick={handleApply} 
+                  disabled={applying || !!successMessage} 
+                  className="btn-primary flex-1 justify-center shadow-lg shadow-brand-500/20"
+                >
                   {applying ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : successMessage ? (
-                    'Postulado'
+                    '¡Postulado con éxito!'
                   ) : (
                     'Postularme Ahora'
                   )}
@@ -319,15 +468,16 @@ export default function JobBoard() {
               </div>
 
               {successMessage && (
-                <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-xl border border-green-200 flex items-center gap-3 animate-fade-in">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-bold">{successMessage}</span>
+                <div className="p-3 rounded-xl border flex items-center gap-2.5 animate-fade-in text-sm font-semibold" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  <span>{successMessage}</span>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
+

@@ -4,49 +4,40 @@ from typing import Optional
 from datetime import datetime
 from app.graduates import models, schemas
 import app.companies.models as company_models
-from app.core.adapters import RabbitMQMatchmakingAdapter
-
 import httpx
+from app.core.adapters import RabbitMQMatchmakingAdapter, HttpCompaniesAdapter
 
-COMPANIES_URL = "http://companies:8000/api/internal"
+companies_adapter = HttpCompaniesAdapter()
 
 def get_jobs(skip: int, limit: int, q: Optional[str], salary_min: Optional[int], db: Session):
     params = {"skip": skip, "limit": limit}
     if q: params["q"] = q
     if salary_min: params["salary_min"] = salary_min
     
-    with httpx.Client() as client:
-        try:
-            response = client.get(f"{COMPANIES_URL}/jobs", params=params)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+    try:
+        return companies_adapter.get_jobs(params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
 
 def apply_for_job(application: schemas.ApplicationCreate, current_user: dict, db: Session):
-    with httpx.Client() as client:
-        try:
-            response = client.post(
-                f"{COMPANIES_URL}/applications/apply", 
-                json={"graduate_id": current_user["id"], "job_offer_id": application.job_offer_id}
-            )
-            if response.status_code == 400:
-                raise HTTPException(status_code=400, detail=response.json().get("detail", "Error al aplicar"))
-            response.raise_for_status()
-            return response.json()
-        except HTTPException as he:
-            raise he
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+    try:
+        return companies_adapter.apply_for_job({"graduate_id": current_user["id"], "job_offer_id": application.job_offer_id})
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 400:
+            error_detail = e.response.json().get("detail", "Error en postulación")
+            raise HTTPException(status_code=400, detail=error_detail)
+        raise HTTPException(status_code=e.response.status_code, detail=f"Error desde Companies: {e.response.text}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
 
 def get_my_applications(current_user: dict, db: Session):
-    with httpx.Client() as client:
-        try:
-            response = client.get(f"{COMPANIES_URL}/applications/graduate/{current_user['id']}")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+    try:
+        return companies_adapter.get_my_applications(current_user['id'])
+    except Exception as e:
+        print(f"ERROR in get_my_applications: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
 
 def get_surveys(db: Session):
     return db.query(models.Survey).filter(models.Survey.is_active == True).all()

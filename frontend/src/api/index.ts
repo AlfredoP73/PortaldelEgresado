@@ -1,9 +1,11 @@
 import axios from 'axios';
 
-const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8002';
-const COMPANIES_URL = import.meta.env.VITE_COMPANIES_URL || 'http://localhost:8001';
-const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL || 'http://localhost:8003';
-const MATCHMAKING_URL = import.meta.env.VITE_MATCHMAKING_URL || 'http://localhost:8005';
+// En producción (desplegado), VITE_*_URL no está definida → usar rutas relativas
+// que Nginx redirige al backend gateway. En desarrollo, usar puertos directos.
+const AUTH_URL      = import.meta.env.VITE_AUTH_URL      ?? '';
+const COMPANIES_URL = import.meta.env.VITE_COMPANIES_URL ?? '';
+const GRADUATES_URL = import.meta.env.VITE_GRADUATES_URL ?? '';
+const MATCHMAKING_URL = import.meta.env.VITE_MATCHMAKING_URL ?? '';
 
 // ── Cliente de autenticación ─────────────────────────────────────────────────
 export const authApi = axios.create({
@@ -23,7 +25,10 @@ const handleGlobalError = (error: any) => {
   if (error.response?.status === 401) {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    // Si ya estamos en login, no recargar la página para que el componente pueda mostrar el error
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   } else if (!error.response || error.response.status >= 500) {
     if (window.location.pathname !== '/mantenimiento') {
       window.location.href = '/mantenimiento';
@@ -51,6 +56,13 @@ api.interceptors.request.use((config) => {
 
 // Interceptor: si el backend devuelve 401, limpia sesión y redirige al login
 api.interceptors.response.use((res) => res, handleGlobalError);
+
+// API methods para SubProcesos
+export const createSubProcess = (applicationId: number, data: any) => 
+  api.post(`/applications/${applicationId}/sub-processes`, data);
+
+export const updateSubProcess = (subProcessId: number, data: any) => 
+  api.put(`/sub-processes/${subProcessId}`, data);
 
 export const graduatesApi = axios.create({
   baseURL: `${GRADUATES_URL}/api/modulo1`,
@@ -101,5 +113,21 @@ export const getNotifications = (graduateId: number, soloNoLeidas = false) =>
 
 export const markNotificationRead = (notificationId: number) =>
   matchmakingApi.patch<MatchNotification>(`/notifications/${notificationId}/leido`);
+
+// ── Notificaciones de sistema (Auth) ─────────────────────────────────────────
+export interface AuthNotification {
+  id: number;
+  title: string;
+  message: string;
+  type: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export const getAuthNotifications = () =>
+  authApi.get<AuthNotification[]>('/notifications');
+
+export const markAuthNotificationRead = (notificationId: number) =>
+  authApi.put(`/notifications/${notificationId}/read`);
 
 export default api;

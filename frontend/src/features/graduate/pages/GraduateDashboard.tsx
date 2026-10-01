@@ -27,7 +27,7 @@ import {
 export default function GraduateDashboard() {
   const [data, setData] = useState<GraduateDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-
+  
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -69,17 +69,17 @@ export default function GraduateDashboard() {
   const KPI_ICONS = [FileText, Target, Eye, Target];
 
   const kpis = [
-    { title: 'Mis Postulaciones', value: summary.total_applications, description: 'Aplicaciones enviadas' },
-    { title: 'Tasa de Respuesta', value: `${summary.response_rate}%`, description: 'Avanzan a entrevista' },
-    { title: 'Visitas al Perfil', value: summary.profile_views, description: 'Visualizaciones de empresas' },
-    { title: 'Expectativa Salarial', value: `$${summary.expected_salary.toLocaleString()}`, description: 'Promedio de ofertas aplicadas' },
+    { title: 'MIS POSTULACIONES', value: summary.total_applications, description: 'Aplicaciones enviadas' },
+    { title: 'TASA DE RESPUESTA', value: `${summary.response_rate}%`, description: 'Avanzan a entrevista' },
+    { title: 'VISITAS AL PERFIL', value: summary.profile_views, description: 'Visualizaciones de empresas' },
+    { title: 'EXPECTATIVA SALARIAL', value: `$${summary.expected_salary.toLocaleString()}`, description: 'Promedio de ofertas aplicadas' },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="page-header flex items-center justify-between">
-        <h1 className="page-title">Dashboard Egresado</h1>
+        <h1 className="page-title">{'Dashboard Egresado'}</h1>
         <button onClick={fetchData} className="btn-outline p-2" title="Actualizar">
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -108,8 +108,8 @@ export default function GraduateDashboard() {
         {/* Radar de Habilidades */}
         <section className="card p-5">
           <div>
-            <h2 className="text-base font-semibold text-ink">Mis Habilidades vs Mercado</h2>
-            <p className="mt-1 text-xs text-ink-secondary">Comparativa de dominio técnico</p>
+            <h2 className="text-base font-semibold text-ink">{'Mis Habilidades vs Mercado'}</h2>
+            <p className="mt-1 text-xs text-ink-secondary">{'Comparativa de dominio técnico'}</p>
           </div>
           {skills_radar?.length ? (
             <div className="mt-4 h-[300px] w-full">
@@ -133,8 +133,8 @@ export default function GraduateDashboard() {
         {/* Evolución Mensual */}
         <section className="card p-5">
           <div>
-            <h2 className="text-base font-semibold text-ink">Línea de Tiempo de Postulaciones</h2>
-            <p className="mt-1 text-xs text-ink-secondary">Actividad de aplicaciones por mes</p>
+            <h2 className="text-base font-semibold text-ink">{'Línea de Tiempo de Postulaciones'}</h2>
+            <p className="mt-1 text-xs text-ink-secondary">{'Actividad de aplicaciones por mes'}</p>
           </div>
           {applications_timeline?.length ? (
             <div className="mt-4 h-[300px] w-full">
