@@ -133,9 +133,11 @@ def upload_profile_picture(file: UploadFile = File(...), db: Session = Depends(g
 @public_router.get("/files/{filename}")
 def get_file(filename: str):
     try:
+        import os
         from app.core.s3 import MinioClient
         s3 = MinioClient.get_client()
-        response = s3.get_object(Bucket="cvs", Key=filename)
+        bucket = os.getenv("MINIO_BUCKET_NAME", "cvs")
+        response = s3.get_object(Bucket=bucket, Key=filename)
         return StreamingResponse(response['Body'].iter_chunks(), media_type="application/pdf")
     except Exception as e:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
@@ -143,9 +145,11 @@ def get_file(filename: str):
 @public_router.get("/avatars/{filename}")
 def get_avatar(filename: str):
     try:
+        import os
         from app.core.s3 import MinioClient
         s3 = MinioClient.get_client()
-        response = s3.get_object(Bucket="avatars", Key=filename)
+        bucket = os.getenv("S3_BUCKET_AVATARS", "avatars")
+        response = s3.get_object(Bucket=bucket, Key=filename)
         
         content_type = "image/jpeg"
         if filename.lower().endswith('.png'):
