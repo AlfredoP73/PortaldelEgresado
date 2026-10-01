@@ -116,7 +116,7 @@ def upload_profile_picture(file: UploadFile, current_user: dict, db: Session):
     if not file.filename.lower().endswith(allowed_extensions):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG, WEBP)")
         
-    bucket_name = "avatars"
+    bucket_name = os.getenv("S3_BUCKET_AVATARS", "avatars")
 
     # Set content type based on extension
     content_type = "image/jpeg"
