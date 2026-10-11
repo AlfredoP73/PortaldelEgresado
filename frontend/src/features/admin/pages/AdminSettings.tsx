@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { Settings, Palette, Factory, Check } from 'lucide-react';
+import ServiceStatusPanel from '../components/ServiceStatusPanel';
 
 export default function AdminSettings() {
     const { theme, setTheme } = useTheme();
@@ -24,7 +25,10 @@ export default function AdminSettings() {
       </div>
 
       <div className="space-y-6">
-        
+
+        {/* Estado de microservicios */}
+        <ServiceStatusPanel />
+
         {/* Abstract Factory Theme Section */}
         <div 
           className="rounded-2xl p-6 border"

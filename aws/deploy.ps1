@@ -1,87 +1,99 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host " Iniciando Despliegue 3-Tier en AWS Learner Lab " -ForegroundColor Cyan -BackgroundColor DarkBlue
+Write-Host " Iniciando Despliegue Multi-AZ (Alta Disponibilidad)   " -ForegroundColor Cyan -BackgroundColor DarkBlue
 Write-Host "=======================================================" -ForegroundColor Cyan
 
-# 1. Configurar y Validar Autenticación
-# Las credenciales deben estar ya configuradas en tu terminal (pegándolas desde Learner Lab)
-$env:AWS_DEFAULT_REGION = "us-east-1"
-$AZ = "us-east-1a"
 
+
+$AZ_A = "us-east-1a"
+$AZ_B = "us-east-1b"
+
+$oldErr = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $IdentityJson = aws sts get-caller-identity --output json 2>$null
-if ($LASTEXITCODE -ne 0) { Write-Host "Credenciales inválidas." -ForegroundColor Red; exit }
+$ErrorActionPreference = $oldErr
 
-Write-Host "`n[Fase 1: Red] Creando VPC y Subredes..." -ForegroundColor Yellow
-$VpcId = aws ec2 create-vpc --cidr-block 10.0.0.0/16 --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=portal_vpc}]" --query "Vpc.VpcId" --output text
-aws ec2 modify-vpc-attribute --vpc-id $VpcId --enable-dns-hostnames "{\"Value\":true}" | Out-Null
-Write-Host "VPC: $VpcId" -ForegroundColor Green
+if ($LASTEXITCODE -ne 0) { 
+    Write-Host "`n[ERROR] Credenciales de AWS inválidas o expiradas." -ForegroundColor Red
+    Write-Host "Por favor, copia las credenciales nuevas de tu AWS Learner Lab (AWS Details -> AWS CLI)" -ForegroundColor Yellow
+    Write-Host "y pégalas en las líneas 9, 10 y 11 de este archivo deploy.ps1." -ForegroundColor Yellow
+    exit 1 
+}
 
-$SubPubId = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.1.0/24 --availability-zone $AZ --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_front}]" --query "Subnet.SubnetId" --output text
-$SubBackId = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.2.0/24 --availability-zone $AZ --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_back}]" --query "Subnet.SubnetId" --output text
-$SubDataId = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.3.0/24 --availability-zone $AZ --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_data}]" --query "Subnet.SubnetId" --output text
-Write-Host "Subredes creadas." -ForegroundColor Green
+Write-Host "`n[Fase 1: Red Multi-AZ] Creando VPC y 6 Subredes..." -ForegroundColor Yellow
+$VpcId = aws ec2 create-vpc --cidr-block 10.0.0.0/16 --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=portal_vpc}]" --query "Vpc.VpcId" --output text 2>$null
+
+aws ec2 modify-vpc-attribute --vpc-id $VpcId --enable-dns-support | Out-Null
+aws ec2 modify-vpc-attribute --vpc-id $VpcId --enable-dns-hostnames | Out-Null
+
+# AZ A Subnets
+$SubPubA = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.1.0/24 --availability-zone $AZ_A --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_front_a}]" --query "Subnet.SubnetId" --output text
+$SubAppA = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.3.0/24 --availability-zone $AZ_A --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_back_a}]" --query "Subnet.SubnetId" --output text
+$SubDbA  = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.5.0/24 --availability-zone $AZ_A --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_data_a}]" --query "Subnet.SubnetId" --output text
+
+# AZ B Subnets
+$SubPubB = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.2.0/24 --availability-zone $AZ_B --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_front_b}]" --query "Subnet.SubnetId" --output text
+$SubAppB = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.4.0/24 --availability-zone $AZ_B --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_back_b}]" --query "Subnet.SubnetId" --output text
+$SubDbB  = aws ec2 create-subnet --vpc-id $VpcId --cidr-block 10.0.6.0/24 --availability-zone $AZ_B --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=portal_sub_data_b}]" --query "Subnet.SubnetId" --output text
+
+aws ec2 modify-subnet-attribute --subnet-id $SubPubA --map-public-ip-on-launch | Out-Null
+aws ec2 modify-subnet-attribute --subnet-id $SubPubB --map-public-ip-on-launch | Out-Null
 
 $IgwId = aws ec2 create-internet-gateway --tag-specifications "ResourceType=internet-gateway,Tags=[{Key=Name,Value=portal_igw}]" --query "InternetGateway.InternetGatewayId" --output text
 aws ec2 attach-internet-gateway --vpc-id $VpcId --internet-gateway-id $IgwId | Out-Null
-Write-Host "Internet Gateway: $IgwId" -ForegroundColor Green
 
 $RtPub = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_pub}]" --query "RouteTable.RouteTableId" --output text
 aws ec2 create-route --route-table-id $RtPub --destination-cidr-block 0.0.0.0/0 --gateway-id $IgwId | Out-Null
-aws ec2 associate-route-table --subnet-id $SubPubId --route-table-id $RtPub | Out-Null
+aws ec2 associate-route-table --subnet-id $SubPubA --route-table-id $RtPub | Out-Null
+aws ec2 associate-route-table --subnet-id $SubPubB --route-table-id $RtPub | Out-Null
 
-$AmiId = aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 --query "Parameters[0].Value" --output text
+Write-Host "Creando 2 NAT Gateways (Uno por Zona de Disponibilidad para Alta Disponibilidad Real)..." -ForegroundColor Yellow
+$NatEipAllocA = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
+$NatEipAllocB = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
 
-Write-Host "Creando instancia NAT (t3.micro) en Subred Pública para dar internet a las privadas..." -ForegroundColor Yellow
-$NatSgId = aws ec2 create-security-group --group-name "nat_sg" --description "NAT SG" --vpc-id $VpcId --query "GroupId" --output text
-aws ec2 authorize-security-group-ingress --group-id $NatSgId --protocol -1 --port -1 --cidr 10.0.0.0/16 | Out-Null
+$NatGwIdA = aws ec2 create-nat-gateway --subnet-id $SubPubA --allocation-id $NatEipAllocA --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=portal_nat_gw_a}]" --query "NatGateway.NatGatewayId" --output text
+$NatGwIdB = aws ec2 create-nat-gateway --subnet-id $SubPubB --allocation-id $NatEipAllocB --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=portal_nat_gw_b}]" --query "NatGateway.NatGatewayId" --output text
 
-$NatUserData = @"
-#!/bin/bash
-sysctl -w net.ipv4.ip_forward=1
-cat <<'EOF' > /etc/sysctl.d/custom-ip-forwarding.conf
-net.ipv4.ip_forward=1
-EOF
-TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
-ETH0_MAC=`curl -H "X-aws-ec2-metadata-token: `\$TOKEN" -s http://169.254.169.254/latest/meta-data/mac`
-ETH0_NAME=`ip -o link | grep `\$ETH0_MAC | awk -F': ' '{print \$2}'`
-iptables -t nat -A POSTROUTING -o \$ETH0_NAME -j MASQUERADE
-yum install iptables-services -y
-service iptables save
-systemctl enable iptables
-systemctl start iptables
-"@
-$NatUserDataEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($NatUserData))
+aws ec2 wait nat-gateway-available --nat-gateway-ids $NatGwIdA $NatGwIdB
 
-$NatInstanceId = aws ec2 run-instances --image-id $AmiId --instance-type t3.micro --subnet-id $SubPubId --security-group-ids $NatSgId --user-data $NatUserDataEnc --associate-public-ip-address --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_nat}]" --query "Instances[0].InstanceId" --output text
-Write-Host "NAT Creado: $NatInstanceId" -ForegroundColor Green
-Write-Host "Esperando a que la instancia NAT esté corriendo..." -ForegroundColor Yellow
-aws ec2 wait instance-running --instance-ids $NatInstanceId
-aws ec2 modify-instance-attribute --instance-id $NatInstanceId --source-dest-check "{\`"Value\`": false}"
-$NatEniId = aws ec2 describe-instances --instance-ids $NatInstanceId --query "Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId" --output text
+$RtPrivA = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_priv_a}]" --query "RouteTable.RouteTableId" --output text
+aws ec2 create-route --route-table-id $RtPrivA --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwIdA | Out-Null
+aws ec2 associate-route-table --subnet-id $SubAppA --route-table-id $RtPrivA | Out-Null
+aws ec2 associate-route-table --subnet-id $SubDbA --route-table-id $RtPrivA | Out-Null
 
-$RtPriv = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_priv}]" --query "RouteTable.RouteTableId" --output text
-aws ec2 create-route --route-table-id $RtPriv --destination-cidr-block 0.0.0.0/0 --network-interface-id $NatEniId | Out-Null
-aws ec2 associate-route-table --subnet-id $SubBackId --route-table-id $RtPriv | Out-Null
-aws ec2 associate-route-table --subnet-id $SubDataId --route-table-id $RtPriv | Out-Null
-Write-Host "Rutas privadas configuradas hacia el NAT." -ForegroundColor Green
+$RtPrivB = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_priv_b}]" --query "RouteTable.RouteTableId" --output text
+aws ec2 create-route --route-table-id $RtPrivB --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwIdB | Out-Null
+aws ec2 associate-route-table --subnet-id $SubAppB --route-table-id $RtPrivB | Out-Null
+aws ec2 associate-route-table --subnet-id $SubDbB --route-table-id $RtPrivB | Out-Null
 
-Write-Host "`n[Fase 1: Security Groups]" -ForegroundColor Yellow
-$SgFront = aws ec2 create-security-group --group-name "sg_front" --description "Front SG" --vpc-id $VpcId --query "GroupId" --output text
-$SgBack = aws ec2 create-security-group --group-name "sg_back" --description "Back SG" --vpc-id $VpcId --query "GroupId" --output text
-$SgData = aws ec2 create-security-group --group-name "sg_data" --description "Data SG" --vpc-id $VpcId --query "GroupId" --output text
+Write-Host "`n[Fase 2: Security Groups]" -ForegroundColor Yellow
+$SgAlbExt = aws ec2 create-security-group --group-name "sg_alb_ext" --description "ALB Externo SG" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgAlbExt --tags Key=Name,Value=sg_alb_ext | Out-Null
+$SgFront  = aws ec2 create-security-group --group-name "sg_front" --description "Frontend ASG SG" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgFront --tags Key=Name,Value=sg_front | Out-Null
+$SgAlbInt = aws ec2 create-security-group --group-name "sg_alb_int" --description "ALB Interno SG" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgAlbInt --tags Key=Name,Value=sg_alb_int | Out-Null
+$SgBack   = aws ec2 create-security-group --group-name "sg_back" --description "Backend ASG SG" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgBack --tags Key=Name,Value=sg_back | Out-Null
+$SgData   = aws ec2 create-security-group --group-name "sg_data" --description "Data SG" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgData --tags Key=Name,Value=sg_data | Out-Null
 
-aws ec2 authorize-security-group-ingress --group-id $SgFront --protocol tcp --port 80 --cidr 0.0.0.0/0 | Out-Null
-aws ec2 authorize-security-group-ingress --group-id $SgFront --protocol tcp --port 443 --cidr 0.0.0.0/0 | Out-Null
-aws ec2 authorize-security-group-ingress --group-id $SgBack --protocol tcp --port 80 --source-group $SgFront | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgAlbExt --protocol tcp --port 80 --cidr 0.0.0.0/0 | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgAlbExt --protocol tcp --port 443 --cidr 0.0.0.0/0 | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgFront --protocol tcp --port 80 --source-group $SgAlbExt | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgAlbInt --protocol tcp --port 80 --source-group $SgFront | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgBack --protocol tcp --port 80 --source-group $SgAlbInt | Out-Null
 aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 5432 --source-group $SgBack | Out-Null
 aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 9000 --source-group $SgBack | Out-Null
-Write-Host "Security Groups configurados." -ForegroundColor Green
+aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 5672 --source-group $SgBack | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 3100 --source-group $SgBack | Out-Null
 
+$AmiId = aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 --query "Parameters[0].Value" --output text
 $KeyName = "portal_egresado_key"
 $IamProfile = "LabInstanceProfile"
 
-# Script base para instalar docker
+# Script base docker
 $DockerBase = @"
 yum update -y
 yum install -y git docker
@@ -99,41 +111,41 @@ chown -R ec2-user:ec2-user app
 cd app
 "@
 
-Write-Host "`n[Fase 2 y 3: Desplegar Capa Data]" -ForegroundColor Yellow
+Write-Host "`n[S3] Creando buckets..." -ForegroundColor Yellow
+$AccountId = aws sts get-caller-identity --query Account --output text
+$BucketCvs      = "portal-cvs-$AccountId"
+$BucketAvatars  = "portal-avatars-$AccountId"
+$BucketDeliver  = "portal-deliverables-$AccountId"
+foreach ($bucket in @($BucketCvs, $BucketAvatars, $BucketDeliver)) {
+    aws s3 mb "s3://$bucket" --region us-east-1 2>$null
+}
+
+Write-Host "`n[Fase 3: Capa Data - Instancia Única EC2]" -ForegroundColor Yellow
 $DataUserData = @"
 #!/bin/bash
-# Formatear y montar EBS extra en /data
-mkfs -t xfs /dev/xvdf
-mkdir /data
-mount /dev/xvdf /data
-echo '/dev/xvdf /data xfs defaults,nofail 0 2' >> /etc/fstab
-chown ec2-user:ec2-user /data
-
 $DockerBase
 cat <<'EOF' > .env.data
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=PasswordSegura123
 POSTGRES_DB=postgres
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
 RABBITMQ_DEFAULT_USER=guest
 RABBITMQ_DEFAULT_PASS=guest
 EOF
-/usr/local/bin/docker-compose -f docker-compose.data.yml --env-file .env.data up -d
+/usr/local/bin/docker-compose -f docker-compose.data.yml --env-file .env.data up -d --build
 "@
 $DataUdEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($DataUserData))
 
-$DataId = aws ec2 run-instances --image-id $AmiId --instance-type t3.small --key-name $KeyName --security-group-ids $SgData --subnet-id $SubDataId --iam-instance-profile "Name=$IamProfile" --block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=20,VolumeType=gp3}" "DeviceName=/dev/xvdf,Ebs={VolumeSize=20,VolumeType=gp3}" --user-data $DataUdEnc --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_data}]" --query "Instances[0].InstanceId" --output text
-Write-Host "Instancia Data lanzada ($DataId). Esperando estado 'running'..." -ForegroundColor Yellow
+$DataId = aws ec2 run-instances --image-id $AmiId --instance-type t3.small --key-name $KeyName --security-group-ids $SgData --subnet-id $SubDbA --iam-instance-profile "Name=$IamProfile" --block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=20,VolumeType=gp3}" "DeviceName=/dev/xvdf,Ebs={VolumeSize=20,VolumeType=gp3}" --user-data $DataUdEnc --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_data}]" --query "Instances[0].InstanceId" --output text
 aws ec2 wait instance-running --instance-ids $DataId
 $DataIp = aws ec2 describe-instances --instance-ids $DataId --query "Reservations[0].Instances[0].PrivateIpAddress" --output text
-Write-Host "Data IP Privada: $DataIp" -ForegroundColor Green
 
-Write-Host "`nPre-asignando Elastic IP para el Frontend..." -ForegroundColor Yellow
-$AllocId = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
-$FrontPublicIp = aws ec2 describe-addresses --allocation-ids $AllocId --query "Addresses[0].PublicIp" --output text
+Write-Host "`n[Fase 4: Capa Back - Internal ALB y ASG]" -ForegroundColor Yellow
+$TgBackArn = aws elbv2 create-target-group --name tg-portal-back --protocol HTTP --port 80 --vpc-id $VpcId --target-type instance --query "TargetGroups[0].TargetGroupArn" --output text
+$AlbIntArn = aws elbv2 create-load-balancer --name alb-portal-int --subnets $SubAppA $SubAppB --security-groups $SgAlbInt --scheme internal --query "LoadBalancers[0].LoadBalancerArn" --output text
+aws elbv2 create-listener --load-balancer-arn $AlbIntArn --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$TgBackArn | Out-Null
+$AlbIntDns = aws elbv2 describe-load-balancers --load-balancer-arns $AlbIntArn --query "LoadBalancers[0].DNSName" --output text
+Write-Host "ALB Interno DNS: $AlbIntDns" -ForegroundColor Cyan
 
-Write-Host "`n[Fase 4: Desplegar Capa Back]" -ForegroundColor Yellow
 $BackUserData = @"
 #!/bin/bash
 $DockerBase
@@ -141,46 +153,87 @@ cat <<'EOF' > .env.back
 DATA_HOST=$DataIp
 DB_USER=postgres
 DB_PASSWORD=PasswordSegura123
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET_NAME=$BucketCvs
+S3_BUCKET_AVATARS=$BucketAvatars
+S3_BUCKET_DELIVERABLES=$BucketDeliver
+AWS_DEFAULT_REGION=us-east-1
 SECRET_KEY=clave_secreta_super_segura_de_32_caracteres_minimo
 MATCHMAKING_INTERNAL_TOKEN=token_interno_servicios_seguro
-FRONTEND_URL=http://$FrontPublicIp
+RABBITMQ_URL=amqp://guest:guest@${DataIp}:5672/
 EOF
 /usr/local/bin/docker-compose -f docker-compose.back.yml --env-file .env.back up -d --build
 "@
 $BackUdEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($BackUserData))
 
-$BackId = aws ec2 run-instances --image-id $AmiId --instance-type t3.medium --key-name $KeyName --security-group-ids $SgBack --subnet-id $SubBackId --iam-instance-profile "Name=$IamProfile" --block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=30,VolumeType=gp3}" --user-data $BackUdEnc --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_back}]" --query "Instances[0].InstanceId" --output text
-Write-Host "Instancia Back lanzada ($BackId). Esperando estado 'running'..." -ForegroundColor Yellow
-aws ec2 wait instance-running --instance-ids $BackId
-$BackIp = aws ec2 describe-instances --instance-ids $BackId --query "Reservations[0].Instances[0].PrivateIpAddress" --output text
-Write-Host "Back IP Privada: $BackIp" -ForegroundColor Green
+$LtBackJson = @"
+{
+    "ImageId": "$AmiId",
+    "InstanceType": "t3.small",
+    "KeyName": "$KeyName",
+    "SecurityGroupIds": ["$SgBack"],
+    "IamInstanceProfile": {"Name": "$IamProfile"},
+    "UserData": "$BackUdEnc",
+    "BlockDeviceMappings": [{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]
+}
+"@
+$LtBackJson | Out-File "lt_back.json" -Encoding ascii
+aws ec2 create-launch-template --launch-template-name lt-portal-back --version-description "v1" --launch-template-data file://lt_back.json | Out-Null
 
-Write-Host "`n[Fase 5: Desplegar Capa Front]" -ForegroundColor Yellow
+Write-Host "Creando Auto Scaling Group del Backend..." -ForegroundColor Yellow
+aws autoscaling create-auto-scaling-group --auto-scaling-group-name asg-portal-back --launch-template LaunchTemplateName=lt-portal-back,Version=1 --min-size 2 --max-size 6 --desired-capacity 2 --vpc-zone-identifier "$SubAppA,$SubAppB" --target-group-arns $TgBackArn --health-check-type ELB --health-check-grace-period 300 --tags "ResourceId=asg-portal-back,ResourceType=auto-scaling-group,Key=Name,Value=portal_back,PropagateAtLaunch=true" | Out-Null
+
+# Auto Scaling Policies (Simple Scaling) - BACKEND
+$PolicyOutArn = aws autoscaling put-scaling-policy --auto-scaling-group-name asg-portal-back --policy-name scale-out-cpu --policy-type SimpleScaling --adjustment-type ChangeInCapacity --scaling-adjustment 1 --cooldown 300 --query "PolicyARN" --output text 2>$null
+aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-high-back --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 60 --threshold 70 --comparison-operator GreaterThanThreshold --dimensions "Name=AutoScalingGroupName,Value=asg-portal-back" --evaluation-periods 2 --alarm-actions $PolicyOutArn 2>$null
+
+$PolicyInArn = aws autoscaling put-scaling-policy --auto-scaling-group-name asg-portal-back --policy-name scale-in-cpu --policy-type SimpleScaling --adjustment-type ChangeInCapacity --scaling-adjustment -1 --cooldown 300 --query "PolicyARN" --output text 2>$null
+aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-low-back --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 60 --threshold 30 --comparison-operator LessThanThreshold --dimensions "Name=AutoScalingGroupName,Value=asg-portal-back" --evaluation-periods 2 --alarm-actions $PolicyInArn 2>$null
+
+Write-Host "`n[Fase 5: Capa Front - External ALB y ASG]" -ForegroundColor Yellow
+$TgFrontArn = aws elbv2 create-target-group --name tg-portal-front --protocol HTTP --port 80 --vpc-id $VpcId --target-type instance --query "TargetGroups[0].TargetGroupArn" --output text
+$AlbExtArn = aws elbv2 create-load-balancer --name alb-portal-ext --subnets $SubPubA $SubPubB --security-groups $SgAlbExt --scheme internet-facing --query "LoadBalancers[0].LoadBalancerArn" --output text
+aws elbv2 create-listener --load-balancer-arn $AlbExtArn --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$TgFrontArn | Out-Null
+$AlbExtDns = aws elbv2 describe-load-balancers --load-balancer-arns $AlbExtArn --query "LoadBalancers[0].DNSName" --output text
+
 $FrontUserData = @"
 #!/bin/bash
 $DockerBase
 cat <<'EOF' > .env.front
-BACK_HOST=$BackIp
+BACK_HOST=$AlbIntDns
 EOF
 /usr/local/bin/docker-compose -f docker-compose.front.yml --env-file .env.front up -d --build
 "@
 $FrontUdEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($FrontUserData))
 
-$FrontId = aws ec2 run-instances --image-id $AmiId --instance-type t3.small --key-name $KeyName --security-group-ids $SgFront --subnet-id $SubPubId --iam-instance-profile "Name=$IamProfile" --block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=20,VolumeType=gp3}" --user-data $FrontUdEnc --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_front}]" --query "Instances[0].InstanceId" --output text
-Write-Host "Instancia Front lanzada ($FrontId). Esperando estado 'running'..." -ForegroundColor Yellow
-aws ec2 wait instance-running --instance-ids $FrontId
+$LtFrontJson = @"
+{
+    "ImageId": "$AmiId",
+    "InstanceType": "t3.small",
+    "KeyName": "$KeyName",
+    "SecurityGroupIds": ["$SgFront"],
+    "IamInstanceProfile": {"Name": "$IamProfile"},
+    "UserData": "$FrontUdEnc",
+    "BlockDeviceMappings": [{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3"}}]
+}
+"@
+$LtFrontJson | Out-File "lt_front.json" -Encoding ascii
+aws ec2 create-launch-template --launch-template-name lt-portal-front --version-description "v1" --launch-template-data file://lt_front.json | Out-Null
 
-Write-Host "Asociando IP Elástica ($FrontPublicIp) al Frontend..." -ForegroundColor Cyan
-aws ec2 associate-address --instance-id $FrontId --allocation-id $AllocId | Out-Null
+aws autoscaling create-auto-scaling-group --auto-scaling-group-name asg-portal-front --launch-template LaunchTemplateName=lt-portal-front,Version=1 --min-size 2 --max-size 6 --desired-capacity 2 --vpc-zone-identifier "$SubPubA,$SubPubB" --target-group-arns $TgFrontArn --health-check-type ELB --health-check-grace-period 300 --tags "ResourceId=asg-portal-front,ResourceType=auto-scaling-group,Key=Name,Value=portal_front,PropagateAtLaunch=true" | Out-Null
+
+# Auto Scaling Policies (Simple Scaling) - FRONTEND
+$PolicyOutFront = aws autoscaling put-scaling-policy --auto-scaling-group-name asg-portal-front --policy-name scale-out-cpu-front --policy-type SimpleScaling --adjustment-type ChangeInCapacity --scaling-adjustment 1 --cooldown 300 --query "PolicyARN" --output text 2>$null
+aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-high-front --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 60 --threshold 70 --comparison-operator GreaterThanThreshold --dimensions "Name=AutoScalingGroupName,Value=asg-portal-front" --evaluation-periods 2 --alarm-actions $PolicyOutFront 2>$null
+
+$PolicyInFront = aws autoscaling put-scaling-policy --auto-scaling-group-name asg-portal-front --policy-name scale-in-cpu-front --policy-type SimpleScaling --adjustment-type ChangeInCapacity --scaling-adjustment -1 --cooldown 300 --query "PolicyARN" --output text 2>$null
+aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-low-front --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 60 --threshold 30 --comparison-operator LessThanThreshold --dimensions "Name=AutoScalingGroupName,Value=asg-portal-front" --evaluation-periods 2 --alarm-actions $PolicyInFront 2>$null
+
+Write-Host "Esperando a que el Balanceador de Cargas Público termine de construirse (esto puede tomar 3 a 5 minutos)..." -ForegroundColor Yellow
+aws elbv2 wait load-balancer-available --load-balancer-arns $AlbExtArn
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
-Write-Host "¡Despliegue 3-Tier Completado con Éxito!" -ForegroundColor Green -BackgroundColor Black
+Write-Host "¡Despliegue Multi-AZ Finalizado y Balanceador Activo!" -ForegroundColor Green -BackgroundColor Black
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host "Instancia Data (Postgres, Minio) :" -NoNewline; Write-Host " $DataIp (Privada)" -ForegroundColor Yellow
-Write-Host "Instancia Back (Microservicios)  :" -NoNewline; Write-Host " $BackIp (Privada)" -ForegroundColor Yellow
-Write-Host "Instancia Front (React + Nginx)  :" -NoNewline; Write-Host " $FrontPublicIp (Pública)" -ForegroundColor Magenta
-Write-Host "Puedes acceder a tu web en       :" -NoNewline; Write-Host " http://$FrontPublicIp" -ForegroundColor Cyan
-Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host "(Nota: Las instancias tardarán entre 3 a 5 minutos en instalar dependencias, construir imágenes y arrancar los contenedores)." -ForegroundColor DarkGray
+Write-Host "Por favor, espera unos minutos extra a que los servidores instalen Docker y la aplicación."
+Write-Host "Luego ingresa a la siguiente URL en tu navegador:" -ForegroundColor Yellow
+Write-Host "http://$AlbExtDns" -ForegroundColor White

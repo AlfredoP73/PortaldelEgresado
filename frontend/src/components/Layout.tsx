@@ -20,7 +20,8 @@ import {
   MapPin,
   Trophy,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  KeyRound
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
@@ -698,6 +699,15 @@ export default function Layout({ children }: LayoutProps) {
               >
                 {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </button>
+
+              <Link
+                to="/account"
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+                style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--text-ink-secondary)' }}
+                title="Mi cuenta (contraseña y correo)"
+              >
+                <KeyRound className="w-4 h-4" />
+              </Link>
 
               <Link
                 to="/privacy-settings"

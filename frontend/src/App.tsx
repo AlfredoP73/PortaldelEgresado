@@ -9,6 +9,7 @@ import ForgotPassword from './features/auth/pages/ForgotPassword';
 import VerifyPin from './features/auth/pages/VerifyPin';
 import ResetPassword from './features/auth/pages/ResetPassword';
 import PrivacySettings from './features/auth/pages/PrivacySettings';
+import AccountSettings from './features/auth/pages/AccountSettings';
 import Maintenance from './pages/Maintenance';
 import Companies from './features/company/pages/Companies';
 import JobOffers from './features/company/pages/JobOffers';
@@ -73,6 +74,10 @@ export default function App() {
             <Route
               path="/privacy-settings"
               element={<Layout><PrivacySettings /></Layout>}
+            />
+            <Route
+              path="/account"
+              element={<Layout><AccountSettings /></Layout>}
             />
           </Route>
 

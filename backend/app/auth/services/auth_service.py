@@ -262,3 +262,214 @@ def reset_password(email: str, pin: str, new_password: str, db: Session) -> dict
     db.commit()
 
     return {"message": "Contraseña actualizada exitosamente. Ya puedes iniciar sesión."}
+
+
+# ── Gestión de cuenta ────────────────────────────────────────────────────────
+MIN_PASSWORD_LENGTH = 6
+
+
+def _validate_new_password(password: str) -> None:
+    if not password or len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres",
+        )
+
+
+def _validate_new_email(user: models.User, new_email: str, db: Session) -> str:
+    new_email = new_email.strip().lower()
+    taken = db.query(models.User).filter(
+        func.lower(models.User.email) == new_email,
+        models.User.id != user.id,
+    ).first()
+    if taken:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Ya existe un usuario con ese email")
+    if user.role_id == 3:  # GRADUATE debe conservar el correo institucional
+        domain = new_email.split("@")[-1]
+        if domain not in schemas.ALLOWED_GRADUATE_EMAIL_DOMAINS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Un egresado debe usar su correo institucional @unicesar.edu.co",
+            )
+    return new_email
+
+
+def _build_user_info(user: models.User) -> schemas.UserInfo:
+    return schemas.UserInfo(
+        id=user.id,
+        email=user.email,
+        role_id=user.role_id,
+        role_name=user.role.name,
+        email_verified=user.email_verified,
+        privacy_policy_accepted=user.privacy_policy_accepted,
+        data_treatment_authorized=user.data_treatment_authorized,
+    )
+
+
+def _issue_token(user: models.User) -> str:
+    return create_access_token(data={"sub": user.email, "id": user.id, "role_id": user.role_id})
+
+
+def change_password(user: models.User, body: schemas.ChangePasswordRequest,
+                    db: Session, client_ip: str = "unknown") -> dict:
+    """Cambio de contraseña del propio usuario (exige la contraseña actual)."""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="La contraseña actual es incorrecta")
+    _validate_new_password(body.new_password)
+    if verify_password(body.new_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="La nueva contraseña debe ser distinta a la actual")
+
+    user.password_hash = get_password_hash(body.new_password)
+    user.password_reset_pin = None
+    user.pin_expires_at = None
+    db.commit()
+    log_audit_action(db, user_id=user.id, action="CHANGE_PASSWORD", ip_address=client_ip)
+    return {"message": "Contraseña actualizada exitosamente"}
+
+
+def change_email(user: models.User, body: schemas.ChangeEmailRequest,
+                 db: Session, client_ip: str = "unknown") -> schemas.AccountUpdateResponse:
+    """Cambio del correo de acceso (solo empresas; exige la contraseña actual)."""
+    if user.role_id != 2:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Solo las empresas pueden cambiar su correo de acceso")
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="La contraseña actual es incorrecta")
+
+    old_email = user.email
+    new_email = _validate_new_email(user, body.new_email, db)
+    if new_email == old_email.lower():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="El nuevo correo es igual al actual")
+
+    user.email = new_email
+    db.commit()
+    db.refresh(user)
+    log_audit_action(db, user_id=user.id, action="CHANGE_EMAIL",
+                     details={"old": old_email, "new": new_email}, ip_address=client_ip)
+    return schemas.AccountUpdateResponse(
+        message="Correo actualizado exitosamente",
+        access_token=_issue_token(user),
+        user=_build_user_info(user),
+    )
+
+
+def admin_update_user(admin_user: models.User, user_id: int, body: schemas.AdminUpdateUserRequest,
+                      db: Session, client_ip: str = "unknown") -> schemas.AccountUpdateResponse:
+    """El ADMIN puede cambiar correo y/o contraseña de cualquier usuario (incluido él mismo)."""
+    if admin_user.role_id != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    if not body.email and not body.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Debes indicar un nuevo correo o una nueva contraseña")
+
+    changes = []
+    if body.email and body.email.strip().lower() != target.email.lower():
+        target.email = _validate_new_email(target, body.email, db)
+        changes.append("email")
+    if body.password:
+        _validate_new_password(body.password)
+        target.password_hash = get_password_hash(body.password)
+        target.password_reset_pin = None
+        target.pin_expires_at = None
+        changes.append("password")
+
+    if not changes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="No hay cambios que aplicar")
+
+    db.commit()
+    db.refresh(target)
+    log_audit_action(db, user_id=admin_user.id, action="ADMIN_UPDATE_USER",
+                     target_id=str(target.id), details={"fields": changes}, ip_address=client_ip)
+
+    resp = schemas.AccountUpdateResponse(message="Usuario actualizado exitosamente")
+    if target.id == admin_user.id and "email" in changes:
+        resp.access_token = _issue_token(target)
+        resp.user = _build_user_info(target)
+    return resp
+
+
+# ── Estado de microservicios ─────────────────────────────────────────────────
+import time
+import urllib.request
+import urllib.error
+from concurrent.futures import ThreadPoolExecutor
+from sqlalchemy import text
+
+# (key, nombre, descripción, URL de healthcheck interna)
+_SERVICES = [
+    ("graduates",   "Egresados",      "Perfiles, CV y formación (Módulo 1)",
+     os.getenv("GRADUATES_HEALTH_URL",   "http://graduates:8000/")),
+    ("companies",   "Empresas",       "Empresas, vacantes y postulaciones (Módulo 2)",
+     os.getenv("COMPANIES_HEALTH_URL",   "http://companies:8000/")),
+    ("matchmaking", "Matchmaking",    "Afinidad y notificaciones en tiempo real",
+     os.getenv("MATCHMAKING_HEALTH_URL", "http://matchmaking:8000/health")),
+    ("dashboard",   "Dashboard",      "Indicadores administrativos (Módulo 4)",
+     os.getenv("DASHBOARD_HEALTH_URL",   "http://dashboard:8000/")),
+]
+_SLOW_MS = 1500
+
+
+def _probe(entry) -> schemas.ServiceStatus:
+    key, name, description, url = entry
+    started = time.perf_counter()
+    try:
+        with urllib.request.urlopen(url, timeout=3) as resp:
+            elapsed = int((time.perf_counter() - started) * 1000)
+            code = resp.status
+            state = "operational" if code < 400 and elapsed < _SLOW_MS else "degraded"
+            detail = "Respuesta correcta" if state == "operational" else "Respuesta lenta"
+            return schemas.ServiceStatus(key=key, name=name, description=description, status=state,
+                                         latency_ms=elapsed, http_status=code, detail=detail)
+    except urllib.error.HTTPError as e:
+        elapsed = int((time.perf_counter() - started) * 1000)
+        return schemas.ServiceStatus(key=key, name=name, description=description, status="degraded",
+                                     latency_ms=elapsed, http_status=e.code, detail=f"HTTP {e.code}")
+    except Exception as e:
+        return schemas.ServiceStatus(key=key, name=name, description=description, status="down",
+                                     detail=type(e).__name__ + ": " + str(getattr(e, "reason", e))[:120])
+
+
+def get_system_status(admin_user: models.User, db: Session) -> schemas.SystemStatusResponse:
+    if admin_user.role_id != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+
+    # Auth (este servicio) + su base de datos
+    started = time.perf_counter()
+    try:
+        db.execute(text("SELECT 1"))
+        db_ms = int((time.perf_counter() - started) * 1000)
+        auth_status = schemas.ServiceStatus(
+            key="auth", name="Autenticación", description="Login, usuarios y tokens JWT",
+            status="operational", latency_ms=0, http_status=200, detail="Servicio en ejecución")
+        db_status = schemas.ServiceStatus(
+            key="database", name="Base de datos", description="PostgreSQL (auth_db)",
+            status="operational" if db_ms < _SLOW_MS else "degraded",
+            latency_ms=db_ms, detail="Conexión activa" if db_ms < _SLOW_MS else "Consulta lenta")
+    except Exception as e:
+        auth_status = schemas.ServiceStatus(
+            key="auth", name="Autenticación", description="Login, usuarios y tokens JWT",
+            status="degraded", detail="Servicio activo, sin acceso a la BD")
+        db_status = schemas.ServiceStatus(
+            key="database", name="Base de datos", description="PostgreSQL (auth_db)",
+            status="down", detail=type(e).__name__)
+
+    with ThreadPoolExecutor(max_workers=len(_SERVICES)) as pool:
+        probed = list(pool.map(_probe, _SERVICES))
+
+    services = [auth_status, *probed, db_status]
+    states = {s.status for s in services}
+    overall = "operational" if states == {"operational"} else (
+        "down" if "down" in states and len(states) == 1 else "degraded")
+    return schemas.SystemStatusResponse(overall=overall, checked_at=datetime.now(timezone.utc),
+                                        services=services)

@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { authApi } from '../../../api';
-import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2, Download, Upload } from 'lucide-react';
+import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2, Download, Upload, KeyRound, Eye, EyeOff } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
 import Modal from '../../../components/Modal';
@@ -29,6 +29,52 @@ export default function AdminUsers() {
   const [saving, setSaving] = useState(false);
 
   const [importing, setImporting] = useState(false);
+
+  // Edit user (admin: correo y/o contraseña de cualquier usuario)
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editEmail, setEditEmail] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+
+  const openEdit = (u: User) => {
+    setEditingUser(u);
+    setEditEmail(u.email);
+    setEditPassword('');
+    setShowEditPassword(false);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    const payload: { email?: string; password?: string } = {};
+    if (editEmail.trim() && editEmail.trim().toLowerCase() !== editingUser.email.toLowerCase()) {
+      payload.email = editEmail.trim();
+    }
+    if (editPassword) payload.password = editPassword;
+    if (!payload.email && !payload.password) {
+      toast.error('No hay cambios que guardar');
+      return;
+    }
+    try {
+      setUpdating(true);
+      const res = await authApi.put(`/users/${editingUser.id}`, payload);
+      // Si el admin cambió su propio correo, el token anterior deja de ser válido
+      if (res.data.access_token) {
+        localStorage.setItem('access_token', res.data.access_token);
+        if (res.data.user) localStorage.setItem('user', JSON.stringify({ ...currentUser, ...res.data.user }));
+      }
+      toast.success(res.data.message || 'Usuario actualizado');
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Error al actualizar usuario');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -209,6 +255,50 @@ export default function AdminUsers() {
         </form>
       </Modal>
 
+      <Modal isOpen={!!editingUser} onClose={() => setEditingUser(null)} maxWidth="max-w-lg">
+        <div className="flex justify-between items-center p-6 border-b shrink-0 border-[var(--border-color)] bg-[var(--bg-surface)]">
+          <div>
+            <h3 className="text-lg font-bold text-ink">Editar credenciales</h3>
+            <p className="text-xs text-ink-secondary mt-0.5">{editingUser?.role_name} · ID {editingUser?.id}</p>
+          </div>
+        </div>
+        <form onSubmit={handleUpdateUser} className="p-6 space-y-5 overflow-y-auto">
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Correo electrónico</label>
+            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="input w-full" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-ink-secondary mb-1">Nueva contraseña</label>
+            <div className="relative">
+              <input
+                type={showEditPassword ? 'text' : 'password'}
+                value={editPassword}
+                onChange={e => setEditPassword(e.target.value)}
+                className="input w-full pr-10"
+                placeholder="Dejar vacío para no cambiarla"
+                minLength={6}
+                autoComplete="new-password"
+              />
+              <button type="button" tabIndex={-1} onClick={() => setShowEditPassword(!showEditPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-secondary hover:text-ink">
+                {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-ink-secondary mt-1">Como administrador no necesitas la contraseña actual. Mínimo 6 caracteres.</p>
+          </div>
+          {editingUser?.id === currentUser?.id && (
+            <p className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)' }}>
+              Estás editando tu propia cuenta.
+            </p>
+          )}
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+            <button type="button" onClick={() => setEditingUser(null)} className="btn-ghost" disabled={updating}>Cancelar</button>
+            <button type="submit" disabled={updating} className="btn-primary min-w-[140px] flex justify-center items-center gap-2">
+              {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
           <div className="flex flex-col md:flex-row gap-4">
@@ -270,14 +360,22 @@ export default function AdminUsers() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {user.role_name !== 'ADMIN' && (
+                      <div className="inline-flex items-center gap-2">
                         <button
-                          onClick={() => handleImpersonate(user.id)}
-                          className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-brand-200"
+                          onClick={() => openEdit(user)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-[var(--border-color)] text-ink hover:bg-[var(--bg-muted)]"
                         >
-                          <PlayCircle className="w-4 h-4" /> Impersonar
+                          <KeyRound className="w-4 h-4" /> Editar
                         </button>
-                      )}
+                        {user.role_name !== 'ADMIN' && (
+                          <button
+                            onClick={() => handleImpersonate(user.id)}
+                            className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors border border-brand-200"
+                          >
+                            <PlayCircle className="w-4 h-4" /> Impersonar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

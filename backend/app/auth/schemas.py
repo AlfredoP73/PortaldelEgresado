@@ -82,6 +82,44 @@ class ResetPasswordRequest(BaseModel):
     pin: str
     new_password: str
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ChangeEmailRequest(BaseModel):
+    new_email: EmailStr
+    current_password: str
+
+
+class AdminUpdateUserRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+
+
+class AccountUpdateResponse(BaseModel):
+    """Respuesta de cambios de cuenta. Si cambió el email del usuario autenticado
+    se devuelve un nuevo token (el JWT usa el email como 'sub')."""
+    message: str
+    access_token: Optional[str] = None
+    user: Optional[UserInfo] = None
+
+
+class ServiceStatus(BaseModel):
+    key: str
+    name: str
+    description: str
+    status: str  # operational | degraded | down
+    latency_ms: Optional[int] = None
+    http_status: Optional[int] = None
+    detail: Optional[str] = None
+
+
+class SystemStatusResponse(BaseModel):
+    overall: str  # operational | degraded | down
+    checked_at: datetime
+    services: List[ServiceStatus]
+
 
 class NotificationResponse(BaseModel):
     id: int
