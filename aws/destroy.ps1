@@ -5,6 +5,7 @@ Write-Host " Iniciando Destrucción Multi-AZ (Alta Disponibilidad)  " -Foregroun
 Write-Host "=======================================================" -ForegroundColor Cyan
 
 # 1. Configurar y Validar Autenticación
+if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps1" }
 
 
 $IdentityJson = aws sts get-caller-identity --output json 2>$null

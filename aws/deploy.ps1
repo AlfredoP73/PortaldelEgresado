@@ -5,6 +5,9 @@ Write-Host " Iniciando Despliegue Multi-AZ (Alta Disponibilidad)   " -Foreground
 Write-Host "=======================================================" -ForegroundColor Cyan
 
 
+# Credenciales: se cargan desde aws/credentials.ps1 (ignorado por git).
+# Copia credentials.example.ps1 -> credentials.ps1 y pega tus credenciales del Learner Lab.
+if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps1" }
 
 $AZ_A = "us-east-1a"
 $AZ_B = "us-east-1b"
