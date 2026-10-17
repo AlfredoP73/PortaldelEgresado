@@ -33,16 +33,45 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
+    const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(1);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
     const [registrationMessage, setRegistrationMessage] = useState('');
     const [acceptPrivacy, setAcceptPrivacy] = useState(false);
     const [authorizeData, setAuthorizeData] = useState(false);
+
+    const handleNextStep = () => {
+        setError('');
+        if (registerStep === 1) {
+            setRegisterStep(2);
+            return;
+        }
+        if (registerStep === 2) {
+            if (!email.trim()) {
+                setError('Ingresa tu correo electrónico para continuar.');
+                return;
+            }
+            if (roleId === 3 && !email.trim().toLowerCase().endsWith('@unicesar.edu.co')) {
+                setError('Debes ingresar tu correo institucional @unicesar.edu.co');
+                return;
+            }
+            if (password.length < 8 || getPasswordStrength() < 2) {
+                setError('La contraseña debe tener al menos 8 caracteres y cumplir los requisitos de seguridad.');
+                return;
+            }
+            setRegisterStep(3);
+        }
+    };
     
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
         
+        if (isRegistering && registerStep < 3) {
+            handleNextStep();
+            return;
+        }
+
         if (isRegistering && roleId === 3 && !email.toLowerCase().endsWith('@unicesar.edu.co')) {
             setError('Debes registrarte con tu correo institucional @unicesar.edu.co');
             return;
@@ -272,7 +301,7 @@ export default function Login() {
                                 )}
                             </p>
                             <div className="space-y-3">
-                                <button onClick={() => { setRegistrationSuccess(false); setRegistrationMessage(''); setIsRegistering(false); setPassword(''); }}
+                                <button onClick={() => { setRegistrationSuccess(false); setRegistrationMessage(''); setIsRegistering(false); setRegisterStep(1); setPassword(''); }}
                                     className="w-full py-3.5 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-lg shadow-brand-500/20">
                                     {'Volver al inicio de sesión'}
                                 </button>
@@ -287,52 +316,113 @@ export default function Login() {
                             style={{ background: '#fff', borderRadius: '22px', border: '1px solid #eaeef2', boxShadow: '0 8px 40px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.03)' }}>
 
                             {/* Card header */}
-                            <div className="px-8 pt-8 pb-6" style={{ borderBottom: '1px solid #f0f3f5' }}>
-                                <div className="flex items-center gap-3.5 mb-2">
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                        style={{ background: 'linear-gradient(135deg, #22a86e, #0e4832)' }}>
-                                        {isRegistering
-                                            ? <Building2 className="w-5 h-5 text-white" />
-                                            : <GraduationCap className="w-5 h-5 text-white" />}
+                            <div className="px-8 pt-7 pb-5" style={{ borderBottom: '1px solid #f0f3f5' }}>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                            style={{ background: 'linear-gradient(135deg, #22a86e, #0e4832)' }}>
+                                            {isRegistering
+                                                ? <Building2 className="w-5 h-5 text-white" />
+                                                : <GraduationCap className="w-5 h-5 text-white" />}
+                                        </div>
+                                        <div>
+                                            <h2 className="text-[1.5rem] font-black text-[#111827] tracking-tight leading-none">
+                                                {isRegistering ? 'Crear Cuenta' : 'Bienvenido'}
+                                            </h2>
+                                            <p className="text-[12.5px] leading-snug text-[#6B7280] mt-1">
+                                                {isRegistering
+                                                    ? registerStep === 1
+                                                        ? 'Paso 1 de 3 · Selecciona tu perfil institucional'
+                                                        : registerStep === 2
+                                                            ? 'Paso 2 de 3 · Configura tus credenciales de acceso'
+                                                            : 'Paso 3 de 3 · Privacidad y tratamiento de datos'
+                                                    : 'Ingresa tus credenciales para acceder al portal institucional.'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <h2 className="text-[1.6rem] font-black text-[#111827] tracking-tight leading-none">
-                                        {isRegistering ? 'Crear Cuenta' : 'Bienvenido'}
-                                    </h2>
+                                    {isRegistering && (
+                                        <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 flex-shrink-0">
+                                            Etapa {registerStep}/3
+                                        </span>
+                                    )}
                                 </div>
-                                <p className="text-[13px] leading-relaxed pl-[54px] text-[#6B7280]">
-                                    {isRegistering
-                                        ? 'Únete al portal institucional y accede a oportunidades únicas.'
-                                        : 'Ingresa tus credenciales para acceder al portal institucional.'}
-                                </p>
+
+                                {/* Step progress bar (register only) */}
+                                {isRegistering && (
+                                    <div className="grid grid-cols-3 gap-2 mt-4">
+                                        {[
+                                            { step: 1, title: '1. Perfil' },
+                                            { step: 2, title: '2. Credenciales' },
+                                            { step: 3, title: '3. Privacidad' },
+                                        ].map(({ step, title }) => {
+                                            const active = registerStep === step;
+                                            const completed = registerStep > step;
+                                            return (
+                                                <button
+                                                    key={step}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (step < registerStep) {
+                                                            setError('');
+                                                            setRegisterStep(step as 1 | 2 | 3);
+                                                        }
+                                                    }}
+                                                    disabled={step > registerStep}
+                                                    className={`flex flex-col gap-1.5 text-left transition-all ${step < registerStep ? 'cursor-pointer' : 'cursor-default'}`}
+                                                >
+                                                    <div className={`h-1.5 w-full rounded-full transition-all duration-300 ${
+                                                        completed ? 'bg-brand-600' : active ? 'bg-brand-500' : 'bg-slate-100'
+                                                    }`} />
+                                                    <span className={`text-[11px] font-bold tracking-tight ${
+                                                        active ? 'text-brand-700' : completed ? 'text-slate-700' : 'text-slate-400'
+                                                    }`}>
+                                                        {title}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Form body */}
                             <div className="px-8 py-6">
                                 <form onSubmit={handleSubmit} className="space-y-5">
 
-                                    {/* Role selector (register only) */}
-                                    {isRegistering && (
-                                        <div className="space-y-2">
-                                            <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: '#9ca3af' }}>
-                                                ¿Cómo deseas registrarte?
+                                    {/* ── ETAPA 1 (REGISTRO): SELECCIÓN DE ROL ── */}
+                                    {isRegistering && registerStep === 1 && (
+                                        <div className="space-y-4 animate-fade-in-up">
+                                            <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: '#6b7280' }}>
+                                                ¿Cómo deseas registrarte en el portal?
                                             </label>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-2 gap-3.5">
                                                 {([
-                                                    { id: 3, label: 'Egresado', Icon: GraduationCap },
-                                                    { id: 2, label: 'Empresa', Icon: Building2 },
-                                                ] as const).map(({ id, label, Icon }) => (
+                                                    {
+                                                        id: 3,
+                                                        label: 'Egresado UPC',
+                                                        desc: 'Activa tu cuenta institucional verificando tu registro oficial.',
+                                                        Icon: GraduationCap,
+                                                    },
+                                                    {
+                                                        id: 2,
+                                                        label: 'Empresa Aliada',
+                                                        desc: 'Publica vacantes y conecta con talento graduado de la UPC.',
+                                                        Icon: Building2,
+                                                    },
+                                                ] as const).map(({ id, label, desc, Icon }) => (
                                                     <label key={id}
-                                                        className="relative flex flex-col items-center gap-2 py-5 cursor-pointer rounded-2xl transition-all duration-200"
+                                                        className="relative flex flex-col items-center text-center gap-2 p-4 cursor-pointer rounded-2xl transition-all duration-200"
                                                         style={{
                                                             border: roleId === id ? '2px solid #22a86e' : '2px solid #e8ecf0',
                                                             background: roleId === id ? '#eefbf4' : '#fafbfc',
                                                         }}>
                                                         <input type="radio" checked={roleId === id} onChange={() => setRoleId(id)} className="sr-only" />
-                                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+                                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
                                                             style={{ background: roleId === id ? 'linear-gradient(135deg, #22a86e, #116e48)' : '#e8ecf0' }}>
                                                             <Icon className={`w-5 h-5 ${roleId === id ? 'text-white' : 'text-slate-400'}`} />
                                                         </div>
-                                                        <span className={`text-sm font-bold ${roleId === id ? 'text-brand-700' : 'text-slate-500'}`}>{label}</span>
+                                                        <span className={`text-sm font-extrabold ${roleId === id ? 'text-brand-800' : 'text-slate-700'}`}>{label}</span>
+                                                        <span className="text-[11px] text-slate-500 leading-snug">{desc}</span>
                                                         {roleId === id && (
                                                             <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center"
                                                                 style={{ background: '#22a86e' }}>
@@ -342,82 +432,139 @@ export default function Login() {
                                                     </label>
                                                 ))}
                                             </div>
+                                            <div className="rounded-xl bg-slate-50 border border-slate-200/80 px-3.5 py-2.5 text-[11.5px] text-slate-600 leading-relaxed">
+                                                {roleId === 3 ? (
+                                                    <span>
+                                                        <strong className="text-slate-800">Nota para Egresados:</strong> Tu correo <code className="text-brand-700 font-semibold">@unicesar.edu.co</code> se validará contra la base de datos oficial de egresados para enviarte el enlace de activación.
+                                                    </span>
+                                                ) : (
+                                                    <span>
+                                                        <strong className="text-slate-800">Nota para Empresas:</strong> Usa tu correo corporativo para registrar tu organización y gestionar ofertas laborales.
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 
-                                    {/* Email */}
-                                    <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
-                                            {'Correo electrónico'}
-                                        </label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
-                                                <Mail className="w-4 h-4" />
-                                            </div>
-                                            <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                placeholder={'correo@upc.edu.co'} value={email}
-                                                onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-                                        </div>
-                                    </div>
-
-                                    {/* Password */}
-                                    <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
-                                            {'Contraseña'}
-                                        </label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
-                                                <Lock className="w-4 h-4" />
-                                            </div>
-                                            <input type={showPassword ? 'text' : 'password'}
-                                                style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                placeholder={'••••••••'} value={password}
-                                                onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
-                                            <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
-                                                style={{ color: '#c8d0d8', background: 'none', border: 'none', cursor: 'pointer' }}
-                                                onMouseEnter={e => (e.currentTarget.style.color = '#6b7280')}
-                                                onMouseLeave={e => (e.currentTarget.style.color = '#c8d0d8')}
-                                                tabIndex={-1} aria-label="Mostrar u ocultar contraseña">
-                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-
-                                        {isRegistering && (
-                                            <div className="pt-2 animate-fade-in-up">
-                                                {password.length > 0 && (
-                                                    <>
-                                                        <div className="flex gap-1 h-1.5 mb-1.5 rounded-full overflow-hidden">
-                                                            {[...Array(4)].map((_, i) => (
-                                                                <div key={i} className={`h-full flex-1 rounded-full transition-all duration-500 ${i < strength ? strengthColors[strength] : 'bg-slate-100'}`} />
-                                                            ))}
-                                                        </div>
-                                                        <p className="text-[11px] font-semibold text-right mb-3" style={{ color: '#9ca3af' }}>{strengthLabels[strength]}</p>
-                                                    </>
-                                                )}
-                                                
-                                                <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{'Requisitos de seguridad'}</p>
-                                                    {[
-                                                        { label: 'Al menos 8 caracteres', met: password.length >= 8 },
-                                                        { label: 'Al menos una letra mayúscula', met: /[A-Z]/.test(password) },
-                                                        { label: 'Al menos una letra minúscula', met: /[a-z]/.test(password) },
-                                                        { label: 'Al menos un número', met: /[0-9]/.test(password) },
-                                                        { label: 'Al menos un carácter especial', met: /[^A-Za-z0-9]/.test(password) },
-                                                    ].map((req, i) => (
-                                                        <div key={i} className="flex items-center gap-2">
-                                                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${req.met ? 'bg-brand-500 text-white' : 'bg-slate-200'}`}>
-                                                                {req.met && <CheckCircle2 className="w-2.5 h-2.5" />}
-                                                            </div>
-                                                            <span className={`text-[12px] transition-colors ${req.met ? 'text-brand-700 font-medium' : 'text-slate-500'}`}>
-                                                                {req.label}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                    {/* ── LOGIN NORMAL O ETAPA 2 (REGISTRO): CORREO + CONTRASEÑA + REQUISITOS ── */}
+                                    {(!isRegistering || registerStep === 2) && (
+                                        <div className="space-y-4 animate-fade-in-up">
+                                            {/* Email */}
+                                            <div className="space-y-1.5">
+                                                <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                                    {isRegistering && roleId === 3 ? 'Correo institucional (@unicesar.edu.co)' : 'Correo electrónico'}
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                                                        <Mail className="w-4 h-4" />
+                                                    </div>
+                                                    <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
+                                                        placeholder={isRegistering && roleId === 3 ? 'usuario@unicesar.edu.co' : 'correo@empresa.com'} value={email}
+                                                        onChange={e => setEmail(e.target.value)} required autoComplete="email" />
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
+
+                                            {/* Password */}
+                                            <div className="space-y-1.5">
+                                                <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                                    {'Contraseña'}
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                                                        <Lock className="w-4 h-4" />
+                                                    </div>
+                                                    <input type={showPassword ? 'text' : 'password'}
+                                                        style={fieldBase} onFocus={onFocus} onBlur={onBlur}
+                                                        placeholder={'••••••••'} value={password}
+                                                        onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+                                                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                                                        style={{ color: '#c8d0d8', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                        onMouseEnter={e => (e.currentTarget.style.color = '#6b7280')}
+                                                        onMouseLeave={e => (e.currentTarget.style.color = '#c8d0d8')}
+                                                        tabIndex={-1} aria-label="Mostrar u ocultar contraseña">
+                                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
+
+                                                {isRegistering && (
+                                                    <div className="pt-2">
+                                                        {password.length > 0 && (
+                                                            <div className="mb-2">
+                                                                <div className="flex gap-1 h-1.5 mb-1 rounded-full overflow-hidden">
+                                                                    {[...Array(4)].map((_, i) => (
+                                                                        <div key={i} className={`h-full flex-1 rounded-full transition-all duration-500 ${i < strength ? strengthColors[strength] : 'bg-slate-100'}`} />
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-[10.5px] font-semibold text-right" style={{ color: '#9ca3af' }}>{strengthLabels[strength]}</p>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{'Requisitos de seguridad'}</p>
+                                                            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                                                                {[
+                                                                    { label: 'Mín. 8 caracteres', met: password.length >= 8 },
+                                                                    { label: 'Una mayúscula', met: /[A-Z]/.test(password) },
+                                                                    { label: 'Una minúscula', met: /[a-z]/.test(password) },
+                                                                    { label: 'Un número', met: /[0-9]/.test(password) },
+                                                                    { label: 'Carácter especial', met: /[^A-Za-z0-9]/.test(password) },
+                                                                ].map((req, i) => (
+                                                                    <div key={i} className="flex items-center gap-1.5">
+                                                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${req.met ? 'bg-brand-500 text-white' : 'bg-slate-200'}`}>
+                                                                            {req.met && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                                                        </div>
+                                                                        <span className={`text-[11.5px] transition-colors ${req.met ? 'text-brand-700 font-medium' : 'text-slate-500'}`}>
+                                                                            {req.label}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ── ETAPA 3 (REGISTRO): AVISOS DE PRIVACIDAD Y TRATAMIENTO DE DATOS ── */}
+                                    {isRegistering && registerStep === 3 && (
+                                        <div className="space-y-4 animate-fade-in-up">
+                                            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-brand-50/70 border border-brand-100">
+                                                <div className="min-w-0">
+                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-brand-700">
+                                                        {roleId === 3 ? 'Activación de Egresado UPC' : 'Registro de Empresa Aliada'}
+                                                    </p>
+                                                    <p className="text-xs font-bold text-slate-800 truncate">{email}</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setError(''); setRegisterStep(2); }}
+                                                    className="text-[11px] font-bold text-brand-700 hover:underline flex-shrink-0 ml-2"
+                                                >
+                                                    Cambiar correo
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                                    Consentimiento y Protección de Datos (Ley 1581 de 2012)
+                                                </p>
+                                                <label className="flex items-start gap-3 cursor-pointer group p-2 rounded-xl hover:bg-white transition-colors">
+                                                    <input type="checkbox" checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} className="mt-0.5 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                    <span className="text-[12px] text-slate-600 leading-snug">
+                                                        He leído y acepto el <a href="/aviso-privacidad" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Aviso de Privacidad</a> de la Universidad Popular del Cesar. <span className="text-red-500">*</span>
+                                                    </span>
+                                                </label>
+                                                <label className="flex items-start gap-3 cursor-pointer group p-2 rounded-xl hover:bg-white transition-colors">
+                                                    <input type="checkbox" checked={authorizeData} onChange={e => setAuthorizeData(e.target.checked)} className="mt-0.5 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
+                                                    <span className="text-[12px] text-slate-600 leading-snug">
+                                                        Autorizo de manera previa, expresa e informada a la UPC para el <a href="/tratamiento-datos" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Tratamiento de mis Datos Personales</a> conforme a la Ley 1581 de 2012. <span className="text-red-500">*</span>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Forgot password - solo en modo login */}
                                     {!isRegistering && (
@@ -441,53 +588,62 @@ export default function Login() {
                                         </div>
                                     )}
 
-                                    {isRegistering && (
-                                        <div className="space-y-3 pt-2">
-                                            <label className="flex items-start gap-3 cursor-pointer group">
-                                                <input type="checkbox" checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
-                                                <span className="text-[12px] text-slate-600 leading-tight">
-                                                    He leído y acepto el <a href="/aviso-privacidad" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Aviso de Privacidad</a> de la Universidad Popular del Cesar. <span className="text-red-500">*</span>
-                                                </span>
-                                            </label>
-                                            <label className="flex items-start gap-3 cursor-pointer group">
-                                                <input type="checkbox" checked={authorizeData} onChange={e => setAuthorizeData(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer" required />
-                                                <span className="text-[12px] text-slate-600 leading-tight">
-                                                    Autorizo de manera previa, expresa e informada a la UPC para el <a href="/tratamiento-datos" target="_blank" className="text-brand-600 hover:underline font-semibold" onClick={e=>e.stopPropagation()}>Tratamiento de mis Datos Personales</a> conforme a la Ley 1581 de 2012. <span className="text-red-500">*</span>
-                                                </span>
-                                            </label>
-                                        </div>
-                                    )}
+                                    {/* Navigation / Submit buttons */}
+                                    <div className="flex items-center gap-3 pt-1">
+                                        {isRegistering && registerStep > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setError(''); setRegisterStep((registerStep - 1) as 1 | 2); }}
+                                                className="px-5 py-3.5 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                            >
+                                                Atrás
+                                            </button>
+                                        )}
 
-                                    {/* Submit */}
-                                    <button type="submit"
-                                        disabled={loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))}
-                                        style={{
-                                            width: '100%', padding: '0.95rem', borderRadius: '14px', marginTop: '0.5rem',
-                                            background: 'linear-gradient(135deg, #22a86e 0%, #0e4832 100%)',
-                                            boxShadow: '0 4px 18px rgba(21,138,88,0.32)',
-                                            color: '#fff', fontWeight: 700, fontSize: '15px',
-                                            border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                                            opacity: (loading || (isRegistering && (strength < 2 || !acceptPrivacy || !authorizeData))) ? 0.55 : 1,
-                                            transition: 'all 0.18s ease',
-                                        }}
-                                        onMouseEnter={e => { if (!loading) { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 26px rgba(21,138,88,0.42)'; } }}
-                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 18px rgba(21,138,88,0.32)'; }}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                            {loading ? (
-                                                <><Loader2 className="w-5 h-5 animate-spin" />{isRegistering ? 'Creando cuenta...' : 'Iniciando sesión...'}</>
-                                            ) : (
-                                                <>{isRegistering ? 'Crear cuenta ahora' : 'Acceder al Portal'}{!isRegistering && <ArrowRight className="w-4 h-4" />}</>
-                                            )}
-                                        </span>
-                                    </button>
+                                        <button type="submit"
+                                            disabled={
+                                                loading ||
+                                                (isRegistering && registerStep === 2 && (strength < 2 || !email.trim())) ||
+                                                (isRegistering && registerStep === 3 && (!acceptPrivacy || !authorizeData))
+                                            }
+                                            style={{
+                                                width: '100%', padding: '0.9rem', borderRadius: '14px',
+                                                background: 'linear-gradient(135deg, #22a86e 0%, #0e4832 100%)',
+                                                boxShadow: '0 4px 18px rgba(21,138,88,0.32)',
+                                                color: '#fff', fontWeight: 700, fontSize: '15px',
+                                                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+                                                opacity: (
+                                                    loading ||
+                                                    (isRegistering && registerStep === 2 && (strength < 2 || !email.trim())) ||
+                                                    (isRegistering && registerStep === 3 && (!acceptPrivacy || !authorizeData))
+                                                ) ? 0.55 : 1,
+                                                transition: 'all 0.18s ease',
+                                            }}
+                                            onMouseEnter={e => { if (!loading) { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 26px rgba(21,138,88,0.42)'; } }}
+                                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 18px rgba(21,138,88,0.32)'; }}
+                                        >
+                                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                {loading ? (
+                                                    <><Loader2 className="w-5 h-5 animate-spin" />{isRegistering ? 'Procesando...' : 'Iniciando sesión...'}</>
+                                                ) : isRegistering ? (
+                                                    registerStep < 3 ? (
+                                                        <>Continuar <ArrowRight className="w-4 h-4" /></>
+                                                    ) : (
+                                                        <>{roleId === 3 ? 'Verificar y activar cuenta' : 'Crear cuenta ahora'}</>
+                                                    )
+                                                ) : (
+                                                    <>Acceder al Portal <ArrowRight className="w-4 h-4" /></>
+                                                )}
+                                            </span>
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
 
                             {/* Toggle */}
-                            <div className="px-8 pb-7 pt-5 text-center" style={{ borderTop: '1px solid #f0f3f5' }}>
+                            <div className="px-8 pb-6 pt-4 text-center" style={{ borderTop: '1px solid #f0f3f5' }}>
                                 <button type="button"
-                                    onClick={() => { setIsRegistering(!isRegistering); setError(''); setPassword(''); }}
+                                    onClick={() => { setIsRegistering(!isRegistering); setRegisterStep(1); setError(''); setPassword(''); }}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#9ca3af', transition: 'color 0.15s' }}
                                     onMouseEnter={e => (e.currentTarget.style.color = '#22a86e')}
                                     onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}

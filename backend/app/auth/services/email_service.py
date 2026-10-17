@@ -13,9 +13,9 @@ load_dotenv(dotenv_path=os.path.abspath(env_path))
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "noreply@portaldelegresados.upc.edu.co")
+SMTP_USER = os.getenv("SMTP_USER", "portal.egresados.upc@gmail.com")
+SMTP_PASS = os.getenv("SMTP_PASS", "vmxlkvqzcpycsxlk")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "portal.egresados.upc@gmail.com")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 

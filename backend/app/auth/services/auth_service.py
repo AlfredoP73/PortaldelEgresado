@@ -116,61 +116,87 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
 
     verification_token = str(uuid.uuid4())
 
-    # Caso 1: El usuario ya existe en el sistema (ej. egresado importado previamente en el microservicio Graduates)
-    if existing_user:
-        # Validar si es un egresado cuya cuenta está inactiva o pendiente de verificación
-        if existing_user.role_id == 3 and (not existing_user.is_active or not existing_user.email_verified):
-            if body.role_id != 3:
+    # Si se intenta registrar como EGRESADO (role_id == 3), DEBE existir previamente
+    # en la base de datos (inyectado en el despliegue o importado desde Excel por la UPC).
+    if body.role_id == 3:
+        if not existing_user or existing_user.role_id != 3:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC. Si eres egresado, solicita tu importación en la Oficina de Seguimiento a Egresados."
+            )
+
+        # Verificar también en el microservicio de Egresados que exista su registro en la tabla graduates
+        try:
+            from app.core.adapters import HttpGraduatesAdapter
+            grad_profile = HttpGraduatesAdapter().get_graduate(existing_user.id)
+            if not grad_profile:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Este correo pertenece a un egresado registrado en el sistema. Selecciona el rol 'Egresado' para activar tu cuenta."
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Tu correo no registra ficha de egresado en el sistema. Comunícate con la Oficina de Egresados."
                 )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Warning: No se pudo verificar perfil en microservicio Graduates: {e}")
 
-            # Comunicación entre microservicios (Auth -> Graduates):
-            # Consultar al microservicio de Egresados (GET /api/internal/graduates/{id}) si existe el perfil importado
-            is_imported_graduate = True
-            try:
-                from app.core.adapters import HttpGraduatesAdapter
-                grad_profile = HttpGraduatesAdapter().get_graduate(existing_user.id)
-                is_imported_graduate = grad_profile is not None
-            except Exception:
-                is_imported_graduate = False
+        if existing_user.is_active and existing_user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Tu cuenta de egresado ya se encuentra activa. Por favor inicia sesión."
+            )
 
+        existing_user.password_hash = get_password_hash(body.password)
+        existing_user.is_active = False
+        existing_user.email_verified = False
+        existing_user.verification_token = verification_token
+        existing_user.privacy_policy_accepted = body.accept_privacy_policy
+        existing_user.data_treatment_authorized = body.authorize_data_treatment
+        existing_user.consent_version = "v1.0"
+        existing_user.consent_date = func.now()
+        existing_user.consent_ip = client_ip
+
+        db.commit()
+        db.refresh(existing_user)
+
+        log_audit_action(
+            db,
+            user_id=existing_user.id,
+            action="GRADUATE_ACTIVATION_REQUEST",
+            details={"role_id": existing_user.role_id, "pre_imported": True},
+            ip_address=client_ip
+        )
+
+        notifier = NotificationFactory.get_notifier("email")
+        notifier.send_verification(existing_user.email, verification_token)
+
+        return {
+            "message": "Hemos validado tus datos como egresado en el sistema. Te enviamos un correo de activación para habilitar tu cuenta.",
+            "user_id": existing_user.id
+        }
+
+    # Caso Empresa (role_id == 2) u otro rol:
+    if existing_user:
+        if not existing_user.email_verified or not existing_user.is_active:
             existing_user.password_hash = get_password_hash(body.password)
-            existing_user.is_active = False
-            existing_user.email_verified = False
             existing_user.verification_token = verification_token
             existing_user.privacy_policy_accepted = body.accept_privacy_policy
             existing_user.data_treatment_authorized = body.authorize_data_treatment
             existing_user.consent_version = "v1.0"
             existing_user.consent_date = func.now()
             existing_user.consent_ip = client_ip
-
             db.commit()
-            db.refresh(existing_user)
-
-            log_audit_action(
-                db,
-                user_id=existing_user.id,
-                action="GRADUATE_ACTIVATION_REQUEST",
-                details={"role_id": existing_user.role_id, "pre_imported": is_imported_graduate},
-                ip_address=client_ip
-            )
-
             notifier = NotificationFactory.get_notifier("email")
             notifier.send_verification(existing_user.email, verification_token)
-
             return {
-                "message": "Hemos validado tus datos como egresado en el sistema. Te enviamos un correo de activación para habilitar tu cuenta.",
+                "message": "Te hemos reenviado el correo de activación para habilitar tu cuenta.",
                 "user_id": existing_user.id
             }
-
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ya existe una cuenta activa con ese email. Por favor inicia sesión."
         )
 
-    # Caso 2: Registro normal para nuevos usuarios (Egresado no importado previamente o Empresa)
+    # Registro normal para nueva Empresa
     new_user = models.User(
         email=email_clean,
         password_hash=get_password_hash(body.password),

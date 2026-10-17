@@ -36,9 +36,8 @@ optional_oauth2 = OAuth2PasswordBearer(
 
 def get_optional_current_user(
     token: Optional[str] = Depends(optional_oauth2),
-    db: Session = Depends(get_db),
 ) -> Optional[dict]:
-    """Valida el JWT solo si viene; devuelve None si no hay token o es inválido."""
+    """Valida el JWT de forma stateless; devuelve None si no hay token o es inválido."""
     if not token:
         return None
     try:
@@ -46,15 +45,11 @@ def get_optional_current_user(
     except JWTError:
         return None
     email = payload.get("sub")
-    if not email:
+    user_id = payload.get("id")
+    role_id = payload.get("role_id")
+    if not email or user_id is None or role_id is None:
         return None
-    result = db.execute(
-        text("SELECT id, email, role_id FROM users WHERE email = :email"),
-        {"email": email},
-    ).fetchone()
-    if result is None:
-        return None
-    return {"id": result[0], "email": result[1], "role_id": result[2]}
+    return {"id": user_id, "email": email, "role_id": role_id}
 
 
 def require_internal_or_admin(

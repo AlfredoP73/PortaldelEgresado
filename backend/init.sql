@@ -772,3 +772,24 @@ CREATE TABLE match_notifications (
 );
 
 INSERT INTO matchmaking_weights (program_weight, skills_weight, experience_weight) VALUES (0.40, 0.40, 0.20);
+
+-- Semilla inicial de compatibilidad (matches) para las vacantes activas y egresados principales
+INSERT INTO matches (graduate_id, job_offer_id, score, program_score, skills_score, experience_score) VALUES
+(3, 1, 86.67, 100.00, 66.67, 100.00),
+(3, 6, 94.00, 100.00, 100.00, 70.00),
+(3, 4, 90.00, 100.00, 100.00, 50.00),
+(3, 2, 33.33, 0.00, 33.33, 100.00),
+(3, 3, 60.00, 0.00, 100.00, 100.00),
+(3, 5, 50.00, 0.00, 100.00, 50.00),
+(48, 1, 80.00, 100.00, 50.00, 100.00),
+(48, 4, 88.00, 100.00, 100.00, 40.00),
+(48, 6, 92.00, 100.00, 100.00, 60.00),
+(47, 2, 85.00, 100.00, 62.50, 100.00),
+(53, 3, 90.00, 100.00, 75.00, 100.00),
+(61, 5, 84.00, 100.00, 60.00, 100.00)
+ON CONFLICT (graduate_id, job_offer_id) DO NOTHING;
+
+-- Dejar las cuentas de egresados pre-importados (egresado44..egresado193) como inactivas
+-- para que deban activar su cuenta mediante el registro con verificación por correo
+\c auth_db
+UPDATE users SET is_active = FALSE, email_verified = FALSE WHERE role_id = 3 AND email <> 'egresado@unicesar.edu.co';

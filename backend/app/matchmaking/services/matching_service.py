@@ -152,6 +152,13 @@ def recalcular_por_vacante(db: Session, job_offer_id: int) -> list[Match]:
 
 
 def obtener_vacantes_recomendadas(db: Session, graduate_id: int, limit: int = 10) -> list[Match]:
+    existing_count = db.query(Match).filter(Match.graduate_id == graduate_id).count()
+    if existing_count == 0:
+        try:
+            recalcular_por_egresado(db, graduate_id)
+        except Exception as e:
+            print(f"Warning auto-recalculando matches para egresado {graduate_id}: {e}")
+
     return (
         db.query(Match)
         .filter(Match.graduate_id == graduate_id)
@@ -162,6 +169,13 @@ def obtener_vacantes_recomendadas(db: Session, graduate_id: int, limit: int = 10
 
 
 def obtener_candidatos_recomendados(db: Session, job_offer_id: int, limit: int = 10) -> list[Match]:
+    existing_count = db.query(Match).filter(Match.job_offer_id == job_offer_id).count()
+    if existing_count == 0:
+        try:
+            recalcular_por_vacante(db, job_offer_id)
+        except Exception as e:
+            print(f"Warning auto-recalculando matches para vacante {job_offer_id}: {e}")
+
     return (
         db.query(Match)
         .filter(Match.job_offer_id == job_offer_id)

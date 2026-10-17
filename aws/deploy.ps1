@@ -248,6 +248,11 @@ SECRET_KEY=clave_secreta_super_segura_de_32_caracteres_minimo
 MATCHMAKING_INTERNAL_TOKEN=token_interno_servicios_seguro
 RABBITMQ_URL=amqp://guest:guest@${DataIp}:5672/
 FRONTEND_URL=http://$AlbExtDns
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=portal.egresados.upc@gmail.com
+SMTP_PASS=vmxlkvqzcpycsxlk
+SMTP_FROM_EMAIL=portal.egresados.upc@gmail.com
 EOF
 /usr/local/bin/docker-compose -f docker-compose.back.yml --env-file .env.back up -d --build
 "@
