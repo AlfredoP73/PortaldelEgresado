@@ -45,12 +45,23 @@ def log_audit_action(db: Session, user_id: int | None, action: str, target_id: s
         db.rollback()
 
 def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = "unknown") -> schemas.TokenResponse:
+    email_clean = body.email.strip().lower()
     user = db.query(models.User).filter(
-        models.User.email == body.email,
-        models.User.is_active == True,
+        func.lower(models.User.email) == email_clean,
     ).first()
 
-    if not user or not verify_password(body.password, user.password_hash):
+    if user and user.role_id == 3 and (not user.is_active or not user.email_verified):
+        if not user.verification_token and not user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tu cuenta de egresado fue importada por la universidad y está inactiva. Ve a 'Regístrate gratis' con tu correo institucional para activar tu cuenta.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Debes activar tu cuenta desde el enlace enviado a tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
+        )
+
+    if not user or not user.is_active or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos",
@@ -88,6 +99,7 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
             email=user.email,
             role_id=user.role_id,
             role_name=user.role.name,
+            is_active=user.is_active,
             email_verified=user.email_verified,
             privacy_policy_accepted=user.privacy_policy_accepted,
             data_treatment_authorized=user.data_treatment_authorized,
@@ -95,9 +107,8 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
     )
 
 def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "unknown") -> dict:
-    if db.query(models.User).filter(models.User.email == body.email).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Ya existe un usuario con ese email")
+    email_clean = body.email.strip().lower()
+    existing_user = db.query(models.User).filter(func.lower(models.User.email) == email_clean).first()
 
     if not db.query(models.Role).filter(models.Role.id == body.role_id).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,10 +116,66 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
 
     verification_token = str(uuid.uuid4())
 
+    # Caso 1: El usuario ya existe en el sistema (ej. egresado importado previamente en el microservicio Graduates)
+    if existing_user:
+        # Validar si es un egresado cuya cuenta está inactiva o pendiente de verificación
+        if existing_user.role_id == 3 and (not existing_user.is_active or not existing_user.email_verified):
+            if body.role_id != 3:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Este correo pertenece a un egresado registrado en el sistema. Selecciona el rol 'Egresado' para activar tu cuenta."
+                )
+
+            # Comunicación entre microservicios (Auth -> Graduates):
+            # Consultar al microservicio de Egresados (GET /api/internal/graduates/{id}) si existe el perfil importado
+            is_imported_graduate = True
+            try:
+                from app.core.adapters import HttpGraduatesAdapter
+                grad_profile = HttpGraduatesAdapter().get_graduate(existing_user.id)
+                is_imported_graduate = grad_profile is not None
+            except Exception:
+                is_imported_graduate = False
+
+            existing_user.password_hash = get_password_hash(body.password)
+            existing_user.is_active = False
+            existing_user.email_verified = False
+            existing_user.verification_token = verification_token
+            existing_user.privacy_policy_accepted = body.accept_privacy_policy
+            existing_user.data_treatment_authorized = body.authorize_data_treatment
+            existing_user.consent_version = "v1.0"
+            existing_user.consent_date = func.now()
+            existing_user.consent_ip = client_ip
+
+            db.commit()
+            db.refresh(existing_user)
+
+            log_audit_action(
+                db,
+                user_id=existing_user.id,
+                action="GRADUATE_ACTIVATION_REQUEST",
+                details={"role_id": existing_user.role_id, "pre_imported": is_imported_graduate},
+                ip_address=client_ip
+            )
+
+            notifier = NotificationFactory.get_notifier("email")
+            notifier.send_verification(existing_user.email, verification_token)
+
+            return {
+                "message": "Hemos validado tus datos como egresado en el sistema. Te enviamos un correo de activación para habilitar tu cuenta.",
+                "user_id": existing_user.id
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe una cuenta activa con ese email. Por favor inicia sesión."
+        )
+
+    # Caso 2: Registro normal para nuevos usuarios (Egresado no importado previamente o Empresa)
     new_user = models.User(
-        email=body.email,
+        email=email_clean,
         password_hash=get_password_hash(body.password),
         role_id=body.role_id,
+        is_active=False,
         email_verified=False,
         verification_token=verification_token,
         privacy_policy_accepted=body.accept_privacy_policy,
@@ -126,12 +193,12 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
 
     # Send verification email
     notifier = NotificationFactory.get_notifier("email")
-    notifier.send_verification(body.email, verification_token)
+    notifier.send_verification(new_user.email, verification_token)
 
-    return {"message": "Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.", "user_id": new_user.id}
+    return {"message": "Usuario registrado exitosamente. Revisa tu correo para activar tu cuenta.", "user_id": new_user.id}
 
 def verify_email(token: str, db: Session) -> dict:
-    """Verifica el email de un usuario usando su token de verificación."""
+    """Verifica el email y activa la cuenta del usuario usando su token de verificación."""
     user = db.query(models.User).filter(models.User.verification_token == token).first()
     if not user:
         raise HTTPException(
@@ -139,21 +206,22 @@ def verify_email(token: str, db: Session) -> dict:
             detail="Token de verificación inválido o ya utilizado."
         )
 
+    user.is_active = True
     user.email_verified = True
     user.verification_token = None
     db.commit()
 
-    return {"message": "Correo verificado exitosamente. Ya puedes iniciar sesión."}
+    return {"message": "Cuenta activada y correo verificado exitosamente. Ya puedes iniciar sesión."}
 
 def resend_verification(email: str, db: Session) -> dict:
     """Reenvía el correo de verificación."""
-    user = db.query(models.User).filter(models.User.email == email).first()
+    user = db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Usuario no encontrado")
-    if user.email_verified:
+    if user.email_verified and user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Este correo ya fue verificado")
+                            detail="Esta cuenta ya fue verificada y activada")
 
     # Generate new token
     new_token = str(uuid.uuid4())
@@ -161,8 +229,8 @@ def resend_verification(email: str, db: Session) -> dict:
     db.commit()
 
     notifier = NotificationFactory.get_notifier("email")
-    notifier.send_verification(email, new_token)
-    return {"message": "Correo de verificación reenviado exitosamente"}
+    notifier.send_verification(user.email, new_token)
+    return {"message": "Correo de activación reenviado exitosamente"}
 
 def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, db: Session) -> schemas.TokenResponse:
     if admin_user.role_id != 1:
@@ -190,6 +258,7 @@ def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, 
             email=target_user.email,
             role_id=target_user.role_id,
             role_name=target_user.role.name,
+            is_active=target_user.is_active,
             email_verified=target_user.email_verified,
             privacy_policy_accepted=target_user.privacy_policy_accepted,
             data_treatment_authorized=target_user.data_treatment_authorized,
@@ -207,6 +276,7 @@ def get_all_users(admin_user: models.User, db: Session) -> list[schemas.UserInfo
             email=u.email,
             role_id=u.role_id,
             role_name=u.role.name,
+            is_active=u.is_active,
             email_verified=u.email_verified,
             privacy_policy_accepted=u.privacy_policy_accepted,
             data_treatment_authorized=u.data_treatment_authorized,
@@ -301,6 +371,7 @@ def _build_user_info(user: models.User) -> schemas.UserInfo:
         email=user.email,
         role_id=user.role_id,
         role_name=user.role.name,
+        is_active=user.is_active,
         email_verified=user.email_verified,
         privacy_policy_accepted=user.privacy_policy_accepted,
         data_treatment_authorized=user.data_treatment_authorized,

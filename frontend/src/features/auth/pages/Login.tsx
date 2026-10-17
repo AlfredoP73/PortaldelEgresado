@@ -35,6 +35,7 @@ export default function Login() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [registrationMessage, setRegistrationMessage] = useState('');
     const [acceptPrivacy, setAcceptPrivacy] = useState(false);
     const [authorizeData, setAuthorizeData] = useState(false);
     
@@ -55,13 +56,14 @@ export default function Login() {
                     setLoading(false);
                     return;
                 }
-                await authApi.post('/register', { 
+                const { data } = await authApi.post('/register', { 
                     email, 
                     password, 
                     role_id: roleId,
                     accept_privacy_policy: acceptPrivacy,
                     authorize_data_treatment: authorizeData
                 });
+                setRegistrationMessage(data?.message || '');
                 setRegistrationSuccess(true);
             } else {
                 const { data } = await authApi.post('/login', { email, password });
@@ -252,14 +254,25 @@ export default function Login() {
                                 style={{ background: 'linear-gradient(135deg, #eefbf4, #d6f5e3)' }}>
                                 <Mail className="w-9 h-9 text-brand-600" />
                             </div>
-                            <h2 className="text-2xl font-bold text-[#111827] mb-3">{'Revisa tu correo'}</h2>
+                            <h2 className="text-2xl font-bold text-[#111827] mb-3">{'Activa tu cuenta en tu correo'}</h2>
                             <p className="text-[#4B5563] text-sm leading-relaxed mb-8">
-                                {'Enviamos un enlace de verificación a '}
-                                <strong className="text-[#111827] font-semibold">{email}</strong>.<br />
-                                {'Haz clic en él para activar tu cuenta.'}
+                                {registrationMessage ? (
+                                    <>
+                                        {registrationMessage}<br />
+                                        <span className="mt-2 inline-block">
+                                            Enviado a <strong className="text-[#111827] font-semibold">{email}</strong>.
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {'Enviamos un enlace de activación y verificación a '}
+                                        <strong className="text-[#111827] font-semibold">{email}</strong>.<br />
+                                        {'Haz clic en él para activar tu cuenta.'}
+                                    </>
+                                )}
                             </p>
                             <div className="space-y-3">
-                                <button onClick={() => { setRegistrationSuccess(false); setIsRegistering(false); setPassword(''); }}
+                                <button onClick={() => { setRegistrationSuccess(false); setRegistrationMessage(''); setIsRegistering(false); setPassword(''); }}
                                     className="w-full py-3.5 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-lg shadow-brand-500/20">
                                     {'Volver al inicio de sesión'}
                                 </button>

@@ -11,6 +11,8 @@ interface User {
   email: string;
   role_id: number;
   role_name: string;
+  is_active?: boolean;
+  email_verified?: boolean;
 }
 
 export default function AdminUsers() {
@@ -85,7 +87,8 @@ export default function AdminUsers() {
       'ID Usuario': u.id,
       'Email': u.email,
       'Rol': u.role_name,
-      'ID Rol': u.role_id
+      'ID Rol': u.role_id,
+      'Estado': (u.is_active !== false && u.email_verified !== false) ? 'Activo' : 'Inactivo (Por activar)'
     }));
     exportToExcel(dataToExport, 'Usuarios');
   };
@@ -107,7 +110,9 @@ export default function AdminUsers() {
           await authApi.post('/register', {
             email: row['Email'],
             password: row['Contraseña'],
-            role_id: Number(row['ID Rol'])
+            role_id: Number(row['ID Rol']),
+            accept_privacy_policy: true,
+            authorize_data_treatment: true
           });
           successCount++;
         } catch (err) {
@@ -145,7 +150,9 @@ export default function AdminUsers() {
       await authApi.post('/register', {
         email,
         password,
-        role_id: roleId
+        role_id: roleId,
+        accept_privacy_policy: true,
+        authorize_data_treatment: true
       });
       setShowForm(false);
       setEmail('');
@@ -339,6 +346,7 @@ export default function AdminUsers() {
                   <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">ID</th>
                   <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Email</th>
                   <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Rol</th>
+                  <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider">Estado</th>
                   <th className="px-6 py-4 font-bold text-ink-secondary uppercase text-[11px] tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
@@ -358,6 +366,19 @@ export default function AdminUsers() {
                         {user.role_name === 'ADMIN' && <ShieldAlert className="w-3 h-3" />}
                         {user.role_name}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {(user.is_active !== false && user.email_verified !== false) ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-100 text-amber-800" title="Cuenta pre-registrada o importada pendiente de activación por correo">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Inactivo (Por activar)
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
@@ -381,7 +402,7 @@ export default function AdminUsers() {
                 ))}
                 {filteredUsers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-ink-secondary italic">
+                    <td colSpan={5} className="px-6 py-8 text-center text-ink-secondary italic">
                       No se encontraron usuarios
                     </td>
                   </tr>

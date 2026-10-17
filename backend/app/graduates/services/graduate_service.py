@@ -19,16 +19,30 @@ def admin_get_all_applications(db: Session):
         raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
 
 def admin_create_graduate(body: schemas.AdminGraduateCreate, db: Session):
-    # Call auth microservice to create user
+    # Call auth microservice to create user (inactivo hasta que el egresado active por correo)
     try:
         new_user = auth_adapter.create_user({
-            "email": body.email, 
-            "password": body.password, 
-            "role_id": 3
+            "email": body.email.strip().lower(),
+            "password": body.password,
+            "role_id": 3,
+            "is_active": False,
+            "email_verified": False,
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error conectando con Auth: {str(e)}")
-            
+
+    existing_grad = db.query(models.Graduate).filter(models.Graduate.user_id == new_user["id"]).first()
+    if existing_grad:
+        existing_grad.first_name = body.first_name
+        existing_grad.last_name = body.last_name
+        existing_grad.program_id = body.program_id
+        existing_grad.graduation_year = body.graduation_year
+        if body.phone:
+            existing_grad.phone = body.phone
+        db.commit()
+        db.refresh(existing_grad)
+        return existing_grad
+
     new_grad = models.Graduate(
         user_id=new_user["id"],
         first_name=body.first_name,

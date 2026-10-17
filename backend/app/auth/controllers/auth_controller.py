@@ -69,7 +69,10 @@ def get_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
         email=user.email,
         role_id=user.role_id,
         role_name=user.role.name,
+        is_active=user.is_active,
         email_verified=user.email_verified,
+        privacy_policy_accepted=user.privacy_policy_accepted,
+        data_treatment_authorized=user.data_treatment_authorized,
     )
 
 # ── POST /api/auth/forgot-password ───────────────────────────────────────────
@@ -148,6 +151,7 @@ def mark_notification_read(notification_id: int, token: str = Depends(oauth2_sch
     return {"message": "Notificación marcada como leída"}
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.sql import func
 
 internal_router = APIRouter(prefix="/api/internal", tags=["Internal"])
 
@@ -156,21 +160,40 @@ def create_user_internal(body: dict, db: Session = Depends(get_db)):
     from app.auth.models import User
     from app.auth.utils.auth_utils import get_password_hash
     
-    email = body.get("email")
-    password = body.get("password")
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or "upc12345"
     role_id = body.get("role_id", 3)
+    # Al importar egresados desde la BD institucional/Excel, quedan inactivos y sin verificar
+    # hasta que el propio egresado se registre y active su cuenta por correo.
+    is_active = body.get("is_active", False)
+    email_verified = body.get("email_verified", False)
     
-    existing_user = db.query(User).filter(User.email == email).first()
+    existing_user = db.query(User).filter(func.lower(User.email) == email).first()
     if existing_user:
+        if not existing_user.is_active and not existing_user.email_verified and existing_user.role_id == role_id:
+            return {
+                "id": existing_user.id,
+                "email": existing_user.email,
+                "role_id": existing_user.role_id,
+                "is_active": existing_user.is_active,
+                "email_verified": existing_user.email_verified,
+            }
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
         
     new_user = User(
         email=email,
         password_hash=get_password_hash(password),
         role_id=role_id,
-        email_verified=True
+        is_active=is_active,
+        email_verified=email_verified
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return {"id": new_user.id, "email": new_user.email, "role_id": new_user.role_id}
+    return {
+        "id": new_user.id,
+        "email": new_user.email,
+        "role_id": new_user.role_id,
+        "is_active": new_user.is_active,
+        "email_verified": new_user.email_verified,
+    }

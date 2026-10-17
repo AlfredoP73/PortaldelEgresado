@@ -49,6 +49,7 @@ class UserInfo(BaseModel):
     email: str
     role_id: int
     role_name: str
+    is_active: bool = True
     email_verified: bool = False
     privacy_policy_accepted: bool = False
     data_treatment_authorized: bool = False
