@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/progress_ring.dart';
-import 'application_detail_screen.dart'; // We'll create this next
+import 'application_detail_screen.dart';
 
 class ApplicationsScreen extends StatefulWidget {
   const ApplicationsScreen({super.key});
@@ -12,12 +13,13 @@ class ApplicationsScreen extends StatefulWidget {
 }
 
 class _ApplicationsScreenState extends State<ApplicationsScreen> {
-  List<dynamic> _applications = [];
+  List<Map<String, dynamic>> _applications = [];
   bool _isLoading = true;
-  String _searchTerm = '';
-  String _statusFilter = 'ALL';
+  bool _showSelectionRoute = false;
+  String _selectedFilter = 'ALL';
+  String _searchQuery = '';
 
-  final List<Map<String, String>> _filterPills = [
+  final List<Map<String, String>> _filterPills = const [
     {'id': 'ALL', 'label': 'Todas'},
     {'id': 'POSTULADO', 'label': 'Aplicado'},
     {'id': 'EN_EVALUACION', 'label': 'HdV Vista'},
@@ -34,339 +36,441 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
   Future<void> _fetchApplications() async {
     setState(() => _isLoading = true);
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final response = await ApiClient.instance.get('/modulo1/my-applications?t=$timestamp');
-      if (response.data != null) {
+      final response = await ApiClient.instance.get('/modulo1/my-applications');
+      final List<Map<String, dynamic>> list = [];
+      if (response.data is List) {
+        for (final item in response.data) {
+          if (item is Map) list.add(Map<String, dynamic>.from(item));
+        }
+      }
+      if (mounted) {
         setState(() {
-          _applications = response.data;
+          _applications = list;
+          _isLoading = false;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error al cargar postulaciones: $e'),
-          backgroundColor: AppTheme.accentPink,
-        ));
-      }
-    } finally {
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Map<String, dynamic> _getProgressData(String status) {
-    final s = status.toUpperCase();
-    if (s == 'POSTULADO') return {'progress': 0.25, 'label': 'Postulado', 'color': AppTheme.primaryColor};
-    if (s == 'EN_EVALUACION') return {'progress': 0.50, 'label': 'HdV Vista', 'color': AppTheme.accentBlue};
-    if (s == 'ENTREVISTADO') return {'progress': 0.75, 'label': 'En proceso', 'color': AppTheme.accentPurple};
-    if (s == 'CONTRATADO') return {'progress': 1.0, 'label': 'Contratado', 'color': Colors.green};
-    if (s == 'RECHAZADO') return {'progress': 1.0, 'label': 'Proceso Finalizado', 'color': AppTheme.textSecondary};
-    return {'progress': 0.0, 'label': 'Desconocido', 'color': AppTheme.textSecondary};
+  List<Map<String, dynamic>> get _filteredApplications {
+    return _applications.where((app) {
+      final status = app['status']?.toString() ?? 'POSTULADO';
+      if (_selectedFilter != 'ALL') {
+        if (_selectedFilter == 'FINAL') {
+          if (status != 'CONTRATADO' && status != 'RECHAZADO') return false;
+        } else if (status != _selectedFilter) {
+          return false;
+        }
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        final job = app['job_offer'] is Map ? app['job_offer'] as Map : {};
+        final company = job['company'] is Map ? job['company'] as Map : {};
+        final title = job['title']?.toString().toLowerCase() ?? '';
+        final compName = company['name']?.toString().toLowerCase() ?? '';
+        final q = _searchQuery.toLowerCase();
+        if (!title.contains(q) && !compName.contains(q)) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  Map<String, dynamic> _getStatusMeta(String status) {
+    switch (status) {
+      case 'POSTULADO':
+        return {
+          'label': 'Postulado',
+          'progress': 0.25,
+          'color': AppTheme.statusPostulado,
+          'bg': const Color(0xFFECFDF5),
+        };
+      case 'EN_EVALUACION':
+        return {
+          'label': 'HdV Vista',
+          'progress': 0.50,
+          'color': AppTheme.statusEvaluacion,
+          'bg': const Color(0xFFEFF6FF),
+        };
+      case 'ENTREVISTADO':
+        return {
+          'label': 'En proceso',
+          'progress': 0.75,
+          'color': AppTheme.statusEntrevistado,
+          'bg': const Color(0xFFF5F3FF),
+        };
+      case 'CONTRATADO':
+        return {
+          'label': 'Contratado',
+          'progress': 1.0,
+          'color': AppTheme.statusContratado,
+          'bg': AppTheme.brand50,
+        };
+      case 'RECHAZADO':
+        return {
+          'label': 'No seleccionado',
+          'progress': 1.0,
+          'color': AppTheme.statusRechazado,
+          'bg': const Color(0xFFFEF2F2),
+        };
+      default:
+        return {
+          'label': status,
+          'progress': 0.25,
+          'color': AppTheme.statusPostulado,
+          'bg': AppTheme.brand50,
+        };
+    }
+  }
+
+  String _formatDate(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(raw);
+      return DateFormat('dd MMM yyyy', 'es').format(dt);
+    } catch (_) {
+      return raw.split('T').first;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Filtrar resultados
-    final filteredApps = _applications.where((app) {
-      final job = app['job_offer'] ?? {};
-      final title = (job['title'] ?? '').toString().toLowerCase();
-      final company = (job['company']?['name'] ?? '').toString().toLowerCase();
-      
-      final matchSearch = title.contains(_searchTerm.toLowerCase()) || company.contains(_searchTerm.toLowerCase());
-      final status = (app['status'] ?? '').toString().toUpperCase();
+    final filtered = _filteredApplications;
 
-      if (_statusFilter == 'ALL') return matchSearch;
-      if (_statusFilter == 'FINAL') return matchSearch && (status == 'CONTRATADO' || status == 'RECHAZADO');
-      return matchSearch && status == _statusFilter;
-    }).toList();
-
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(Icons.fact_check_rounded, color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return RefreshIndicator(
+      color: AppTheme.primaryColor,
+      onRefresh: _fetchApplications,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        'Mis Postulaciones',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mis Postulaciones',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: context.primaryText,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Haz seguimiento a cada etapa de tus procesos de selección.',
+                              style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Seguimiento en tiempo real',
-                        style: TextStyle(fontSize: 13, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.8)),
+                      TextButton.icon(
+                        onPressed: () => setState(() => _showSelectionRoute = !_showSelectionRoute),
+                        icon: Icon(
+                          _showSelectionRoute ? Icons.expand_less_rounded : Icons.help_outline_rounded,
+                          size: 16,
+                          color: AppTheme.primaryColor,
+                        ),
+                        label: const Text(
+                          'Ruta de Selección',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Search Bar
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: TextField(
-              onChanged: (val) => setState(() => _searchTerm = val),
-              decoration: AppTheme.inputDecoration(
-                context,
-                label: 'Buscar vacante o empresa',
-                icon: Icons.search,
-              ).copyWith(
-                filled: true,
-                fillColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+
+                  // Collapsible "Ruta de Selección" Guide (Matches right sidebar of GraduateApplications.tsx)
+                  if (_showSelectionRoute) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: context.surfaceColor,
+                        borderRadius: AppTheme.cardRadius,
+                        border: Border.all(color: context.borderColor),
+                        boxShadow: AppTheme.subtleShadow,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '¿Cómo avanza tu postulación?',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildRouteStep('1. Postulado (25%)', 'Tu hoja de vida fue enviada a la empresa.', AppTheme.statusPostulado),
+                          const SizedBox(height: 8),
+                          _buildRouteStep('2. HdV Vista (50%)', 'El reclutador está revisando tu perfil.', AppTheme.statusEvaluacion),
+                          const SizedBox(height: 8),
+                          _buildRouteStep('3. En Proceso (75%)', 'Avanzaste a pruebas técnicas o entrevista.', AppTheme.statusEntrevistado),
+                          const SizedBox(height: 8),
+                          _buildRouteStep('4. Finalizado (100%)', 'Decisión final de contratación.', AppTheme.statusContratado),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+
+                  // Search Bar
+                  TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: AppTheme.inputDecoration(
+                      context,
+                      label: 'Buscar por cargo o empresa',
+                      hint: 'Ej. Analista, Desarrollador...',
+                      icon: Icons.search_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 5 Filter Pills (Matches GraduateApplications.tsx)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _filterPills.map((pill) {
+                        final isSelected = _selectedFilter == pill['id'];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(pill['label']!),
+                            selected: isSelected,
+                            onSelected: (_) => setState(() => _selectedFilter = pill['id']!),
+                            selectedColor: AppTheme.primaryColor,
+                            backgroundColor: context.surfaceColor,
+                            labelStyle: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected ? Colors.white : context.secondaryText,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999),
+                              side: BorderSide(color: isSelected ? AppTheme.primaryColor : context.borderColor),
+                            ),
+                            showCheckmark: false,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Horizontal Filter Pills
-          SizedBox(
-            height: 40,
-            child: ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: _filterPills.length,
-              itemBuilder: (context, index) {
-                final pill = _filterPills[index];
-                final isSelected = _statusFilter == pill['id'];
-                
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(
-                      pill['label']!,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: isSelected ? Colors.white : context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3),
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+            )
+          else if (filtered.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 52, color: context.tertiaryText),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No se encontraron postulaciones',
+                        style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: context.primaryText),
                       ),
-                    ),
-                    selected: isSelected,
-                    onSelected: (bool selected) {
-                      if (selected) {
-                        setState(() => _statusFilter = pill['id']!);
-                      }
-                    },
-                    selectedColor: AppTheme.primaryColor,
-                    backgroundColor: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected ? AppTheme.primaryColor : context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Explora la Bolsa de Empleo o tus Recomendaciones para postularte.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12.5, color: context.secondaryText),
                       ),
-                    ),
-                    showCheckmark: false,
-                    elevation: isSelected ? 4 : 0,
-                    shadowColor: AppTheme.primaryColor.withValues(alpha: 0.4),
+                    ],
                   ),
-                );
-              },
-            ),
-          ),
-          
-          SizedBox(height: 10),
-          
-          // List
-          Expanded(
-            child: _isLoading
-                ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
-                : filteredApps.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.inbox_outlined, size: 48, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.5)),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final app = filtered[index];
+                    final job = app['job_offer'] is Map
+                        ? Map<String, dynamic>.from(app['job_offer'])
+                        : <String, dynamic>{};
+                    final company = job['company'] is Map
+                        ? Map<String, dynamic>.from(job['company'])
+                        : <String, dynamic>{};
+                    final cityName = company['city'] is Map
+                        ? (company['city']['name']?.toString() ?? 'Valledupar')
+                        : 'Colombia';
+                    final status = app['status']?.toString() ?? 'POSTULADO';
+                    final meta = _getStatusMeta(status);
+                    final subProcesses = app['sub_processes'] as List? ?? [];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: InkWell(
+                        borderRadius: AppTheme.cardRadius,
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ApplicationDetailScreen(application: app),
                             ),
-                            SizedBox(height: 16),
-                            Text("No hay postulaciones", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                            SizedBox(height: 8),
-                            Text("Intenta ajustando los filtros de búsqueda.", style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3))),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 100),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: filteredApps.length,
-                        itemBuilder: (ctx, i) {
-                          final app = filteredApps[i];
-                          
-                          String date = app['application_date'] != null ? app['application_date'].toString().split('T').first : '';
-                          String status = app['status'] ?? 'POSTULADO';
-                          
-                          Map<String, dynamic>? job = app['job_offer'];
-                          String title = job != null ? job['title'] ?? 'Vacante' : 'Vacante Desconocida';
-                          String companyName = job != null && job['company'] != null ? job['company']['name'] ?? 'Empresa' : 'Empresa';
-                          String location = job != null && job['company'] != null ? job['company']['location'] ?? 'Colombia' : 'Colombia';
-
-                          final progressData = _getProgressData(status);
-                          final double progress = progressData['progress'];
-                          final String label = progressData['label'];
-                          final Color color = progressData['color'];
-
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ApplicationDetailScreen(
-                                    application: app,
-                                    onUpdate: _fetchApplications,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              margin: EdgeInsets.only(bottom: 16),
-                              padding: EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor,
-                                borderRadius: AppTheme.cardRadius,
-                                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
-                                boxShadow: AppTheme.premiumShadow,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                          );
+                          _fetchApplications();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: context.surfaceColor,
+                            borderRadius: AppTheme.cardRadius,
+                            border: Border.all(color: context.borderColor),
+                            boxShadow: AppTheme.subtleShadow,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      job['title']?.toString() ?? 'Vacante Laboral',
+                                      style: TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: context.primaryText,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      company['name']?.toString() ?? 'Empresa Aliada',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 4,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
+                                            Icon(Icons.location_on_outlined, size: 14, color: context.secondaryText),
+                                            const SizedBox(width: 3),
+                                            Text(cityName, style: TextStyle(fontSize: 11.5, color: context.secondaryText)),
+                                          ],
+                                        ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.calendar_today_outlined, size: 13, color: context.secondaryText),
+                                            const SizedBox(width: 4),
                                             Text(
-                                              title,
-                                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            SizedBox(height: 6),
-                                            Row(
-                                              children: [
-                                                Icon(Icons.business, size: 14, color: AppTheme.primaryColor),
-                                                SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    companyName,
-                                                    style: TextStyle(fontSize: 13, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3), fontWeight: FontWeight.w600),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Icon(Icons.location_on_outlined, size: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.7)),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  location,
-                                                  style: TextStyle(fontSize: 12, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3)),
-                                                ),
-                                                SizedBox(width: 12),
-                                                Icon(Icons.calendar_today_outlined, size: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.7)),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  date,
-                                                  style: TextStyle(fontSize: 12, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3)),
-                                                ),
-                                              ],
+                                              _formatDate(app['application_date']?.toString()),
+                                              style: TextStyle(fontSize: 11.5, color: context.secondaryText),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 16),
-                                  // Bottom section with Progress Ring
-                                  Container(
-                                    padding: EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(12),
+                                      ],
                                     ),
-                                    child: Row(
-                                      children: [
-                                        ProgressRing(
-                                          progress: progress,
-                                          color: color,
-                                          size: 44,
-                                          strokeWidth: 4.5,
+                                    if (subProcesses.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.statusEntrevistado.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6),
                                         ),
-                                        SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Container(
-                                                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: color.withValues(alpha: 0.1),
-                                                  borderRadius: BorderRadius.circular(20),
-                                                ),
-                                                child: Text(
-                                                  label,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: color,
-                                                  ),
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                'ESTADO ACTUAL',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.6),
-                                                  letterSpacing: 1.2,
-                                                ),
-                                              ),
-                                            ],
+                                        child: Text(
+                                          '${subProcesses.length} prueba(s) / etapa(s) asignada(s)',
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.statusEntrevistado,
                                           ),
                                         ),
-                                        Icon(Icons.chevron_right, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3).withValues(alpha: 0.5)),
-                                      ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                children: [
+                                  ProgressRing(
+                                    progress: meta['progress'] as double,
+                                    color: meta['color'] as Color,
+                                    size: 54,
+                                    strokeWidth: 5,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: (meta['color'] as Color).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      meta['label'] as String,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: meta['color'] as Color,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          );
-                        },
+                              const SizedBox(width: 6),
+                              Icon(Icons.chevron_right_rounded, color: context.tertiaryText),
+                            ],
+                          ),
+                        ),
                       ),
-          ),
+                    );
+                  },
+                  childCount: filtered.length,
+                ),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRouteStep(String title, String subtitle, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 3),
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.primaryText)),
+              Text(subtitle, style: TextStyle(fontSize: 11.5, color: context.secondaryText)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

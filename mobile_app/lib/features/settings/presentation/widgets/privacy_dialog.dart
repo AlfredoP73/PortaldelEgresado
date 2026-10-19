@@ -7,73 +7,67 @@ class PrivacyDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
       decoration: BoxDecoration(
         color: context.surfaceColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        children: [
-          Container(
-            margin: EdgeInsets.symmetric(vertical: 16),
-            width: 40, height: 5,
-            decoration: BoxDecoration(color: Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(10)),
-          ),
-          Text('Política de Privacidad', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.primaryText)),
-          SizedBox(height: 16),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              physics: const BouncingScrollPhysics(),
-              child: Text(
-                '''1. Tratamiento de Datos Personales
-De acuerdo con lo establecido por la Ley Estatutaria 1581 de 2012 y el Decreto 1377 de 2013, le informamos que la Universidad Popular del Cesar actuará como Responsable del Tratamiento de sus datos personales.
-
-2. Finalidad del Tratamiento
-Los datos personales proporcionados serán utilizados para las siguientes finalidades:
-- Mantener comunicación sobre eventos, servicios y beneficios para los egresados.
-- Gestionar su perfil profesional y académico en el Portal de Egresados.
-- Facilitar procesos de intermediación laboral (Matchmaking) con empresas aliadas.
-- Realizar estudios estadísticos sobre el impacto y empleabilidad de los egresados.
-
-3. Derechos del Titular
-Como titular de sus datos personales, usted tiene derecho a:
-- Conocer, actualizar y rectificar sus datos personales frente a los Responsables o Encargados del Tratamiento.
-- Solicitar prueba de la autorización otorgada, salvo cuando expresamente se exceptúe como requisito para el Tratamiento.
-- Ser informado respecto del uso que se le ha dado a sus datos personales.
-- Presentar quejas ante la Superintendencia de Industria y Comercio por infracciones a lo dispuesto en la ley.
-- Revocar la autorización y/o solicitar la supresión del dato cuando en el Tratamiento no se respeten los principios, derechos y garantías constitucionales y legales.
-- Acceder en forma gratuita a sus datos personales que hayan sido objeto de Tratamiento.
-
-4. Medidas de Seguridad
-La Universidad adopta las medidas técnicas, humanas y administrativas necesarias para garantizar la seguridad de los datos personales y evitar su alteración, pérdida, consulta, uso o acceso no autorizado o fraudulento.
-
-5. Aceptación
-Al registrarse y utilizar el Portal del Egresado, usted manifiesta que ha leído, entendido y aceptado de manera libre y expresa la presente política de tratamiento de datos personales.''',
-                style: TextStyle(fontSize: 14, color: context.secondaryText, height: 1.6),
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.borderColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
             ),
-          ),
-          Container(
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: context.surfaceColor,
-              boxShadow: [BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, -5))],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primaryColor, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Aviso de Privacidad y Ley 1581 de 2012',
+                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                  ),
+                ),
+              ],
             ),
-            child: SizedBox(
+            const Divider(height: 22),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Text(
+                  'La Universidad Popular del Cesar (UPC), en cumplimiento de la Ley Estatutaria 1581 de 2012 y el Decreto 1377 de 2013, informa que los datos personales suministrados en el Portal del Egresado serán tratados con fines institucionales, académicos, de acreditación de alta calidad y de intermediación laboral con empresas aliadas verificadas.\n\n'
+                  'Como titular de la información tienes derecho a conocer, actualizar, rectificar y suprimir tus datos, así como a revocar la autorización otorgada a través del módulo de Gestión de Privacidad (Habeas Data).',
+                  style: TextStyle(fontSize: 13, color: context.secondaryText, height: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text('Entendido', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text('Entendido'),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1,30 +1,43 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:provider/provider.dart';
 import 'package:mobile_app/main.dart';
+import 'package:mobile_app/core/theme/theme_provider.dart';
+import 'package:mobile_app/features/auth/presentation/register_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const EgresadoApp());
+  testWidgets('Portal del Egresado smoke test renders LoginScreen', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => ThemeProvider(),
+        child: const EgresadoApp(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Bienvenido'), findsOneWidget);
+    expect(find.text('Acceder al Portal'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('RegisterScreen is exclusively for Graduates and contains no Empresa registration', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => ThemeProvider(),
+        child: const MaterialApp(
+          home: RegisterScreen(),
+        ),
+      ),
+    );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify company registration is completely absent
+    expect(find.text('Empresa Aliada'), findsNothing);
+    expect(find.text('¿CÓMO DESEAS REGISTRARTE EN EL PORTAL?'), findsNothing);
+
+    // Verify 2-step graduate registration is present
+    expect(find.text('ETAPA 1/2'), findsOneWidget);
+    expect(find.text('1. Credenciales'), findsOneWidget);
+    expect(find.text('2. Privacidad'), findsOneWidget);
+    expect(find.text('Registro Exclusivo de Egresados UPC'), findsOneWidget);
+    expect(find.text('CORREO INSTITUCIONAL (@UNICESAR.EDU.CO)'), findsOneWidget);
   });
 }
+

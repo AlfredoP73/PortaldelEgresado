@@ -36,6 +36,13 @@ def impersonate(body: schemas.ImpersonateRequest, token: str = Depends(oauth2_sc
     return auth_service.impersonate_user(body, admin_user, db)
 
 
+# ── POST /api/auth/validate-graduate-email ──────────────────────────────────
+@router.post("/validate-graduate-email", response_model=schemas.ValidateGraduateEmailResponse)
+def validate_graduate_email(body: schemas.ValidateGraduateEmailRequest, db: Session = Depends(get_db)):
+    """Verifica si un correo institucional pertenece a la base de datos oficial de egresados precargada en la UPC."""
+    return auth_service.validate_graduate_email(body.email, db)
+
+
 # ── POST /api/auth/register ──────────────────────────────────────────────────
 @router.post("/register", response_model=schemas.RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(request: Request, body: schemas.RegisterRequest, db: Session = Depends(get_db)):
@@ -129,6 +136,61 @@ def system_status(token: str = Depends(oauth2_scheme), db: Session = Depends(get
     """Estado en vivo de cada microservicio y de la base de datos."""
     admin_user = auth_service.get_user_from_token(token, db)
     return auth_service.get_system_status(admin_user, db)
+
+
+# ── GET /api/auth/system/database-info (ADMIN) ───────────────────────────────
+@router.get("/system/database-info")
+def system_database_info(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Resumen en vivo de las bases de datos PostgreSQL, tablas, relaciones y registros."""
+    from app.auth.services import db_dump_service
+    admin_user = auth_service.get_user_from_token(token, db)
+    return db_dump_service.get_databases_overview(admin_user, db)
+
+
+# ── GET /api/auth/system/database-dump (ADMIN) ───────────────────────────────
+@router.get("/system/database-dump")
+def system_database_dump(
+    request: Request,
+    scope: str = Query("all", description="Base de datos a exportar ('all' o nombre específico)"),
+    include_drop: bool = Query(True, description="Incluir sentencias DROP TABLE IF EXISTS"),
+    include_data: bool = Query(True, description="Incluir todos los registros (INSERT INTO)"),
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    """Genera y descarga un dump SQL completo de PostgreSQL (tablas, relaciones, secuencias y registros)."""
+    from fastapi.responses import Response
+    from datetime import datetime, timezone
+    from app.auth.services import db_dump_service
+
+    admin_user = auth_service.get_user_from_token(token, db)
+    client_ip = request.client.host if request.client else "unknown"
+    sql_content, stats = db_dump_service.generate_full_postgres_dump(
+        admin_user=admin_user,
+        db_session=db,
+        scope=scope,
+        include_drop=include_drop,
+        include_data=include_data,
+        client_ip=client_ip,
+    )
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    suffix = "full" if scope == "all" else scope
+    filename = f"portal_egresados_postgres_dump_{suffix}_{ts}.sql"
+
+    return Response(
+        content=sql_content.encode("utf-8"),
+        media_type="application/sql; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Dump-Filename": filename,
+            "X-Dump-Databases": str(len(stats["databases"])),
+            "X-Dump-Tables": str(stats["tables"]),
+            "X-Dump-Relations": str(stats["relations"]),
+            "X-Dump-Rows": str(stats["rows"]),
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Dump-Filename, X-Dump-Databases, X-Dump-Tables, X-Dump-Relations, X-Dump-Rows",
+        },
+    )
+
 
 # ── NOTIFICATIONS ────────────────────────────────────────────────────────────
 @router.get("/notifications", response_model=List[schemas.NotificationResponse])

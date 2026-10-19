@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '../theme/app_theme.dart';
 
 class ProgressRing extends StatelessWidget {
   final double progress; // 0.0 to 1.0
   final double size;
   final double strokeWidth;
   final Color color;
-  final Color backgroundColor;
+  final Color? backgroundColor;
+  final bool showPercentage;
 
   const ProgressRing({
     super.key,
@@ -14,21 +16,41 @@ class ProgressRing extends StatelessWidget {
     this.size = 56.0,
     this.strokeWidth = 5.0,
     required this.color,
-    this.backgroundColor = const Color(0xFFF3F4F6),
+    this.backgroundColor,
+    this.showPercentage = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bg = backgroundColor ?? (context.isDark ? AppTheme.borderDark : const Color(0xFFE5E7EB));
+    final pct = (progress.clamp(0.0, 1.0) * 100).round();
+
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _RingPainter(
-          progress: progress,
-          color: color,
-          backgroundColor: backgroundColor,
-          strokeWidth: strokeWidth,
-        ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size(size, size),
+            painter: _RingPainter(
+              progress: progress.clamp(0.0, 1.0),
+              color: color,
+              backgroundColor: bg,
+              strokeWidth: strokeWidth,
+            ),
+          ),
+          if (showPercentage)
+            Text(
+              '$pct%',
+              style: TextStyle(
+                fontSize: size * 0.24,
+                fontWeight: FontWeight.w800,
+                color: context.primaryText,
+                letterSpacing: -0.3,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -78,7 +100,8 @@ class _RingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
     return oldDelegate.progress != progress ||
-           oldDelegate.color != color ||
-           oldDelegate.strokeWidth != strokeWidth;
+        oldDelegate.color != color ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }

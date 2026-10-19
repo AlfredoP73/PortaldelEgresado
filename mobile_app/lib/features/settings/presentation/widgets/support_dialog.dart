@@ -7,61 +7,67 @@ class SupportDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: context.surfaceColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(22),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 64, height: 64,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.support_agent_rounded, size: 32, color: AppTheme.primaryColor),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.support_agent_rounded, color: AppTheme.primaryColor, size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Oficina de Egresados UPC',
+                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 16),
-            Text('Soporte Técnico', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.primaryText)),
-            SizedBox(height: 8),
-            Text('¿Tienes problemas con la plataforma? Contáctanos a través de nuestros canales oficiales.', 
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: context.secondaryText),
-            ),
-            SizedBox(height: 24),
-            
-            _contactRow(context, Icons.email_outlined, 'egresados@unicesar.edu.co'),
-            SizedBox(height: 12),
-            _contactRow(context, Icons.phone_outlined, '+57 300 123 4567'),
-            SizedBox(height: 12),
-            _contactRow(context, Icons.location_on_outlined, 'Sede Principal, Bloque A'),
-            
-            SizedBox(height: 24),
+            const Divider(height: 22),
+            _buildContactRow(context, Icons.mail_outline_rounded, 'Correo Institucional', 'portal.egresados.upc@gmail.com'),
+            const SizedBox(height: 10),
+            _buildContactRow(context, Icons.location_on_outlined, 'Sede Administrativa', 'Campus Sabanas · Valledupar, Cesar'),
+            const SizedBox(height: 10),
+            _buildContactRow(context, Icons.access_time_rounded, 'Horario de Atención', 'Lunes a Viernes · 8:00 AM - 6:00 PM'),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text('Cerrar'),
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _contactRow(BuildContext context, IconData icon, String text) {
+  Widget _buildContactRow(BuildContext context, IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, color: AppTheme.primaryColor, size: 20),
-        SizedBox(width: 12),
-        Text(text, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.primaryText)),
+        Icon(icon, color: AppTheme.primaryColor, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.secondaryText)),
+              Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.primaryText)),
+            ],
+          ),
+        ),
       ],
     );
   }

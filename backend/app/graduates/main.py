@@ -32,6 +32,30 @@ app.include_router(misc_router)
 os.makedirs("uploads/cvs", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+from sqlalchemy import text
+from app.database import engine
+
+@app.on_event("startup")
+def ensure_graduates_schema():
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS availability_status VARCHAR(50) DEFAULT 'open_to_work';"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS preferred_modality VARCHAR(50) DEFAULT 'Cualquiera';"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS availability_notice VARCHAR(50) DEFAULT 'Inmediata';"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS expected_salary INTEGER;"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS job_alerts_enabled BOOLEAN DEFAULT TRUE;"))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS saved_jobs (
+                    id SERIAL PRIMARY KEY,
+                    graduate_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                    job_offer_id INTEGER NOT NULL,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+    except Exception as e:
+        print(f"Schema check warning in graduates: {e}")
+
 @app.get("/")
 def health_check():
     return {"service": "graduates", "status": "ok"}

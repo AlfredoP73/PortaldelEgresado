@@ -9,20 +9,13 @@ class TwoFactorDialog extends StatefulWidget {
 }
 
 class _TwoFactorDialogState extends State<TwoFactorDialog> {
-  bool _isLoading = false;
-  bool _isConfigured = false;
   final TextEditingController _codeCtrl = TextEditingController();
+  bool _isConfigured = false;
 
-  void _verifyCode() async {
-    if (_codeCtrl.text.length < 6) return;
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _isConfigured = true;
-      });
-    }
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -31,87 +24,66 @@ class _TwoFactorDialogState extends State<TwoFactorDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: context.surfaceColor,
       child: Padding(
-        padding: EdgeInsets.all(24.0),
-        child: _isConfigured ? _buildSuccess() : _buildSetup(),
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.brand50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isConfigured ? Icons.check_circle_rounded : Icons.security_rounded,
+                size: 32,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _isConfigured ? '¡Verificación Activada!' : 'Seguridad en 2 Pasos',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.primaryText),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isConfigured
+                  ? 'Tu cuenta institucional cuenta con verificación por correo activo.'
+                  : 'Introduce el código enviado a tu correo institucional.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+            ),
+            if (!_isConfigured) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _codeCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                decoration: AppTheme.inputDecoration(
+                  context,
+                  label: 'Código de 6 dígitos',
+                  icon: Icons.pin_outlined,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (_isConfigured) {
+                    Navigator.pop(context);
+                  } else if (_codeCtrl.text.trim().length == 6) {
+                    setState(() => _isConfigured = true);
+                  }
+                },
+                child: Text(_isConfigured ? 'Cerrar' : 'Verificar'),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildSetup() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.security_rounded, size: 48, color: AppTheme.primaryColor),
-        SizedBox(height: 16),
-        Text('Configurar 2FA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.primaryText)),
-        SizedBox(height: 8),
-        Text('Hemos enviado un código de 6 dígitos a tu correo registrado. Introdúcelo para activar la seguridad en 2 pasos.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: context.secondaryText),
-        ),
-        SizedBox(height: 24),
-        TextFormField(
-          controller: _codeCtrl,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.w800),
-          decoration: InputDecoration(
-            counterText: '',
-            filled: true,
-            fillColor: context.bgColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          ),
-        ),
-        SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _verifyCode,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _isLoading 
-                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: context.surfaceColor, strokeWidth: 2))
-                : Text('Verificar Código', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSuccess() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 64, height: 64,
-          decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-          child: Icon(Icons.check_rounded, size: 32, color: context.surfaceColor),
-        ),
-        SizedBox(height: 16),
-        Text('¡Activado!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.primaryText)),
-        SizedBox(height: 8),
-        Text('La autenticación en 2 pasos ha sido configurada correctamente.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: context.secondaryText),
-        ),
-        SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -1,13 +1,32 @@
-import React from 'react';
-import { ArrowLeft, CheckCircle2, ChevronRight, Briefcase, Calendar, FileText, AlertCircle, Trash2, Star, Clock, UploadCloud, Link as LinkIcon, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  ArrowLeft, CheckCircle2, Calendar, FileText, AlertCircle, Trash2, Star,
+  Clock, UploadCloud, Link as LinkIcon, Building2, Sparkles, ChevronDown,
+  ChevronUp, Download, ExternalLink, HelpCircle
+} from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
-import api from '../../../api';
+import api, { graduatesApi } from '../../../api';
 import toast from 'react-hot-toast';
 
 interface ApplicationDetailProps {
   application: any;
   onBack: () => void;
   onUpdate: () => void;
+}
+
+interface InterviewQuestion {
+  category: string;
+  question: string;
+  tip: string;
+}
+
+interface InterviewPrepData {
+  job_offer_id: number;
+  job_title: string;
+  company_name: string;
+  modality: string;
+  questions: InterviewQuestion[];
+  checklist: string[];
 }
 
 const STAGES = [
@@ -18,7 +37,105 @@ const STAGES = [
 ];
 
 export default function ApplicationDetail({ application, onBack, onUpdate }: ApplicationDetailProps) {
-  
+  const [interviewPrep, setInterviewPrep] = useState<InterviewPrepData | null>(null);
+  const [loadingPrep, setLoadingPrep] = useState(false);
+  const [openQuestionIdx, setOpenQuestionIdx] = useState<number | null>(0);
+  const [practiceNotes, setPracticeNotes] = useState<Record<number, string>>({});
+
+  const jobOfferId = application.job_offer_id || application.job_offer?.id;
+
+  useEffect(() => {
+    if (jobOfferId) {
+      fetchInterviewPrep(jobOfferId);
+    }
+  }, [jobOfferId]);
+
+  const fetchInterviewPrep = async (id: number) => {
+    try {
+      setLoadingPrep(true);
+      const res = await graduatesApi.get(`/jobs/${id}/interview-prep`);
+      setInterviewPrep(res.data);
+    } catch {
+      const title = application.job_offer?.title || 'el cargo';
+      const company = application.job_offer?.company?.name || 'la empresa';
+      setInterviewPrep({
+        job_offer_id: id,
+        job_title: title,
+        company_name: company,
+        modality: application.job_offer?.modality || 'Presencial',
+        questions: [
+          {
+            category: 'Motivación y Cultura',
+            question: `¿Por qué te interesa trabajar en ${company} como ${title}?`,
+            tip: 'Conecta tu formación en la UPC con la misión de la empresa y destaca cómo tus competencias aportan valor inmediato.',
+          },
+          {
+            category: 'Método STAR (Resolución de Problemas)',
+            question: 'Cuéntanos sobre un reto técnico o académico complejo y cómo lo resolviste.',
+            tip: 'Estructura tu respuesta con Situación, Tarea, Acción y Resultado medible.',
+          },
+          {
+            category: 'Competencia Técnica',
+            question: `¿Cómo abordarías tus primeros 30 días en el cargo de ${title}?`,
+            tip: 'Menciona comprensión de procesos, alineación con el equipo y entrega de victorias tempranas.',
+          },
+        ],
+        checklist: [
+          'Investiga los proyectos recientes y el sector de la empresa.',
+          'Ten lista tu Hoja de Vida y portafolio para compartir pantalla.',
+          'Prepara 2 preguntas estratégicas para hacerle al entrevistador al final.',
+        ],
+      });
+    } finally {
+      setLoadingPrep(false);
+    }
+  };
+
+  const formatICSDate = (date: Date) => {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  };
+
+  const handleDownloadICS = (sp: any) => {
+    const deadline = sp.fecha_limite ? new Date(sp.fecha_limite) : new Date(Date.now() + 86400000);
+    const start = new Date(deadline.getTime() - 60 * 60 * 1000);
+    const title = `${sp.nombre} - ${application.job_offer?.title || 'Proceso de Selección'} (${application.job_offer?.company?.name || 'UPC'})`;
+    const desc = (sp.descripcion || 'Prueba o entrevista del proceso de selección').replace(/\n/g, '\\n');
+    const url = sp.enlace_adjunto || '';
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Portal de Empleo UPC//Egresados//ES',
+      'BEGIN:VEVENT',
+      `UID:subprocess-${sp.id}@portalempleo.unicesar.edu.co`,
+      `DTSTAMP:${formatICSDate(new Date())}`,
+      `DTSTART:${formatICSDate(start)}`,
+      `DTEND:${formatICSDate(deadline)}`,
+      `SUMMARY:${title}`,
+      `DESCRIPTION:${desc} ${url ? '\\nEnlace: ' + url : ''}`,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `Agenda_${sp.nombre.replace(/\s+/g, '_')}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Evento .ics descargado para tu calendario');
+  };
+
+  const getGoogleCalendarUrl = (sp: any) => {
+    const deadline = sp.fecha_limite ? new Date(sp.fecha_limite) : new Date(Date.now() + 86400000);
+    const start = new Date(deadline.getTime() - 60 * 60 * 1000);
+    const title = encodeURIComponent(`${sp.nombre} - ${application.job_offer?.title || 'Vacante'} (${application.job_offer?.company?.name || 'Empresa'})`);
+    const details = encodeURIComponent(`${sp.descripcion || 'Evaluación / Entrevista'}\n${sp.enlace_adjunto ? 'Enlace: ' + sp.enlace_adjunto : ''}`);
+    const dates = `${formatICSDate(start)}/${formatICSDate(deadline)}`;
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}`;
+  };
+
   const getStageIndex = (status: string) => {
     switch (status.toUpperCase()) {
       case 'POSTULADO': return 0;
@@ -154,6 +271,23 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
                 })}
               </div>
             </div>
+
+            {/* Cover Letter / Pitch Enviado */}
+            {application.cover_letter && (
+              <div className="px-6 pb-4">
+                <div
+                  className="p-4 rounded-2xl border space-y-1.5"
+                  style={{ background: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Mi Pitch / Carta de Presentación
+                  </p>
+                  <p className="text-xs leading-relaxed italic" style={{ color: 'var(--text-secondary)' }}>
+                    "{application.cover_letter}"
+                  </p>
+                </div>
+              </div>
+            )}
             
             {/* Job Offer Summary */}
             <div 
@@ -181,10 +315,10 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Sub Processes & Details */}
+        {/* RIGHT COLUMN: Sub Processes & Interview Prep IA */}
         <div className="flex-1 flex flex-col gap-6">
           <div 
-            className="p-8 rounded-3xl shadow-sm h-full hover:shadow-md transition-all duration-300 relative overflow-hidden"
+            className="p-8 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}
           >
             {/* Top decorative gradient line */}
@@ -195,14 +329,14 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
                 <FileText className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-2xl font-extrabold" style={{ color: 'var(--text-main)' }}>Pruebas y Evaluaciones</h3>
-                <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Requerimientos de la empresa para avanzar</p>
+                <h3 className="text-2xl font-extrabold" style={{ color: 'var(--text-main)' }}>Pruebas, Entrevistas y Agenda</h3>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Requerimientos de la empresa y sincronización con tu calendario</p>
               </div>
             </div>
             
             {!application.sub_processes || application.sub_processes.length === 0 ? (
               <div 
-                className="flex flex-col items-center justify-center py-20 px-4 border-dashed rounded-3xl text-center"
+                className="flex flex-col items-center justify-center py-16 px-4 border-dashed rounded-3xl text-center"
                 style={{ background: 'var(--bg-muted)', border: '1px dashed var(--border-color)' }}
               >
                 <div 
@@ -212,7 +346,7 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
                   <AlertCircle className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
                 </div>
                 <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text-main)' }}>Aún no hay pruebas asignadas</h3>
-                <p className="text-sm max-w-sm" style={{ color: 'var(--text-secondary)' }}>La empresa te notificará y añadirá pruebas técnicas o entrevistas a medida que avances en el proceso.</p>
+                <p className="text-sm max-w-sm" style={{ color: 'var(--text-secondary)' }}>Mientras la empresa programa tu primera entrevista, puedes usar el Simulador de Entrevistas IA aquí abajo para prepararte.</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -242,9 +376,30 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
                       </div>
                       
                       {sp.fecha_limite && (
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50/80 px-3 py-2 rounded-xl shrink-0">
-                          <Clock className="w-4 h-4" />
-                          Límite: {new Date(sp.fecha_limite).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50/80 px-3 py-2 rounded-xl">
+                            <Clock className="w-4 h-4" />
+                            Límite: {new Date(sp.fecha_limite).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <a
+                            href={getGoogleCalendarUrl(sp)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                            title="Agendar recordatorio en Google Calendar"
+                          >
+                            <Calendar className="w-3.5 h-3.5" /> Google Calendar
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadICS(sp)}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-colors hover:border-brand-500 hover:text-brand-600"
+                            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                            title="Descargar archivo .ics para Outlook / Apple Calendar"
+                          >
+                            <Download className="w-3.5 h-3.5" /> .ics
+                          </button>
                         </div>
                       )}
                     </div>
@@ -360,7 +515,111 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
                 ))}
               </div>
             )}
-            
+          </div>
+
+          {/* PREPARADOR DE ENTREVISTAS IA (SIMULADOR Q&A Y MÉTODO STAR) */}
+          <div
+            className="p-8 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-3 rounded-2xl text-white"
+                  style={{ background: 'linear-gradient(135deg, #22a86e, #0e4832)' }}
+                >
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold" style={{ color: 'var(--text-main)' }}>
+                    Simulador y Preparador de Entrevista IA
+                  </h3>
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    Preguntas personalizadas según los requisitos técnicos y funciones de {application.job_offer?.title || 'esta vacante'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                Método STAR Recomendado
+              </span>
+            </div>
+
+            {loadingPrep ? (
+              <p className="text-sm text-ink-secondary animate-pulse">Generando banco de preguntas para esta vacante...</p>
+            ) : interviewPrep ? (
+              <div className="space-y-4">
+                {interviewPrep.questions.map((q, idx) => {
+                  const isOpen = openQuestionIdx === idx;
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border overflow-hidden transition-all"
+                      style={{ borderColor: isOpen ? 'rgba(34,168,110,0.4)' : 'var(--border-color)', background: 'var(--bg-main)' }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenQuestionIdx(isOpen ? null : idx)}
+                        className="w-full p-4 flex items-center justify-between gap-4 text-left"
+                      >
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+                            {q.category}
+                          </span>
+                          <p className="font-bold text-sm sm:text-base text-ink pt-1">{q.question}</p>
+                        </div>
+                        {isOpen ? (
+                          <ChevronUp className="w-5 h-5 text-brand-600 shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-ink-tertiary shrink-0" />
+                        )}
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 pb-4 pt-2 border-t space-y-3" style={{ borderColor: 'var(--border-color)' }}>
+                          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-start gap-2.5">
+                            <HelpCircle className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                            <p className="text-xs text-emerald-900 leading-relaxed">
+                              <strong>Tip para responder con éxito:</strong> {q.tip}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-ink-secondary block mb-1">
+                              Practica tu respuesta aquí (borrador personal):
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={practiceNotes[idx] || ''}
+                              onChange={(e) => setPracticeNotes({ ...practiceNotes, [idx]: e.target.value })}
+                              placeholder="Escribe tus puntos clave (Situación, Tarea, Acción, Resultado)..."
+                              className="input w-full text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {interviewPrep.checklist && interviewPrep.checklist.length > 0 && (
+                  <div
+                    className="p-4 rounded-2xl border mt-4 space-y-2"
+                    style={{ background: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+                  >
+                    <p className="text-xs font-black uppercase tracking-wider text-ink">
+                      Checklist antes de tu entrevista
+                    </p>
+                    <ul className="space-y-1.5">
+                      {interviewPrep.checklist.map((item, i) => (
+                        <li key={i} className="text-xs text-ink-secondary flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 

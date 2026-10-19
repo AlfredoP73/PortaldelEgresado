@@ -1,13 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'dart:ui';
-
+import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
-import '../../profile/presentation/profile_screen.dart';
+import '../../main/presentation/main_layout_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,652 +12,938 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
+class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
-  String? _error;
-  
-  Map<String, dynamic>? _summary;
-  List<dynamic>? _recentActivity;
   String _userName = 'Egresado';
-  String _initial = 'E';
-  String? _profilePicUrl;
   double _profileProgress = 0.0;
-  String? _currentGraduateId;
+  String _nextStepLabel = 'Completa tus datos básicos';
 
-  List<dynamic> _notifications = [];
-  bool _hasUnreadNotifications = false;
+  Map<String, dynamic> _summary = {
+    'total_applications': 0,
+    'response_rate': 0,
+    'profile_views': 0,
+    'expected_salary': 0,
+  };
 
-  WebSocketChannel? _channel;
-
-  // Animaciones
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
+  List<Map<String, dynamic>> _skillsRadar = [];
+  List<Map<String, dynamic>> _applicationsTimeline = [];
+  List<Map<String, dynamic>> _marketSalaries = [];
+  List<Map<String, dynamic>> _applicationsByStatus = [];
+  List<dynamic> _recentActivity = [];
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
-    
-    _fetchData();
+    _loadDashboardData();
   }
 
-  @override
-  void dispose() {
-    _channel?.sink.close();
-    _animController.dispose();
-    super.dispose();
-  }
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
 
-  void _initWebSocket(String graduateId) {
+    // 1. Profile & Completeness (Matches ProfileCompleteness.tsx weights)
     try {
-      final String baseUrl = ApiClient.instance.options.baseUrl;
-      final uri = Uri.parse(baseUrl);
-      final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
-      final wsUrl = '$wsScheme://${uri.host}:${uri.port}/matching/ws/$graduateId';
-
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      _channel!.stream.listen((message) {
-        if (mounted) {
-          try {
-            final data = jsonDecode(message);
-            setState(() {
-              _notifications.insert(0, data);
-              _hasUnreadNotifications = true;
-            });
-            // Haptic feedback could be added here
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('¡Nueva sugerencia de empleo: ${data['job_title']}!'),
-                backgroundColor: AppTheme.primaryColor,
-                duration: const Duration(seconds: 3),
-              )
-            );
-          } catch (e) {
-            // Ignore parse errors
-          }
+      final profileRes = await ApiClient.instance.get('/modulo1/profile');
+      if (profileRes.data is Map) {
+        final data = profileRes.data as Map<String, dynamic>;
+        final firstName = data['first_name']?.toString() ?? '';
+        if (firstName.isNotEmpty) {
+          _userName = firstName.split(' ').first;
         }
-      });
-    } catch (e) {
-      // Failed to connect ws
-    }
-  }
 
-  Future<void> _fetchNotifications(String graduateId) async {
-    try {
-      final String baseUrl = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-      final res = await ApiClient.instance.get('$baseUrl/matching/notifications/$graduateId');
-      if (res.statusCode == 200 && mounted) {
-        final List<dynamic> notifs = res.data;
-        setState(() {
-          _notifications = notifs;
-          _hasUnreadNotifications = notifs.any((n) => n['is_read'] == false);
-        });
-      }
-    } catch (e) {
-      // Ignore notification fetch errors
-    }
-  }
+        double progress = 0.0;
+        String? missingStep;
 
-  Future<void> _markNotificationAsRead(int notificationId) async {
-    try {
-      final String baseUrl = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-      await ApiClient.instance.patch('$baseUrl/matching/notifications/$notificationId/leido');
-      setState(() {
-        final notif = _notifications.firstWhere((n) => n['id'] == notificationId, orElse: () => null);
-        if (notif != null) notif['is_read'] = true;
-        _hasUnreadNotifications = _notifications.any((n) => n['is_read'] == false);
-      });
-    } catch (e) {
-      // Ignore error
-    }
-  }
-
-  void _showNotificationsPanel() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E2C), // Darker elegant background
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 12, bottom: 24),
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-                    )
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Notificaciones en Vivo', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: context.primaryText)),
-                        IconButton(icon: Icon(Icons.close, color: context.secondaryText), onPressed: () => Navigator.pop(context)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: _notifications.isEmpty
-                        ? Center(child: Text('Todo está tranquilo por ahora', style: TextStyle(color: context.secondaryText)))
-                        : ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            itemCount: _notifications.length,
-                            separatorBuilder: (context, index) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final notif = _notifications[index];
-                              final bool isRead = notif['is_read'] ?? true;
-                              final scoreStr = notif['score'] != null ? (double.parse(notif['score'].toString())).toInt().toString() : '80';
-
-                              return GestureDetector(
-                                onTap: () {
-                                  if (!isRead) {
-                                    _markNotificationAsRead(notif['id']);
-                                    setModalState(() { notif['is_read'] = true; });
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: isRead ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : AppTheme.primaryColor.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: isRead ? Colors.white12 : AppTheme.primaryColor.withValues(alpha: 0.5)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          gradient: isRead ? null : AppTheme.primaryGradient,
-                                          color: isRead ? Colors.white10 : null,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(Icons.auto_awesome, color: isRead ? Colors.white54 : Colors.white, size: 20),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(notif['job_title'] ?? 'Vacante Sugerida', style: TextStyle(fontWeight: FontWeight.w700, color: context.primaryText, fontSize: 15)),
-                                            const SizedBox(height: 4),
-                                            Text(notif['company_name'] ?? 'Empresa Confidencial', style: TextStyle(color: context.secondaryText, fontSize: 13)),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.local_fire_department, size: 14, color: AppTheme.accentAmber),
-                                                const SizedBox(width: 4),
-                                                Text('$scoreStr% Match', style: const TextStyle(color: AppTheme.accentAmber, fontSize: 12, fontWeight: FontWeight.w700)),
-                                              ],
-                                            )
-                                          ],
-                                        ),
-                                      ),
-                                      if (!isRead)
-                                        Container(width: 10, height: 10, decoration: const BoxDecoration(color: AppTheme.accentAmber, shape: BoxShape.circle)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            );
-          }
-        );
-      }
-    );
-  }
-
-  Future<void> _fetchData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token');
-      
-      if (token != null && token.isNotEmpty) {
-        try {
-          Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-          String sub = decodedToken['sub'] ?? 'Egresado';
-          _currentGraduateId = decodedToken['id']?.toString();
-          setState(() {
-            _userName = sub.split('@')[0];
-            _initial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'E';
-          });
-        } catch (_) {}
-      }
-
-      if (_currentGraduateId != null) {
-        _fetchNotifications(_currentGraduateId!);
-        _initWebSocket(_currentGraduateId!);
-      }
-
-      // Perfil
-      try {
-        final profileRes = await ApiClient.instance.get('/modulo1/profile');
-        if (profileRes.statusCode == 200 && profileRes.data != null) {
-          final pData = profileRes.data;
-          String? firstName = pData['first_name'];
-          String? lastName = pData['last_name'];
-          String? picUrl = pData['profile_picture_url'];
-
-          double progress = 0.0;
-          if (firstName != null && firstName.isNotEmpty && lastName != null && lastName.isNotEmpty) progress += 0.20;
-          if (picUrl != null && picUrl.isNotEmpty) progress += 0.15;
-          if (pData['cv_url'] != null && pData['cv_url'].toString().isNotEmpty) progress += 0.20;
-          if (pData['skills'] != null && (pData['skills'] as List).isNotEmpty) progress += 0.25;
-          if (pData['academic_histories'] != null && (pData['academic_histories'] as List).isNotEmpty && pData['experiences'] != null && (pData['experiences'] as List).isNotEmpty) progress += 0.20;
-
-          setState(() => _profileProgress = progress);
-
-          if (firstName != null && firstName.isNotEmpty) {
-            setState(() {
-              _userName = '$firstName ${lastName ?? ''}'.trim();
-              _initial = firstName[0].toUpperCase();
-            });
-          }
-          if (picUrl != null && picUrl.isNotEmpty) {
-            setState(() {
-              String base = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-              _profilePicUrl = base + picUrl;
-            });
-          }
+        final hasBasic = firstName.isNotEmpty &&
+            (data['last_name']?.toString().isNotEmpty ?? false) &&
+            (data['phone']?.toString().isNotEmpty ?? false) &&
+            (data['profile_summary']?.toString().isNotEmpty ?? false);
+        if (hasBasic) {
+          progress += 0.20;
+        } else {
+          missingStep ??= 'Completa tus datos básicos y resumen profesional (+20%)';
         }
-      } catch (e) { /* ignore */ }
 
-      // Dashboard
-      final response = await ApiClient.instance.get('/graduate/dashboard');
-      final data = response.data;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final appsResponse = await ApiClient.instance.get('/modulo1/my-applications?t=$timestamp');
+        if (data['profile_picture_url']?.toString().isNotEmpty ?? false) {
+          progress += 0.15;
+        } else {
+          missingStep ??= 'Sube tu foto de perfil institucional (+15%)';
+        }
 
-      if (mounted) {
-        setState(() {
-          _summary = data['summary'];
-          _recentActivity = appsResponse.data is List ? appsResponse.data : [];
-          _isLoading = false;
-        });
-        _animController.forward();
+        if (data['cv_url']?.toString().isNotEmpty ?? false) {
+          progress += 0.20;
+        } else {
+          missingStep ??= 'Adjunta tu Hoja de Vida en PDF (+20%)';
+        }
+
+        final skills = data['skills'] as List? ?? [];
+        if (skills.isNotEmpty) {
+          progress += 0.25;
+        } else {
+          missingStep ??= 'Añade tus habilidades y competencias (+25%)';
+        }
+
+        final exps = data['experiences'] as List? ?? [];
+        final acads = data['academic_histories'] as List? ?? [];
+        if (exps.isNotEmpty || acads.isNotEmpty) {
+          progress += 0.20;
+        } else {
+          missingStep ??= 'Registra tu experiencia laboral o formación (+20%)';
+        }
+
+        _profileProgress = progress.clamp(0.0, 1.0);
+        _nextStepLabel = missingStep ?? '¡Tu hoja de vida está al 100%!';
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Error al cargar los datos. Revisa tu conexión.';
-          _isLoading = false;
-        });
+    } catch (_) {}
+
+    // 2. Graduate Dashboard Metrics & Charts (Matches GraduateDashboard.tsx)
+    try {
+      final dashRes = await ApiClient.instance.get('/graduate/dashboard');
+      if (dashRes.data is Map) {
+        final d = dashRes.data as Map<String, dynamic>;
+        if (d['summary'] is Map) {
+          _summary = Map<String, dynamic>.from(d['summary']);
+        }
+        if (d['skills_radar'] is List) {
+          _skillsRadar = List<Map<String, dynamic>>.from(
+            (d['skills_radar'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+        }
+        if (d['applications_timeline'] is List) {
+          _applicationsTimeline = List<Map<String, dynamic>>.from(
+            (d['applications_timeline'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+        }
+        if (d['market_salaries'] is List) {
+          _marketSalaries = List<Map<String, dynamic>>.from(
+            (d['market_salaries'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+        }
+        if (d['applications_by_status'] is List) {
+          _applicationsByStatus = List<Map<String, dynamic>>.from(
+            (d['applications_by_status'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+        }
       }
+    } catch (_) {}
+
+    // 3. Recent Applications
+    try {
+      final appsRes = await ApiClient.instance.get('/modulo1/my-applications');
+      if (appsRes.data is List) {
+        _recentActivity = (appsRes.data as List).take(3).toList();
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
-  Color _getStatusColor(String status) {
-    status = status.toLowerCase();
-    if (status.contains('postulado') || status.contains('aplicado')) return AppTheme.statusPostulado;
-    if (status.contains('entrevistado')) return AppTheme.statusEntrevistado;
-    if (status.contains('contratado') || status.contains('aceptado')) return AppTheme.statusContratado;
-    if (status.contains('rechazado')) return AppTheme.statusRechazado;
-    return Colors.white54;
+  String _formatCurrency(dynamic value) {
+    final numVal = (value is num) ? value : (num.tryParse(value?.toString() ?? '0') ?? 0);
+    if (numVal <= 0) return '\$0';
+    final formatter = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
+    return formatter.format(numVal);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.bgColor,
-      body: Stack(
-        children: [
-          // Background ambient glows
-          Positioned(
-            top: -100, left: -100,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          Positioned(
-            bottom: -50, right: -50,
-            child: Container(
-              width: 250, height: 250,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          
-          SafeArea(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
-              : _error != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_error!, style: const TextStyle(color: AppTheme.statusRechazado, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () { setState(() => _isLoading = true); _fetchData(); },
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryDark),
-                          child: Text('Reintentar', style: TextStyle(color: context.primaryText)),
-                        )
-                      ],
-                    )
-                  )
-                : RefreshIndicator(
-                    onRefresh: _fetchData,
-                    color: AppTheme.primaryColor,
-                    backgroundColor: context.surfaceColor,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
-                      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                      child: SlideTransition(
-                        position: _slideAnim,
-                        child: FadeTransition(
-                          opacity: _fadeAnim,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // ── Header ──
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Hero(
-                                          tag: 'profilePic',
-                                          child: Container(
-                                            width: 56, height: 56,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05), width: 2),
-                                              image: _profilePicUrl != null ? DecorationImage(image: NetworkImage(_profilePicUrl!), fit: BoxFit.cover) : null,
-                                              gradient: _profilePicUrl == null ? AppTheme.primaryGradient : null,
-                                            ),
-                                            child: _profilePicUrl == null
-                                                ? Center(child: Text(_initial, style: TextStyle(color: context.primaryText, fontSize: 24, fontWeight: FontWeight.bold)))
-                                                : null,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Hola, $_userName',
-                                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: context.primaryText, letterSpacing: -0.5),
-                                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text('Egresado Destacado', style: TextStyle(color: AppTheme.primaryColor.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600)),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: _showNotificationsPanel,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
-                                      ),
-                                      child: Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          Icon(Icons.notifications_outlined, color: context.primaryText, size: 24),
-                                          if (_hasUnreadNotifications)
-                                            Positioned(
-                                              right: -4, top: -4,
-                                              child: Container(
-                                                width: 12, height: 12,
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFEF4444), // Ping red
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(color: context.bgColor, width: 2),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                ],
-                              ),
-                              const SizedBox(height: 32),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      );
+    }
 
-                              // ── Banner Glassmorphism Completitud ──
-                              if (_profileProgress < 1.0)
-                                Container(
-                                  margin: const EdgeInsets.only(bottom: 32),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(24),
-                                    gradient: LinearGradient(
-                                      colors: [context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05), context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)],
-                                      begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                    ),
-                                    border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1)),
-                                    boxShadow: [BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05), blurRadius: 20)],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(24),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text('Completa tu Perfil', style: TextStyle(color: context.primaryText, fontWeight: FontWeight.w800, fontSize: 18)),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                  decoration: BoxDecoration(color: AppTheme.accentAmber.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-                                                  child: Text('${(_profileProgress * 100).toInt()}%', style: const TextStyle(color: AppTheme.accentAmber, fontWeight: FontWeight.bold, fontSize: 14)),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text('Los perfiles completos tienen 3x más probabilidades de ser contactados.', style: TextStyle(color: context.secondaryText, fontSize: 13, height: 1.4)),
-                                            const SizedBox(height: 20),
-                                            ClipRRect(
-                                              borderRadius: BorderRadius.circular(6),
-                                              child: LinearProgressIndicator(
-                                                value: _profileProgress,
-                                                backgroundColor: Colors.black26,
-                                                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentAmber),
-                                                minHeight: 8,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 20),
-                                            SizedBox(
-                                              width: double.infinity, height: 44,
-                                              child: ElevatedButton(
-                                                onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())); },
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.white, foregroundColor: Colors.black87,
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                ),
-                                                child: const Text('Actualizar ahora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                              // ── Metrics Grid (2x2) ──
-                              Text('Resumen', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.primaryText)),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(child: _GlassMetricCard(title: 'Postulaciones\nenviadas', value: '${_summary?['total_applications'] ?? 0}', icon: Icons.send_rounded, color: const Color(0xFF3B82F6))),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _GlassMetricCard(title: 'Tasa de\nrespuesta', value: '${((_summary?['response_rate'] ?? 0)).toStringAsFixed(0)}%', icon: Icons.insights_rounded, color: const Color(0xFF10B981))),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(child: _GlassMetricCard(title: 'Visitas al\nperfil', value: '${_summary?['profile_views'] ?? 0}', icon: Icons.visibility_rounded, color: const Color(0xFF8B5CF6))),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: _GlassMetricCard(title: 'Salario prom.\nofertas', value: '\$${((_summary?['program_average_salary'] ?? 0)/1000000).toStringAsFixed(1)}M', icon: Icons.monetization_on_rounded, color: const Color(0xFFF59E0B))),
-                                ],
-                              ),
-                              const SizedBox(height: 32),
-
-                              // ── Actividad Reciente (Modern) ──
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Actividad Reciente', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.primaryText)),
-                                  Icon(Icons.arrow_forward_ios_rounded, color: context.isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.15), size: 16),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surfaceColor : Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02)),
-                                ),
-                                child: _recentActivity != null && _recentActivity!.isNotEmpty
-                                    ? Column(
-                                        children: _recentActivity!.take(3).map((activity) {
-                                          String jobTitle = 'Puesto';
-                                          String company = 'Empresa';
-                                          String status = activity['status'] ?? 'Pendiente';
-                                          if (activity['job_offer'] != null) {
-                                              jobTitle = activity['job_offer']['title'] ?? 'Puesto';
-                                              if (activity['job_offer']['company'] != null) {
-                                                  company = activity['job_offer']['company']['name'] ?? 'Empresa';
-                                              }
-                                          }
-                                          return _ModernActivityItem(
-                                            title: jobTitle,
-                                            company: company,
-                                            statusColor: _getStatusColor(status),
-                                            status: status,
-                                            isLast: activity == _recentActivity!.take(3).last,
-                                          );
-                                        }).toList(),
-                                      )
-                                    : Padding(
-                                        padding: EdgeInsets.all(32),
-                                        child: Center(child: Text('Sin actividad reciente', style: TextStyle(color: context.secondaryText))),
-                                      ),
-                              ),
-                            ],
-                          ),
+    return RefreshIndicator(
+      color: AppTheme.primaryColor,
+      onRefresh: _loadDashboardData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 104),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Page Header (Matches GraduateDashboard.tsx) ──
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hola, $_userName 👋',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: context.primaryText,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Resumen de tu actividad, postulaciones y competitividad en el mercado laboral.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.secondaryText,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
-          ),
-        ],
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _loadDashboardData,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Actualizar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // ── Fuerza del Perfil Card (Matches ProfileCompleteness.tsx) ──
+            _buildProfileStrengthCard(context),
+            const SizedBox(height: 16),
+
+            // ── 4 KPI Cards Grid (2x2 - Exact match to GraduateDashboard.tsx) ──
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 1.38,
+              children: [
+                _buildKpiCard(
+                  context,
+                  label: 'MIS POSTULACIONES',
+                  value: '${_summary['total_applications'] ?? 0}',
+                  subtitle: 'Aplicaciones enviadas',
+                  icon: Icons.description_outlined,
+                ),
+                _buildKpiCard(
+                  context,
+                  label: 'TASA DE RESPUESTA',
+                  value: '${_summary['response_rate'] ?? 0}%',
+                  subtitle: 'Avanzan a entrevista',
+                  icon: Icons.track_changes_rounded,
+                ),
+                _buildKpiCard(
+                  context,
+                  label: 'VISITAS AL PERFIL',
+                  value: '${_summary['profile_views'] ?? 0}',
+                  subtitle: 'Visualizaciones de empresas',
+                  icon: Icons.visibility_outlined,
+                ),
+                _buildKpiCard(
+                  context,
+                  label: 'EXPECTATIVA SALARIAL',
+                  value: _formatCurrency(_summary['expected_salary'] ?? _summary['program_average_salary'] ?? 0),
+                  subtitle: 'Promedio de ofertas aplicadas',
+                  icon: Icons.payments_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── Chart 1: Mis Habilidades vs Mercado (Matches RadarChart in GraduateDashboard.tsx) ──
+            _buildSkillsComparisonCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 2: Línea de Tiempo de Postulaciones (Area LineChart) ──
+            _buildApplicationsTimelineCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 3: Distribución Salarial - Mi Programa (BarChart) ──
+            _buildMarketSalariesCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 4: Estado de mis Postulaciones (Donut + Percentage Breakdown) ──
+            _buildApplicationsStatusCard(context),
+            const SizedBox(height: 16),
+
+            // ── Actividad Reciente & Acceso Rápido ──
+            _buildRecentActivitySection(context),
+          ],
+        ),
       ),
     );
   }
-}
 
-class _GlassMetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
+  Widget _buildProfileStrengthCard(BuildContext context) {
+    final pct = (_profileProgress * 100).round();
+    final Color statusColor = pct < 30
+        ? AppTheme.statusRechazado
+        : pct < 60
+            ? AppTheme.accentAmber
+            : pct < 90
+                ? AppTheme.brand500
+                : AppTheme.accentEmerald;
+    final String statusLabel = pct < 30
+        ? 'Perfil débil'
+        : pct < 60
+            ? 'En progreso'
+            : pct < 90
+                ? 'Perfil sólido'
+                : '¡Perfil estelar!';
 
-  const _GlassMetricCard({required this.title, required this.value, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.04) : context.surfaceColor : Colors.black.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 16),
-          Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: context.primaryText, letterSpacing: -1)),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(color: context.secondaryText, fontSize: 13, fontWeight: FontWeight.w500, height: 1.2)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModernActivityItem extends StatelessWidget {
-  final String title;
-  final String company;
-  final Color statusColor;
-  final String status;
-  final bool isLast;
-
-  const _ModernActivityItem({required this.title, required this.company, required this.statusColor, required this.status, required this.isLast});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
+          Row(
             children: [
               Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02), borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.business_center_rounded, color: context.secondaryText, size: 20),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.verified_user_outlined, color: AppTheme.primaryColor, size: 18),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: context.primaryText, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Text(company, style: TextStyle(color: context.secondaryText, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(
+                      'Fuerza del Perfil Institucional',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: context.primaryText,
+                      ),
+                    ),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
-                child: Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$pct%',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: statusColor,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-        if (!isLast) Divider(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02), height: 1, indent: 80, endIndent: 20),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: _profileProgress,
+              minHeight: 8,
+              backgroundColor: context.borderColor,
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+            ),
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => MainLayoutScreen.switchTab(context, 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.brand500.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.brand500.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, color: AppTheme.brand500, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _nextStepLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: context.primaryText,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Ir al Perfil →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKpiCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: context.secondaryText,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: AppTheme.primaryColor, size: 16),
+              ),
+            ],
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: context.primaryText,
+                letterSpacing: -0.6,
+              ),
+            ),
+          ),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: context.secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkillsComparisonCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Mis Habilidades vs Mercado',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                ),
+              ),
+              _buildLegendDot(AppTheme.primaryColor, 'Tu Perfil'),
+              const SizedBox(width: 10),
+              _buildLegendDot(AppTheme.brand400, 'Mercado'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_skillsRadar.isEmpty)
+            _buildEmptyChartState('Añade habilidades en tu perfil para comparar con el mercado.')
+          else if (_skillsRadar.length >= 3)
+            SizedBox(
+              height: 220,
+              child: RadarChart(
+                RadarChartData(
+                  radarShape: RadarShape.polygon,
+                  dataSets: [
+                    RadarDataSet(
+                      fillColor: AppTheme.primaryColor.withValues(alpha: 0.35),
+                      borderColor: AppTheme.primaryColor,
+                      entryRadius: 3,
+                      borderWidth: 2,
+                      dataEntries: _skillsRadar
+                          .map((e) => RadarEntry(value: (e['graduate'] as num? ?? 0).toDouble()))
+                          .toList(),
+                    ),
+                    RadarDataSet(
+                      fillColor: AppTheme.brand400.withValues(alpha: 0.20),
+                      borderColor: AppTheme.brand400,
+                      entryRadius: 2.5,
+                      borderWidth: 2,
+                      dataEntries: _skillsRadar
+                          .map((e) => RadarEntry(value: (e['market'] as num? ?? 0).toDouble()))
+                          .toList(),
+                    ),
+                  ],
+                  radarBackgroundColor: Colors.transparent,
+                  borderData: FlBorderData(show: false),
+                  radarBorderData: BorderSide(color: context.borderColor),
+                  titlePositionPercentageOffset: 0.18,
+                  titleTextStyle: TextStyle(color: context.secondaryText, fontSize: 10.5, fontWeight: FontWeight.w600),
+                  getTitle: (index, angle) {
+                    final skill = _skillsRadar[index]['skill']?.toString() ?? '';
+                    return RadarChartTitle(text: skill);
+                  },
+                  tickCount: 4,
+                  ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 8),
+                  tickBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
+                  gridBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _skillsRadar.map((item) {
+                final skill = item['skill']?.toString() ?? '';
+                final grad = (item['graduate'] as num? ?? 0).toDouble();
+                final mkt = (item['market'] as num? ?? 0).toDouble();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(skill, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: context.primaryText)),
+                          Text('Tú: ${grad.toInt()}% · Mercado: ${mkt.toInt()}%',
+                              style: TextStyle(fontSize: 11, color: context.secondaryText)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: (grad / 100).clamp(0.0, 1.0),
+                          minHeight: 7,
+                          backgroundColor: context.borderColor,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationsTimelineCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Línea de Tiempo de Postulaciones',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+          ),
+          const SizedBox(height: 16),
+          if (_applicationsTimeline.isEmpty)
+            _buildEmptyChartState('Aún no registras actividad histórica de postulaciones.')
+          else
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => FlLine(color: context.borderColor, strokeWidth: 1, dashArray: [4, 4]),
+                  ),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (val, _) => Text(
+                          val.toInt().toString(),
+                          style: TextStyle(fontSize: 10, color: context.secondaryText),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (val, _) {
+                          final idx = val.toInt();
+                          if (idx < 0 || idx >= _applicationsTimeline.length) return const SizedBox.shrink();
+                          final label = _applicationsTimeline[idx]['date']?.toString() ?? '';
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              label.length > 6 ? label.substring(label.length - 5) : label,
+                              style: TextStyle(fontSize: 10, color: context.secondaryText),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: List.generate(_applicationsTimeline.length, (i) {
+                        final c = (_applicationsTimeline[i]['count'] as num? ?? 0).toDouble();
+                        return FlSpot(i.toDouble(), c);
+                      }),
+                      isCurved: true,
+                      color: AppTheme.primaryColor,
+                      barWidth: 3,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppTheme.primaryColor.withValues(alpha: 0.16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarketSalariesCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Distribución Salarial (Mi Programa)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+          ),
+          const SizedBox(height: 14),
+          if (_marketSalaries.isEmpty)
+            _buildEmptyChartState('Sin datos salariales registrados aún para tu programa.')
+          else
+            Column(
+              children: _marketSalaries.map((s) {
+                final range = s['range']?.toString() ?? '';
+                final count = (s['count'] as num? ?? 0).toInt();
+                final maxCount = _marketSalaries
+                    .map((e) => (e['count'] as num? ?? 1).toInt())
+                    .fold<int>(1, (a, b) => a > b ? a : b);
+                final ratio = (count / maxCount).clamp(0.08, 1.0);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(range, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.primaryText)),
+                          Text('$count ofertas', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppTheme.primaryColor)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 10,
+                          backgroundColor: context.borderColor,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationsStatusCard(BuildContext context) {
+    final total = _applicationsByStatus.fold<int>(0, (sum, item) => sum + ((item['count'] as num? ?? 0).toInt()));
+    final colors = [
+      AppTheme.primaryColor,
+      AppTheme.brand400,
+      AppTheme.brand300,
+      AppTheme.brand700,
+      AppTheme.primaryDark,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Estado de mis Postulaciones',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+          ),
+          const SizedBox(height: 14),
+          if (_applicationsByStatus.isEmpty || total == 0)
+            _buildEmptyChartState('Postúlate a vacantes para visualizar la distribución por etapa.')
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: List.generate(_applicationsByStatus.length, (i) {
+                final item = _applicationsByStatus[i];
+                final status = item['status']?.toString() ?? '';
+                final count = (item['count'] as num? ?? 0).toInt();
+                final pct = total > 0 ? ((count / total) * 100).round() : 0;
+                final color = colors[i % colors.length];
+
+                return Container(
+                  width: (MediaQuery.of(context).size.width - 78) / 2,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: context.mutedColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.borderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              status,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.secondaryText),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$pct%',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.primaryText),
+                          ),
+                          Text(
+                            '($count)',
+                            style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivitySection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Postulaciones Recientes',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+              ),
+              TextButton(
+                onPressed: () => MainLayoutScreen.switchTab(context, 3),
+                child: const Text(
+                  'Ver todas →',
+                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+          if (_recentActivity.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Aún no te has postulado a vacantes. Explora las ofertas recomendadas.',
+                style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+              ),
+            )
+          else
+            Column(
+              children: _recentActivity.map((item) {
+                final job = item['job_offer'] ?? {};
+                final company = job['company'] ?? {};
+                final status = item['status']?.toString() ?? 'POSTULADO';
+
+                return Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: context.mutedColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.borderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: AppTheme.brand50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.work_outline_rounded, color: AppTheme.primaryColor, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              job['title']?.toString() ?? 'Vacante',
+                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                            Text(
+                              company['name']?.toString() ?? 'Empresa Aliada',
+                              style: TextStyle(fontSize: 12, color: context.secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.brand50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          status,
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.primaryColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: context.secondaryText, fontWeight: FontWeight.w600)),
       ],
+    );
+  }
+
+  Widget _buildEmptyChartState(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        color: context.mutedColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+      ),
     );
   }
 }

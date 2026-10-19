@@ -27,11 +27,26 @@ class Graduate(Base):
     profile_summary = Column(Text, nullable=True)
     cv_url = Column(String(255), nullable=True)
     profile_picture_url = Column(String(255), nullable=True)
+    availability_status = Column(String(50), default="open_to_work")
+    preferred_modality = Column(String(50), default="Cualquiera")
+    availability_notice = Column(String(50), default="Inmediata")
+    expected_salary = Column(Integer, nullable=True)
+    job_alerts_enabled = Column(Boolean, default=True)
 
     experiences = relationship("WorkExperience", back_populates="graduate")
     academic_histories = relationship("AcademicHistory", back_populates="graduate")
     certifications = relationship("Certification", back_populates="graduate")
     skills = relationship("GraduateSkill", cascade="all, delete-orphan")
+    saved_jobs = relationship("SavedJob", cascade="all, delete-orphan")
+
+class SavedJob(Base):
+    __tablename__ = "saved_jobs"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    job_offer_id = Column(Integer, nullable=False, index=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 class GraduateSkill(Base):
     __tablename__ = "graduate_skills"

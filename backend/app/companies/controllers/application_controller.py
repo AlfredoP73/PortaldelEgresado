@@ -165,6 +165,10 @@ def get_applications_by_graduate_internal(graduate_id: int, db: Session = Depend
         
         job_dict["company"] = comp_dict
         job_dict["applicants_count"] = counts.get(app.job_offer_id, 0)
+        job_dict["skills"] = [
+            {"skill_id": sk.skill_id, "required_level": sk.required_level}
+            for sk in getattr(app.job_offer, "skills", [])
+        ]
         
         app_dict["job_offer"] = job_dict
         result.append(app_dict)
@@ -178,6 +182,7 @@ def apply_internal(payload: dict, db: Session = Depends(get_db)):
     
     graduate_id = payload.get("graduate_id")
     job_offer_id = payload.get("job_offer_id")
+    cover_letter = payload.get("cover_letter")
     
     existing = db.query(models.CandidateApplication).filter(
         models.CandidateApplication.job_offer_id == job_offer_id,
@@ -189,7 +194,8 @@ def apply_internal(payload: dict, db: Session = Depends(get_db)):
     new_app = models.CandidateApplication(
         job_offer_id=job_offer_id,
         graduate_id=graduate_id,
-        application_date=datetime.now()
+        application_date=datetime.now(),
+        cover_letter=cover_letter
     )
     db.add(new_app)
     db.commit()

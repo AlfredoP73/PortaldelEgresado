@@ -1,10 +1,7 @@
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'dart:ui';
-
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 import '../../jobs/presentation/widgets/job_card.dart';
@@ -16,235 +13,391 @@ class MatchmakingScreen extends StatefulWidget {
   State<MatchmakingScreen> createState() => _MatchmakingScreenState();
 }
 
-class _MatchmakingScreenState extends State<MatchmakingScreen> with TickerProviderStateMixin {
+class _MatchmakingScreenState extends State<MatchmakingScreen> {
+  List<Map<String, dynamic>> _recommendedJobs = [];
   bool _isLoading = true;
-  String? _error;
-  List<dynamic> _recommendedJobs = [];
-  
-  WebSocketChannel? _channel;
-  String? _currentGraduateId;
-
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
+  String _searchQuery = '';
+  String _modalityFilter = 'ALL';
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
-    
     _fetchRecommendations();
   }
 
-  @override
-  void dispose() {
-    _channel?.sink.close();
-    _animController.dispose();
-    super.dispose();
-  }
+  Future<void> _fetchRecommendations() async {
+    setState(() => _isLoading = true);
 
-  void _initWebSocket(String graduateId) {
     try {
-      final String baseUrl = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-      final uri = Uri.parse(baseUrl);
-      final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
-      final wsUrl = '$wsScheme://${uri.host}:${uri.port}/matching/ws/$graduateId';
-
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      _channel!.stream.listen((message) {
-        if (mounted) {
-          // If a new match arrives, silently refetch or just add to the top
-          _fetchRecommendations(silent: true);
-        }
-      });
-    } catch (e) {
-      // Ignorar error de websocket
-    }
-  }
-
-  Future<void> _fetchRecommendations({bool silent = false}) async {
-    try {
-      if (!silent) {
-        setState(() { _isLoading = true; _error = null; });
-      }
-
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('jwt_token');
-      if (token == null || token.isEmpty) {
-        throw Exception('Token no encontrado');
-      }
-      
-      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-      final graduateId = decodedToken['id']?.toString();
+      int? gradId;
 
-      if (graduateId == null) {
-        throw Exception('ID de egresado no encontrado en el token');
-      }
-
-      if (_currentGraduateId == null) {
-        _currentGraduateId = graduateId;
-        _initWebSocket(graduateId);
+      // 1. Obtener ID del egresado desde user_data o token JWT
+      final userDataStr = prefs.getString('user_data');
+      if (userDataStr != null && userDataStr.isNotEmpty) {
+        try {
+          final u = jsonDecode(userDataStr);
+          if (u is Map && u['id'] != null) {
+            gradId = u['id'] is int ? u['id'] as int : int.tryParse(u['id'].toString());
+          }
+        } catch (_) {}
       }
 
-      // 1. Fetch matches
-      final String baseUrl = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-      final matchesResponse = await ApiClient.instance.get('$baseUrl/matching/graduate/$graduateId');
-      final matches = matchesResponse.data as List<dynamic>;
+      if (gradId == null && token != null && token.isNotEmpty) {
+        try {
+          final decoded = JwtDecoder.decode(token);
+          final rawId = decoded['id'];
+          gradId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+        } catch (_) {}
+      }
 
-      // 2. Fetch all jobs
-      final jobsResponse = await ApiClient.instance.get('/modulo1/jobs');
-      final allJobs = jobsResponse.data as List<dynamic>;
-
-      // 3. Merge matches with jobs
-      final jobsMap = { for (var job in allJobs) job['id'] : job };
-      
-      final List<dynamic> merged = [];
-      for (var match in matches) {
-        final jobId = match['job_offer_id'];
-        if (jobsMap.containsKey(jobId)) {
-          final job = Map<String, dynamic>.from(jobsMap[jobId]);
-          job['match_score'] = double.tryParse(match['score'].toString()) ?? 0.0;
-          merged.add(job);
+      // 2. Fetch Matchmaking Scores for this Graduate (Matches GraduateMatchmaking.tsx)
+      final Map<int, double> scoresMap = {};
+      if (gradId != null) {
+        try {
+          final matchRes = await ApiClient.instance.get('/matching/graduate/$gradId?limit=200');
+          if (matchRes.data is List) {
+            for (final item in matchRes.data) {
+              if (item is Map && item['job_offer_id'] != null) {
+                final id = int.tryParse(item['job_offer_id']?.toString() ?? '') ?? 0;
+                final sc = double.tryParse(item['score']?.toString() ?? '') ?? 0.0;
+                if (id > 0) {
+                  scoresMap[id] = sc;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[MatchmakingScreen] Error fetching graduate matches: $e');
         }
       }
+
+      // 3. Fetch Jobs and filter where score > 0 (Matches GraduateMatchmaking.tsx)
+      final jobsRes = await ApiClient.instance.get('/modulo1/jobs');
+      final List<Map<String, dynamic>> matched = [];
+
+      if (jobsRes.data is List) {
+        for (final raw in jobsRes.data) {
+          if (raw is Map) {
+            final job = Map<String, dynamic>.from(raw);
+            final id = int.tryParse(job['id']?.toString() ?? '') ?? 0;
+            final score = scoresMap[id] ?? (double.tryParse(job['match_score']?.toString() ?? '') ?? 0.0);
+            if (score > 0) {
+              job['match_score'] = score;
+              matched.add(job);
+            }
+          }
+        }
+      }
+
+      matched.sort((a, b) {
+        final sa = double.tryParse(a['match_score']?.toString() ?? '') ?? 0.0;
+        final sb = double.tryParse(b['match_score']?.toString() ?? '') ?? 0.0;
+        return sb.compareTo(sa);
+      });
 
       if (mounted) {
         setState(() {
-          _recommendedJobs = merged;
+          _recommendedJobs = matched;
           _isLoading = false;
         });
-        if (!silent) _animController.forward(from: 0);
       }
     } catch (e) {
-      if (mounted) {
-        if (!silent) {
-          setState(() {
-            _error = 'Error al cargar las recomendaciones';
-            _isLoading = false;
-          });
-        }
-      }
+      debugPrint('[MatchmakingScreen] Error fetching recommendations: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _effectiveModality(Map<String, dynamic> job) {
+    return JobCard.effectiveModality(job);
+  }
+
+  List<Map<String, dynamic>> get _filteredRecommendations {
+    return _recommendedJobs.where((job) {
+      final title = job['title']?.toString().toLowerCase() ?? '';
+      final comp = job['company'] is Map ? job['company'] as Map : {};
+      final companyName = comp['name']?.toString().toLowerCase() ?? '';
+      final q = _searchQuery.toLowerCase();
+
+      if (q.isNotEmpty && !title.contains(q) && !companyName.contains(q)) {
+        return false;
+      }
+      if (_modalityFilter != 'ALL') {
+        final mod = _effectiveModality(job).toLowerCase();
+        if (!mod.contains(_modalityFilter.toLowerCase())) return false;
+      }
+      return true;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.bgColor,
-      body: Stack(
-        children: [
-          // Background ambient glows
-          Positioned(
-            top: -100, right: -50,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          Positioned(
-            bottom: -50, left: -50,
-            child: Container(
-              width: 250, height: 250,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
-            ),
-          ),
+    final filtered = _filteredRecommendations;
 
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: FadeTransition(
-                      opacity: _fadeAnim,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(Icons.auto_awesome, color: AppTheme.primaryColor, size: 24),
-                              ),
-                              const SizedBox(width: 12),
-                              Text('Sugeridas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: context.primaryText, letterSpacing: -0.5)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text('Vacantes recomendadas en vivo según tu perfil', style: TextStyle(fontSize: 14, color: context.isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.3))),
-                        ],
+    return RefreshIndicator(
+      color: AppTheme.primaryColor,
+      onRefresh: _fetchRecommendations,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header (Matches GraduateMatchmaking.tsx)
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.primaryGradient,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Vacantes Recomendadas para Ti',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: context.primaryText,
+                                letterSpacing: -0.4,
+                              ),
+                            ),
+                            Text(
+                              'Ofertas seleccionadas por afinidad con tus habilidades y programa.',
+                              style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Algorithm Breakdown Banner
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.brand50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.brand200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.insights_rounded, color: AppTheme.primaryColor, size: 17),
+                            SizedBox(width: 6),
+                            Text(
+                              'Motor de Matchmaking Inteligente UPC',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.brand800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _buildWeightChip('Habilidades Técnicas 40%'),
+                            _buildWeightChip('Programa Académico 30%'),
+                            _buildWeightChip('Experiencia 20%'),
+                            _buildWeightChip('Ubicación / Modalidad 10%'),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                Expanded(
-                  child: _isLoading 
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
-                    : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(_error!, style: const TextStyle(color: AppTheme.statusRechazado, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _fetchRecommendations,
-                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
-                                child: Text('Reintentar', style: TextStyle(color: context.primaryText)),
-                              )
-                            ],
-                          )
-                        )
-                      : _recommendedJobs.isEmpty 
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Text(
-                                'No hay recomendaciones por ahora.\nAsegúrate de completar tus habilidades en el perfil.', 
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: context.isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.25), fontSize: 15),
+                  const SizedBox(height: 14),
+
+                  // Search & Modality Filter
+                  TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: AppTheme.inputDecoration(
+                      context,
+                      label: 'Filtrar dentro de tus recomendaciones',
+                      hint: 'Cargo o empresa...',
+                      icon: Icons.search_rounded,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildModalityChip('Todas las modalidades', 'ALL'),
+                        _buildModalityChip('Presencial', 'Presencial'),
+                        _buildModalityChip('Remoto', 'Remoto'),
+                        _buildModalityChip('Híbrido', 'Híbrido'),
+                        if (_searchQuery.isNotEmpty || _modalityFilter != 'ALL')
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: ActionChip(
+                              avatar: const Icon(Icons.close_rounded, size: 14, color: AppTheme.statusRechazado),
+                              label: const Text('Limpiar filtros'),
+                              backgroundColor: AppTheme.statusRechazado.withValues(alpha: 0.1),
+                              labelStyle: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.statusRechazado,
                               ),
-                            )
-                          )
-                        : RefreshIndicator(
-                            color: AppTheme.primaryColor,
-                            backgroundColor: context.surfaceColor,
-                            onRefresh: _fetchRecommendations,
-                            child: ListView.separated(
-                              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                              padding: const EdgeInsets.only(left: 24, right: 24, top: 12, bottom: 120),
-                              itemCount: _recommendedJobs.length,
-                              separatorBuilder: (context, index) => const SizedBox(height: 16),
-                              itemBuilder: (context, index) {
-                                final job = _recommendedJobs[index];
-                                return SlideTransition(
-                                  position: _slideAnim,
-                                  child: FadeTransition(
-                                    opacity: _fadeAnim,
-                                    child: JobCard(
-                                      job: job, 
-                                      matchScore: job['match_score'],
-                                    ),
-                                  ),
-                                );
+                              side: const BorderSide(color: AppTheme.statusRechazado, width: 0.8),
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _modalityFilter = 'ALL';
+                                });
                               },
                             ),
                           ),
-                ),
-              ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+            )
+          else if (_recommendedJobs.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome_outlined, size: 52, color: context.tertiaryText),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Aún no hay recomendaciones con afinidad activa',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.primaryText),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Asegúrate de completar tus habilidades y programa académico en tu Hoja de Vida para recalcular tus coincidencias.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (filtered.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.filter_list_off_rounded, size: 52, color: context.tertiaryText),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No se encontraron recomendaciones con los filtros aplicados',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.primaryText),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Prueba seleccionando otra modalidad o restableciendo la búsqueda.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _searchQuery = '';
+                            _modalityFilter = 'ALL';
+                          });
+                        },
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Mostrar todas las sugerencias'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final job = filtered[index];
+                    final score = double.tryParse(job['match_score']?.toString() ?? '');
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: JobCard(
+                        job: job,
+                        matchScore: score,
+                      ),
+                    );
+                  },
+                  childCount: filtered.length,
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildWeightChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.brand200),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppTheme.brand700),
+      ),
+    );
+  }
+
+  Widget _buildModalityChip(String label, String value) {
+    final selected = _modalityFilter == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() => _modalityFilter = value),
+        selectedColor: AppTheme.primaryColor,
+        backgroundColor: context.surfaceColor,
+        labelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: selected ? Colors.white : context.secondaryText,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+          side: BorderSide(color: selected ? AppTheme.primaryColor : context.borderColor),
+        ),
+        showCheckmark: false,
       ),
     );
   }

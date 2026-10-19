@@ -117,6 +117,7 @@ class ApplicationBase(BaseModel):
     job_offer_id: int
     graduate_id: int
     application_date: datetime
+    cover_letter: Optional[str] = None
 
 class ApplicationCreate(ApplicationBase):
     pass
@@ -134,6 +135,7 @@ class Application(ApplicationBase):
     id: int
     status: ApplicationStatus
     rejection_reason: Optional[str] = None
+    cover_letter: Optional[str] = None
     
     class Config:
         from_attributes = True

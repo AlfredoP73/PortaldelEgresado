@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 
@@ -11,140 +12,160 @@ class EmailVerificationScreen extends StatefulWidget {
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   bool _isResending = false;
-  String? _message;
 
   Future<void> _resendEmail(String email) async {
-    setState(() { _isResending = true; _message = null; });
+    if (email.isEmpty) return;
+    setState(() => _isResending = true);
     try {
       await ApiClient.instance.post('/auth/resend-verification', data: {'email': email});
-      setState(() { _message = 'Correo reenviado con éxito.'; });
-    } catch (e) {
-      setState(() { _message = 'Hubo un error al reenviar el correo.'; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Correo de activación reenviado a $email'),
+            backgroundColor: AppTheme.primaryColor,
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      String msg = 'Error al reenviar el correo.';
+      if (e.response?.data != null && e.response?.data is Map) {
+        msg = e.response?.data['detail']?.toString() ?? msg;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.statusRechazado),
+        );
+      }
     } finally {
-      if (mounted) setState(() { _isResending = false; });
+      if (mounted) setState(() => _isResending = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String email = ModalRoute.of(context)?.settings.arguments as String? ?? 'tu correo';
+    final args = ModalRoute.of(context)?.settings.arguments;
+    String email = '';
+    String customMessage = '';
+
+    if (args is String) {
+      email = args;
+    } else if (args is Map) {
+      email = args['email']?.toString() ?? '';
+      customMessage = args['message']?.toString() ?? '';
+    }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.darkGradient),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: Column(children: [
-                // Logo
-                Container(
-                  width: 72, height: 72,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8))],
-                  ),
-                  child: Icon(Icons.school_rounded, size: 38, color: context.surfaceColor),
-                ),
-                SizedBox(height: 20),
-                Text('Universidad Popular del Cesar',
-                  style: TextStyle(color: context.primaryText, fontSize: 20, fontWeight: FontWeight.w800)),
-                SizedBox(height: 36),
-
-                // Card
-                Container(
-                  padding: EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: context.surfaceColor, borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.08), blurRadius: 40, offset: const Offset(0, 16)),
-                      BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.02), blurRadius: 12, offset: const Offset(0, 4)),
-                    ],
-                  ),
-                  child: Column(children: [
-                    Container(
-                      width: 76, height: 76,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1), shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.mark_email_read_rounded, color: AppTheme.primaryColor, size: 40),
+      backgroundColor: context.bgColor,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: context.surfaceColor,
+                borderRadius: AppTheme.authCardRadius,
+                border: Border.all(color: context.borderColor),
+                boxShadow: AppTheme.premiumShadow,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: AppTheme.brand50,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.brand200),
                     ),
-                    SizedBox(height: 24),
-                    Text('¡Revisa tu bandeja!',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: context.primaryText)),
-                    SizedBox(height: 12),
-                    Text('Hemos enviado un enlace de activación a:', textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: context.secondaryText)),
-                    SizedBox(height: 10),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: context.bgColor, borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color(0xFFE5E7EB)),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.email_outlined, size: 18, color: AppTheme.primaryColor),
-                        SizedBox(width: 10),
-                        Flexible(child: Text(email,
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.primaryText),
-                          overflow: TextOverflow.ellipsis)),
-                      ]),
+                    child: const Icon(
+                      Icons.mark_email_read_rounded,
+                      color: AppTheme.brand500,
+                      size: 34,
                     ),
-                    SizedBox(height: 16),
-                    Text('Haz clic en el enlace del correo para\nactivar tu cuenta.', textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: context.secondaryText, height: 1.5)),
-
-                    if (_message != null) ...[
-                      SizedBox(height: 16),
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _message!.contains('éxito') ? AppTheme.primaryColor.withValues(alpha: 0.1) : Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _message!.contains('éxito') ? AppTheme.primaryColor.withValues(alpha: 0.3) : Color(0xFFFECACA)),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '¡Activa tu cuenta en tu correo!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: context.primaryText,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    customMessage.isNotEmpty
+                        ? customMessage
+                        : 'Enviamos un enlace de activación y verificación a tu correo institucional. Haz clic en él para activar tu cuenta.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: context.secondaryText,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (email.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.brand50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.brand200),
+                      ),
+                      child: Text(
+                        email,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.brand700,
+                          fontSize: 13.5,
                         ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(_message!.contains('éxito') ? Icons.check_circle_outline : Icons.error_outline,
-                            size: 16, color: _message!.contains('éxito') ? AppTheme.primaryColor : Color(0xFFEF4444)),
-                          SizedBox(width: 8),
-                          Text(_message!, style: TextStyle(fontSize: 13,
-                            color: _message!.contains('éxito') ? AppTheme.primaryColor : Color(0xFFDC2626))),
-                        ]),
                       ),
-                    ],
-                    SizedBox(height: 28),
-
-                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                      onPressed: _isResending ? null : () => _resendEmail(email),
-                      icon: _isResending
-                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor))
-                        : Icon(Icons.refresh_rounded, size: 18),
-                      label: Text(_isResending ? 'Reenviando...' : 'Reenviar correo'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primaryColor,
-                        side: BorderSide(color: Color(0xFFE5E7EB)),
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    )),
-                    SizedBox(height: 12),
-                    SizedBox(width: double.infinity, child: ElevatedButton(
-                      onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor, foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0,
+                        backgroundColor: AppTheme.primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text('Ir al Inicio de Sesión', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded, size: 20),
-                      ]),
-                    )),
-                  ]),
-                ),
-                SizedBox(height: 32),
-              ]),
+                      child: const Text(
+                        'Volver al inicio de sesión',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _isResending ? null : () => _resendEmail(email),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _isResending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'No recibí el correo, reenviar',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

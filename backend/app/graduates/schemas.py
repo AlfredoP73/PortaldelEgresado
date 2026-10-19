@@ -79,6 +79,11 @@ class GraduateBase(BaseModel):
     cv_url: Optional[str] = None
     profile_picture_url: Optional[str] = None
     profile_summary: Optional[str] = None
+    availability_status: Optional[str] = "open_to_work"
+    preferred_modality: Optional[str] = "Cualquiera"
+    availability_notice: Optional[str] = "Inmediata"
+    expected_salary: Optional[int] = None
+    job_alerts_enabled: Optional[bool] = True
 
 class GraduateCreate(GraduateBase):
     user_id: Optional[int] = None
@@ -92,6 +97,11 @@ class GraduateUpdate(BaseModel):
     cv_url: Optional[str] = None
     profile_picture_url: Optional[str] = None
     profile_summary: Optional[str] = None
+    availability_status: Optional[str] = None
+    preferred_modality: Optional[str] = None
+    availability_notice: Optional[str] = None
+    expected_salary: Optional[int] = None
+    job_alerts_enabled: Optional[bool] = None
     
     # Extra fields sent by mobile app that we can safely ignore
     document_id: Optional[str] = None
@@ -102,6 +112,11 @@ class GraduateUpdate(BaseModel):
 
 class GraduateSkillsUpdate(BaseModel):
     skills: List[GraduateSkillCreate]
+
+class QuickAddSkillRequest(BaseModel):
+    skill_id: Optional[int] = None
+    skill_name: Optional[str] = None
+    proficiency_level: str = "Intermedio"
 
 class Graduate(GraduateBase):
     user_id: int
@@ -115,34 +130,51 @@ class Graduate(GraduateBase):
 
 # For Job Board (Read-Only Views)
 class SectorMinimal(BaseModel):
+    id: Optional[int] = None
     name: str
     class Config:
         from_attributes = True
 
 class CityMinimal(BaseModel):
+    id: Optional[int] = None
     name: str
     class Config:
         from_attributes = True
 
 class CompanyFull(BaseModel):
+    user_id: Optional[int] = None
     name: str
+    description: Optional[str] = None
+    contact_email: Optional[str] = None
     sector: Optional[SectorMinimal] = None
     city: Optional[CityMinimal] = None
     class Config:
         from_attributes = True
 
+class JobOfferSkillOut(BaseModel):
+    skill_id: int
+    required_level: Optional[str] = "Intermedio"
+    class Config:
+        from_attributes = True
+
 class JobOffer(BaseModel):
     id: int
+    company_id: Optional[int] = None
     title: str
     description: str
     requirements: str
     functions: str
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
+    min_experience_years: Optional[int] = 0
+    available_slots: Optional[int] = 1
+    modality: Optional[str] = "Presencial"
+    contract_type: Optional[str] = "Indefinido"
     program_id: int
     closing_date: date
     status: str
     company: CompanyFull
+    skills: List[JobOfferSkillOut] = []
     
     class Config:
         from_attributes = True
@@ -160,12 +192,15 @@ class ApplicationSubProcessSchema(BaseModel):
     preguntas_json: Optional[Any] = None
     respuestas_json: Optional[Any] = None
     enlace_adjunto: Optional[str] = None
+    archivo_respuesta: Optional[str] = None
+    score: Optional[int] = None
 
     class Config:
         from_attributes = True
 
 class ApplicationCreate(BaseModel):
     job_offer_id: int
+    cover_letter: Optional[str] = None
 
 class Application(BaseModel):
     id: int
@@ -173,6 +208,8 @@ class Application(BaseModel):
     graduate_id: int
     application_date: datetime
     status: str
+    rejection_reason: Optional[str] = None
+    cover_letter: Optional[str] = None
     job_offer: Optional[JobOffer] = None
     sub_processes: List[ApplicationSubProcessSchema] = []
 

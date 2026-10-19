@@ -6,7 +6,7 @@ import api from '../../../api';
 import {
   Edit2, GraduationCap, Mail, Award,
   Upload, FileText, Loader2, Camera, Phone, Briefcase,
-  Star, Plus, X, Check
+  Star, Plus, X, Check, Sparkles, Bell, DollarSign, Clock, Globe
 } from 'lucide-react';
 import ProfileCompleteness from '../components/ProfileCompleteness';
 import ProfileWizard from '../components/ProfileWizard';
@@ -41,6 +41,11 @@ interface Graduate {
   cv_url?: string;
   profile_picture_url?: string;
   profile_summary?: string;
+  availability_status?: string;
+  preferred_modality?: string;
+  availability_notice?: string;
+  expected_salary?: number;
+  job_alerts_enabled?: boolean;
   experiences: WorkExperience[];
   academic_histories: AcademicHistory[];
   skills: { skill_id: number; proficiency_level: string }[];
@@ -59,6 +64,15 @@ export default function GraduateProfile() {
   const [selectedSkills, setSelectedSkills] = useState<number[]>([]);
   const [newSkillName, setNewSkillName] = useState('');
   const [uploadingCV, setUploadingCV] = useState(false);
+  const [savingPreferences, setSavingPreferences] = useState(false);
+
+  // Career Preferences & #OpenToWork state
+  const [availabilityStatus, setAvailabilityStatus] = useState('OPEN_TO_WORK');
+  const [preferredModality, setPreferredModality] = useState('Cualquiera');
+  const [availabilityNotice, setAvailabilityNotice] = useState('Inmediata');
+  const [expectedSalary, setExpectedSalary] = useState<string>('');
+  const [jobAlertsEnabled, setJobAlertsEnabled] = useState(true);
+
   const navigate = useNavigate();
   
   const handleCompletenessAction = (actionId: string) => {
@@ -68,6 +82,7 @@ export default function GraduateProfile() {
       case 'cv': document.getElementById('cv-upload')?.click(); break;
       case 'skills': setIsEditingSkills(true); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100); break;
       case 'exp': navigate('/experience'); break;
+      case 'preferences': document.getElementById('preferences-card')?.scrollIntoView({ behavior: 'smooth' }); break;
     }
   };
 
@@ -84,11 +99,19 @@ export default function GraduateProfile() {
         api.get('/programs'),
         graduatesApi.get('/skills').catch(() => ({ data: [] })),
       ]);
-      setProfile(profileRes.data);
-      if (profileRes.data?.skills) setSelectedSkills(profileRes.data.skills.map((s: any) => s.skill_id));
+      const data = profileRes.data;
+      setProfile(data);
+      if (data) {
+        if (data.skills) setSelectedSkills(data.skills.map((s: any) => s.skill_id));
+        setAvailabilityStatus(data.availability_status || 'OPEN_TO_WORK');
+        setPreferredModality(data.preferred_modality || 'Cualquiera');
+        setAvailabilityNotice(data.availability_notice || 'Inmediata');
+        setExpectedSalary(data.expected_salary ? String(data.expected_salary) : '');
+        setJobAlertsEnabled(data.job_alerts_enabled !== undefined ? Boolean(data.job_alerts_enabled) : true);
+      }
       setPrograms(programsRes.data);
       setAvailableSkills(skillsRes.data);
-      if (!profileRes.data) setIsEditing(true);
+      if (!data) setIsEditing(true);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -96,7 +119,32 @@ export default function GraduateProfile() {
     }
   };
 
-
+  const handleSavePreferences = async () => {
+    if (!profile) return;
+    try {
+      setSavingPreferences(true);
+      const payload = {
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        program_id: profile.program_id,
+        graduation_year: profile.graduation_year,
+        phone: profile.phone,
+        profile_summary: profile.profile_summary,
+        availability_status: availabilityStatus,
+        preferred_modality: preferredModality,
+        availability_notice: availabilityNotice,
+        expected_salary: expectedSalary ? Number(expectedSalary) : null,
+        job_alerts_enabled: jobAlertsEnabled,
+      };
+      const res = await graduatesApi.post('/profile', payload);
+      setProfile(res.data);
+      toast.success('Estado #OpenToWork y preferencias laborales actualizados');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Error al actualizar preferencias laborales');
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
 
   const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,6 +234,12 @@ export default function GraduateProfile() {
   /* ── Profile initials ── */
   const initials = `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
 
+  const statusMeta = availabilityStatus === 'OPEN_TO_WORK'
+    ? { label: '#OpenToWork · Buscando empleo activamente', color: '#10b981', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)' }
+    : availabilityStatus === 'OPEN_TO_OFFERS'
+    ? { label: 'Abierto a escuchar ofertas', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.35)' }
+    : { label: 'No busco empleo por ahora', color: '#64748b', bg: 'rgba(100,116,139,0.12)', border: 'rgba(100,116,139,0.35)' };
+
   return (
     <div className="space-y-6 w-full">
 
@@ -219,20 +273,24 @@ export default function GraduateProfile() {
             <span className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 rounded-full" style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
               Portal Empleo · Universidad UPC
             </span>
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ color: '#45c388', background: 'rgba(34,168,110,0.15)', border: '1px solid rgba(34,168,110,0.3)' }}>
-              GRADUATE
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5" style={{ color: statusMeta.color, background: 'rgba(0,0,0,0.45)', border: `1px solid ${statusMeta.border}` }}>
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: statusMeta.color }} />
+              {statusMeta.label}
             </span>
           </div>
         </div>
 
         <div className="px-8 pb-8">
           {/* Avatar row */}
-          <div className="flex items-end justify-between -mt-14 mb-4 relative z-10">
+          <div className="flex flex-wrap items-end justify-between gap-4 -mt-14 mb-4 relative z-10">
             <div className="flex items-end gap-5">
               {/* Avatar */}
               <div className="relative group flex-shrink-0">
                 <div className="w-28 h-28 rounded-2xl overflow-hidden shadow-xl flex items-center justify-center font-black text-3xl text-white"
-                  style={{ background: 'linear-gradient(135deg, #22a86e, #0e4832)', border: '4px solid var(--bg-surface)' }}>
+                  style={{
+                    background: 'linear-gradient(135deg, #22a86e, #0e4832)',
+                    border: availabilityStatus === 'OPEN_TO_WORK' ? '4px solid #10b981' : '4px solid var(--bg-surface)',
+                  }}>
                   {profile.profile_picture_url
                     ? <img src={`${GRADUATES_URL}${profile.profile_picture_url}`} alt="Avatar" className="w-full h-full object-cover" />
                     : initials
@@ -244,13 +302,16 @@ export default function GraduateProfile() {
                   <Camera className="w-7 h-7 text-white" />
                   <input id="avatar-upload" type="file" className="hidden" accept="image/jpeg, image/png, image/webp" onChange={handleAvatarUpload} />
                 </label>
-                {/* Online indicator */}
-                <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white" style={{ background: '#22a86e' }} />
+                {availabilityStatus === 'OPEN_TO_WORK' && (
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap">
+                    #OpenToWork
+                  </div>
+                )}
               </div>
             </div>
 
             {/* CV actions */}
-            <div className="flex items-center gap-2 pb-1">
+            <div className="flex flex-wrap items-center gap-2 pb-1">
               {profile.cv_url && (
                 <a href={`${GRADUATES_URL}${profile.cv_url}`} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl transition-all"
@@ -260,7 +321,7 @@ export default function GraduateProfile() {
                   <FileText className="w-4 h-4" /> Ver Hoja de Vida
                 </a>
               )}
-              <div>
+              <div className="flex flex-wrap items-center gap-2">
                 <input id="cv-upload" type="file" className="hidden" accept="application/pdf" onChange={handleCVUpload} />
                 <button
                   onClick={() => document.getElementById('cv-upload')?.click()}
@@ -305,6 +366,10 @@ export default function GraduateProfile() {
                 style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}>
                 <Briefcase className="w-3.5 h-3.5 text-brand-600" />
                 {profile.graduation_year}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+                style={{ background: statusMeta.bg, color: statusMeta.color, border: `1px solid ${statusMeta.border}` }}>
+                {statusMeta.label}
               </span>
             </div>
           </div>
@@ -353,6 +418,128 @@ export default function GraduateProfile() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Disponibilidad #OpenToWork, Preferencias Laborales y Alertas Inteligentes ── */}
+      <div id="preferences-card" className="card">
+        <div className="p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #22a86e, #116e48)' }}>
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-ink leading-none">Estado #OpenToWork, Preferencias y Alertas</h4>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  Configura tu disponibilidad para que las empresas aliadas y el motor de IA te conecten con las vacantes ideales
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSavePreferences}
+              disabled={savingPreferences}
+              className="btn-primary text-sm py-2 px-5 flex items-center gap-2 shrink-0"
+            >
+              {savingPreferences ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Guardar Preferencias
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-brand-600" /> Estado de Búsqueda
+              </label>
+              <select
+                className="input w-full text-sm font-semibold"
+                value={availabilityStatus}
+                onChange={(e) => setAvailabilityStatus(e.target.value)}
+              >
+                <option value="OPEN_TO_WORK">🟢 #OpenToWork · Buscando activamente</option>
+                <option value="OPEN_TO_OFFERS">🔵 Abierto a escuchar ofertas</option>
+                <option value="EMPLOYED_CLOSED">⚪ No busco empleo por ahora</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                <Globe className="w-3.5 h-3.5 text-brand-600" /> Modalidad Preferida
+              </label>
+              <select
+                className="input w-full text-sm font-semibold"
+                value={preferredModality}
+                onChange={(e) => setPreferredModality(e.target.value)}
+              >
+                <option value="Cualquiera">Cualquiera (Flexible)</option>
+                <option value="Remoto">100% Remoto</option>
+                <option value="Híbrido">Híbrido</option>
+                <option value="Presencial">Presencial</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                <Clock className="w-3.5 h-3.5 text-brand-600" /> Disponibilidad de Incorporación
+              </label>
+              <select
+                className="input w-full text-sm font-semibold"
+                value={availabilityNotice}
+                onChange={(e) => setAvailabilityNotice(e.target.value)}
+              >
+                <option value="Inmediata">Inmediata</option>
+                <option value="1 semana">En 1 semana</option>
+                <option value="2 semanas">En 2 semanas</option>
+                <option value="1 mes">En 1 mes</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-brand-600" /> Aspiración Salarial (COP/mes)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={100000}
+                placeholder="Ej: 3500000"
+                className="input w-full text-sm font-semibold"
+                value={expectedSalary}
+                onChange={(e) => setExpectedSalary(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div
+            className="p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+            style={{ background: 'var(--bg-muted)', border: '1px solid var(--border-color)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 shrink-0">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-ink">Alertas Inteligentes de Vacantes de Alta Afinidad</p>
+                <p className="text-xs text-ink-secondary">
+                  Recibe notificaciones automáticas cuando se publique una vacante con más de 75% de afinidad con tu perfil.
+                </p>
+              </div>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={jobAlertsEnabled}
+                onChange={(e) => setJobAlertsEnabled(e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all relative peer-checked:bg-emerald-600" />
+              <span className="text-xs font-bold text-ink">
+                {jobAlertsEnabled ? 'Activadas' : 'Pausadas'}
+              </span>
+            </label>
           </div>
         </div>
       </div>

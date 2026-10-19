@@ -40,7 +40,7 @@ export default function Login() {
     const [acceptPrivacy, setAcceptPrivacy] = useState(false);
     const [authorizeData, setAuthorizeData] = useState(false);
 
-    const handleNextStep = () => {
+    const handleNextStep = async () => {
         setError('');
         if (registerStep === 1) {
             setRegisterStep(2);
@@ -59,6 +59,21 @@ export default function Login() {
                 setError('La contraseña debe tener al menos 8 caracteres y cumplir los requisitos de seguridad.');
                 return;
             }
+
+            if (roleId === 3) {
+                setLoading(true);
+                try {
+                    await authApi.post('/validate-graduate-email', { email: email.trim() });
+                    setRegisterStep(3);
+                } catch (err: unknown) {
+                    const apiErr = err as ApiError;
+                    setError(apiErr.response?.data?.detail || 'Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC.');
+                } finally {
+                    setLoading(false);
+                }
+                return;
+            }
+
             setRegisterStep(3);
         }
     };
@@ -68,7 +83,7 @@ export default function Login() {
         setError('');
         
         if (isRegistering && registerStep < 3) {
-            handleNextStep();
+            await handleNextStep();
             return;
         }
 

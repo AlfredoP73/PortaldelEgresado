@@ -39,3 +39,24 @@ def get_survey_response(survey_id: int, db: Session = Depends(get_db), current_u
 @router.post("/surveys/{survey_id}/response", response_model=schemas.SurveyResponse, dependencies=[Depends(require_graduate)])
 def submit_survey_response(survey_id: int, answers: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return misc_service.submit_survey_response(survey_id, answers, current_user, db)
+
+@router.get("/saved-jobs")
+def get_saved_jobs(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.get_saved_jobs(current_user, db)
+
+@router.post("/saved-jobs/{job_offer_id}")
+def toggle_saved_job(job_offer_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.toggle_saved_job(job_offer_id, current_user, db)
+
+@router.get("/jobs/{job_offer_id}/affinity-breakdown")
+def get_job_affinity_breakdown(job_offer_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.get_job_affinity_breakdown(job_offer_id, current_user, db)
+
+@router.get("/companies-directory")
+def get_companies_directory(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.get_companies_directory(db)
+
+@router.get("/jobs/{job_offer_id}/interview-prep")
+def get_interview_prep(job_offer_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.get_interview_prep(job_offer_id, current_user, db)
+

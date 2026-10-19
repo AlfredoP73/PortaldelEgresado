@@ -16,11 +16,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  
-  // Inicializar interceptores de red (JWT token)
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
+
   await ApiClient.init();
-  
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -37,12 +38,11 @@ class EgresadoApp extends StatelessWidget {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
-          title: 'Portal del Egresado',
+          title: 'Portal del Egresado UPC',
           debugShowCheckedModeBanner: false,
           themeMode: themeProvider.themeMode,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          
           initialRoute: '/',
           routes: {
             '/': (context) => const LoginScreen(),
@@ -59,7 +59,9 @@ class EgresadoApp extends StatelessWidget {
             }
             if (settings.name == '/reset_password') {
               final args = settings.arguments as Map<String, dynamic>;
-              return MaterialPageRoute(builder: (context) => ResetPasswordScreen(email: args['email'], pin: args['pin']));
+              return MaterialPageRoute(
+                builder: (context) => ResetPasswordScreen(email: args['email'], pin: args['pin']),
+              );
             }
             return null;
           },

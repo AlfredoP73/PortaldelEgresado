@@ -133,5 +133,16 @@ class NotificationResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ValidateGraduateEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class ValidateGraduateEmailResponse(BaseModel):
+    valid: bool = True
+    message: str
+    email: str
+
+
 # Resolver referencia forward
 TokenResponse.model_rebuild()

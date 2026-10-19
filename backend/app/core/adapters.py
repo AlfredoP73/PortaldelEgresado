@@ -135,6 +135,9 @@ class CompaniesServicePort(ABC):
     def get_all_companies(self) -> list: pass
 
     @abstractmethod
+    def get_companies_directory(self) -> list: pass
+
+    @abstractmethod
     def get_all_applications(self) -> list: pass
     
     @abstractmethod
@@ -234,6 +237,12 @@ class HttpCompaniesAdapter(CompaniesServicePort):
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_companies(self) -> list:
         resp = httpx.get(f"{self.base_url}/api/internal/companies", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_companies_directory(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/companies-directory", timeout=5.0)
         resp.raise_for_status()
         return resp.json()
 

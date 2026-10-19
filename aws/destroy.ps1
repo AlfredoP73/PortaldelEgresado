@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Continue"
 
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host " Iniciando Destrucción Arquitectura 1 (3 EC2 + 2 ALBs) " -ForegroundColor Cyan -BackgroundColor DarkRed
+Write-Host " Iniciando Destrucción Arquitectura 1 (2 EC2 ASG + 2 ALBs + RDS Multi-AZ) " -ForegroundColor Cyan -BackgroundColor DarkRed
 Write-Host "=======================================================" -ForegroundColor Cyan
 
 # 1. Configurar y Validar Autenticación
@@ -167,8 +167,8 @@ foreach ($tg in ($Tgs -split '\s+' | Where-Object { $_ -ne "" })) {
     }
 }
 
-# 5. Fase 4: Instancias EC2 de las 3 Capas (portal_front, portal_back, portal_data)
-Write-Host "`n[Fase 4: Instancias EC2 (portal_front, portal_back, portal_data)]" -ForegroundColor Yellow
+# 5. Fase 4: Instancias EC2 de las Capas Front y Back (portal_front, portal_back)
+Write-Host "`n[Fase 4: Instancias EC2 ASG (portal_front, portal_back)]" -ForegroundColor Yellow
 $InstQueryTags = aws ec2 describe-instances --filters "Name=tag:Name,Values=portal_front,portal_back,portal_data,PortalEgresado-Server" "Name=instance-state-name,Values=running,pending,stopped,stopping" --query "Reservations[*].Instances[*].InstanceId" --output text 2>$null
 $AllInstsToKill = @($InstQueryTags -split '\s+' | Where-Object { $_ -match '^i-' })
 
@@ -226,9 +226,11 @@ if ($Clusters -match "portal-cluster") {
     aws ecs delete-cluster --cluster portal-cluster 2>$null | Out-Null
 }
 
+# 6. Fase 5: Base de Datos Relacional Amazon RDS PostgreSQL Multi-AZ
+Write-Host "`n[Fase 5: Base de Datos Relacional Amazon RDS PostgreSQL Multi-AZ]" -ForegroundColor Yellow
 $RdsStatus = aws rds describe-db-instances --db-instance-identifier portal-db-rds --query "DBInstances[0].DBInstanceStatus" --output text 2>$null
 if ($RdsStatus -and $RdsStatus -ne "None" -and $RdsStatus.Trim() -ne "") {
-    Write-Host "`n[Limpieza Preventiva] Detectada instancia RDS portal-db-rds en la VPC, eliminando..." -ForegroundColor Yellow
+    Write-Host "  -> Eliminando instancia RDS 'portal-db-rds' (Multi-AZ)..." -ForegroundColor Cyan
     if ($RdsStatus.Trim() -ne "deleting") {
         aws rds delete-db-instance --db-instance-identifier portal-db-rds --skip-final-snapshot --delete-automated-backups 2>$null | Out-Null
     }
@@ -243,15 +245,19 @@ if ($RdsStatus -and $RdsStatus -ne "None" -and $RdsStatus.Trim() -ne "") {
         Start-Sleep -Seconds 15
         $rdsWait++
     }
+    Write-Host "  -> Instancia RDS eliminada con éxito." -ForegroundColor Green
     aws rds delete-db-subnet-group --db-subnet-group-name portal-db-subnets 2>$null | Out-Null
+    Write-Host "  -> DB Subnet Group 'portal-db-subnets' eliminado." -ForegroundColor Green
+} else {
+    Write-Host "  -> No se encontró instancia RDS 'portal-db-rds' activa." -ForegroundColor Green
 }
 
-# 6. Fase 5: Limpieza Profunda de Red Multi-AZ (VPC, 2 NAT Gateways, EIPs, ENIs, 3 Route Tables, 5 SGs, 6 Subredes, IGW)
+# 7. Fase 6: Limpieza Profunda de Red Multi-AZ (VPC, 2 NAT Gateways, EIPs, ENIs, 3 Route Tables, 5 SGs, 6 Subredes, IGW)
 $Vpcs = aws ec2 describe-vpcs --filters "Name=tag:Name,Values=portal_vpc" --query "Vpcs[*].VpcId" --output text 2>$null
 $VpcArray = @($Vpcs -split '\s+' | Where-Object { $_ -match '^vpc-' })
 
 foreach ($VpcId in $VpcArray) {
-    Write-Host "`n[Fase 5: Red Multi-AZ] Limpiando recursos de red en VPC: $VpcId" -ForegroundColor Yellow
+    Write-Host "`n[Fase 6: Red Multi-AZ] Limpiando recursos de red en VPC: $VpcId" -ForegroundColor Yellow
 
     # A. NAT Gateways (portal_nat_gw_a, portal_nat_gw_b)
     $NatGws = aws ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$VpcId" "Name=state,Values=available,pending,failed" --query "NatGateways[*].NatGatewayId" --output text 2>$null
@@ -402,8 +408,8 @@ foreach ($oIgw in ($OrphanIgws -split '\s+' | Where-Object { $_ -match '^igw-' }
     aws ec2 delete-internet-gateway --internet-gateway-id $oIgw 2>$null | Out-Null
 }
 
-# 7. Fase 6: Eliminar Buckets de S3 (portal-cvs, portal-avatars, portal-deliverables)
-Write-Host "`n[Fase 6: Almacenamiento S3] Eliminando Buckets de S3..." -ForegroundColor Yellow
+# 8. Fase 7: Eliminar Buckets de S3 (portal-cvs, portal-avatars, portal-deliverables)
+Write-Host "`n[Fase 7: Almacenamiento S3] Eliminando Buckets de S3..." -ForegroundColor Yellow
 $BucketsToRemove = @()
 if ($AccountId) {
     $BucketsToRemove += @("portal-cvs-$AccountId", "portal-avatars-$AccountId", "portal-deliverables-$AccountId", "portal-front-$AccountId")

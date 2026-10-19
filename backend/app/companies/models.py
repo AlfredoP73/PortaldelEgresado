@@ -109,6 +109,7 @@ class CandidateApplication(Base):
     application_date = Column(DateTime(timezone=True), default=func.now())
     status = Column(Enum(ApplicationStatus, native_enum=False), default=ApplicationStatus.POSTULADO)
     rejection_reason = Column(String, nullable=True)
+    cover_letter = Column(Text, nullable=True)
 
     job_offer = relationship("JobOffer", back_populates="applications")
     sub_processes = relationship("ApplicationSubProcess", back_populates="application", cascade="all, delete-orphan")

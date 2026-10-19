@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:ui';
-
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/network/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,274 +14,527 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
-  late AnimationController _animController;
-  late Animation<double> _fadeIn;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
-    _animController.forward();
-  }
 
   @override
   void dispose() {
-    _animController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
-    setState(() { _isLoading = true; _errorMessage = null; });
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Por favor ingresa tu correo y contraseña.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
       final response = await ApiClient.instance.post('/auth/login', data: {
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text,
+        'email': email,
+        'password': password,
       });
+
       final token = response.data['access_token'];
       final user = response.data['user'];
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('jwt_token', token);
-      if (!mounted) return;
-
-      if (user['privacy_policy_accepted'] == false) {
-        Navigator.pushReplacementNamed(context, '/privacy_settings');
-      } else {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+      if (user != null) {
+        await prefs.setString('user_data', jsonEncode(user));
       }
-    } catch (e) {
-      setState(() { _errorMessage = 'Credenciales incorrectas'; });
+
+      if (mounted) {
+        if (user != null && user['privacy_policy_accepted'] == false) {
+          Navigator.pushReplacementNamed(context, '/privacy_settings', arguments: {'isBlocker': true});
+        } else {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
+      }
+    } on DioException catch (e) {
+      String msg = 'No se pudo conectar con el servidor (${ApiClient.baseUrl}).';
+      if (e.response?.data != null && e.response?.data is Map) {
+        msg = e.response?.data['detail']?.toString() ?? msg;
+      }
+      if (mounted) {
+        setState(() => _errorMessage = msg);
+      }
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bgColor,
-      body: Stack(
-        children: [
-          // Background ambient glows
-          Positioned(
-            top: -150, left: -50,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          Positioned(
-            bottom: -50, right: -100,
-            child: Container(
-              width: 250, height: 250,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: FadeTransition(
-              opacity: _fadeIn,
-              child: Column(
-                children: [
-                  SizedBox(height: 40),
-                  // ── Logo ──
-                  Container(
-                    width: 100, height: 100,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8)),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/images/app_icon.png',
-                        fit: BoxFit.contain,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // ── Web Institutional Hero Top Section (Matches Login.tsx left panel) ──
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: AppTheme.heroBannerGradient,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Crest + University Header
+                      Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                            ),
+                            child: Image.asset(
+                              'assets/images/app_icon.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const Icon(
+                                Icons.school_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'UNIVERSIDAD POPULAR DEL CESAR',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.65),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Portal de Egresados y Empleabilidad',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Text('Universidad Popular del Cesar',
-                    style: TextStyle(color: context.primaryText, fontSize: 16, fontWeight: FontWeight.w800)),
-                  SizedBox(height: 4),
-                  Text('Oficina de Seguimiento a Egresados',
-                    style: TextStyle(color: AppTheme.primaryColor.withValues(alpha: 0.8), fontSize: 13)),
-                  SizedBox(height: 28),
+                      const SizedBox(height: 20),
 
-                  // ── Badge ──
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(50),
-                      border: Border.all(color: AppTheme.primaryColor),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      // Pill Badge
                       Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor,
-                          boxShadow: [BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.6), blurRadius: 6)]),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22A86E).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0xFF22A86E).withValues(alpha: 0.35)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, color: Color(0xFF45C388), size: 13),
+                            SizedBox(width: 6),
+                            Text(
+                              'PLATAFORMA OFICIAL DE EGRESADOS',
+                              style: TextStyle(
+                                color: Color(0xFF7CDAAC),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      SizedBox(width: 8),
-                      Text('PORTAL DE EGRESADOS Y EMPLEABILIDAD',
-                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-                    ]),
+                      const SizedBox(height: 14),
+
+                      // Hero Title
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            height: 1.18,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                          children: [
+                            TextSpan(text: 'Conectando el '),
+                            TextSpan(
+                              text: 'talento graduado',
+                              style: TextStyle(color: Color(0xFF45C388)),
+                            ),
+                            TextSpan(text: ' con el futuro.'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Accede a vacantes con afinidad inteligente, seguimiento de postulaciones en tiempo real y actualización de tu hoja de vida institucional.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 12.5,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // 3 Stats Strip (Matching Login.tsx)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildHeroStat('15,000+', 'Egresados activos'),
+                            Container(width: 1, height: 28, color: Colors.white.withValues(alpha: 0.12)),
+                            _buildHeroStat('380+', 'Empresas aliadas'),
+                            Container(width: 1, height: 28, color: Colors.white.withValues(alpha: 0.12)),
+                            _buildHeroStat('94%', 'Empleabilidad'),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 32),
+                ),
+              ),
+            ),
 
-                  // ── Headline ──
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, height: 1.2, color: context.primaryText, letterSpacing: -0.5),
-                      children: [
-                        TextSpan(text: 'Conectando\n'),
-                        TextSpan(text: 'talento ', style: TextStyle(color: AppTheme.primaryColor)),
-                        TextSpan(text: 'con el futuro.'),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 32),
-
-
-
-                  // ── Login Card ──
-                  if (_errorMessage != null) ...[
+            // ── Main Login Card (Matches Login.tsx right panel card) ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: context.surfaceColor,
+                  borderRadius: AppTheme.authCardRadius,
+                  border: Border.all(color: context.borderColor),
+                  boxShadow: AppTheme.premiumShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Card Header
                     Container(
-                      padding: EdgeInsets.all(12),
-                      margin: EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF3D0D0D), borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                        border: Border(bottom: BorderSide(color: context.borderColor.withValues(alpha: 0.6))),
                       ),
-                      child: Row(children: [
-                        Icon(Icons.error_outline, size: 16, color: Color(0xFFEF4444)),
-                        SizedBox(width: 8),
-                        Expanded(child: Text(_errorMessage!, style: TextStyle(color: Colors.white, fontSize: 13))),
-                      ]),
-                    ),
-                  ],
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                    decoration: BoxDecoration(
-                      color: context.surfaceColor,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05)),
-                      boxShadow: [
-                        BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05), blurRadius: 40, offset: Offset(0, 20)),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.school_rounded, color: Colors.white, size: 22),
                           ),
-                          child: Icon(Icons.login_rounded, size: 20, color: AppTheme.primaryColor),
-                        ),
-                        SizedBox(width: 14),
-                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Bienvenido', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.primaryText)),
-                          Text('Ingresa tus credenciales', style: TextStyle(fontSize: 13, color: context.secondaryText)),
-                        ]),
-                      ]),
-                      SizedBox(height: 28),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        style: TextStyle(color: context.primaryText, fontSize: 15),
-                        decoration: context.isDark 
-                            ? AppTheme.inputDecoration(context, label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co')
-                            : AppTheme.inputDecorationLight(label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co'),
-                      ),
-                      SizedBox(height: 18),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        style: TextStyle(color: context.primaryText, fontSize: 15),
-                        decoration: (context.isDark 
-                            ? AppTheme.inputDecoration(context, label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')
-                            : AppTheme.inputDecorationLight(label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')).copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: context.secondaryText, size: 20),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Bienvenido',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: context.primaryText,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Ingresa tus credenciales para acceder al portal institucional.',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: context.secondaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          Consumer<ThemeProvider>(
+                            builder: (context, themeProvider, _) => IconButton(
+                              tooltip: themeProvider.isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro',
+                              onPressed: () => themeProvider.toggleTheme(!themeProvider.isDarkMode),
+                              icon: Icon(
+                                themeProvider.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_outlined,
+                                color: context.secondaryText,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => Navigator.pushNamed(context, '/forgot_password'),
-                          child: Text(
-                            '¿Olvidaste tu contraseña?',
+                    ),
+
+                    // Form Body
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CORREO ELECTRÓNICO',
                             style: TextStyle(
-                              color: AppTheme.accentAmber,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                              color: context.secondaryText,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            style: TextStyle(color: context.primaryText, fontSize: 15),
+                            decoration: AppTheme.inputDecoration(
+                              context,
+                              label: 'Correo institucional',
+                              hint: 'usuario@unicesar.edu.co',
+                              icon: Icons.mail_outline_rounded,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          Text(
+                            'CONTRASEÑA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                              color: context.secondaryText,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            style: TextStyle(color: context.primaryText, fontSize: 15),
+                            onSubmitted: (_) => _login(),
+                            decoration: AppTheme.inputDecoration(
+                              context,
+                              label: 'Contraseña',
+                              hint: '••••••••',
+                              icon: Icons.lock_outline_rounded,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  color: context.tertiaryText,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () => Navigator.pushNamed(context, '/forgot_password'),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                '¿Olvidaste tu contraseña?',
+                                style: TextStyle(
+                                  color: AppTheme.brand500,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _errorMessage!.replaceAll(RegExp(r'<[^>]*>'), ''),
+                                      style: const TextStyle(
+                                        color: Color(0xFFDC2626),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 20),
+
+                          // Primary Gradient Submit Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF158A58).withValues(alpha: 0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                                child: _isLoading
+                                    ? const Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text('Iniciando sesión...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                        ],
+                                      )
+                                    : const Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Acceder al Portal',
+                                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Card Footer Toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: context.borderColor.withValues(alpha: 0.6))),
+                      ),
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pushNamed(context, '/register'),
+                          child: RichText(
+                            text: TextSpan(
+                              text: '¿Eres egresado sin cuenta? ',
+                              style: TextStyle(
+                                color: context.secondaryText,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              children: const [
+                                TextSpan(
+                                  text: 'Regístrate aquí',
+                                  style: TextStyle(
+                                    color: Color(0xFF158A58),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          child: _isLoading
-                            ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Text('Acceder al Portal'),
-                                SizedBox(width: 8),
-                                Icon(Icons.arrow_forward_rounded, size: 20),
-                              ]),
-                        ),
-                      ),
-                    ]),
-                    ), // Material
-                  ),
-                  SizedBox(height: 24),
-                  Center(
-                    child: GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, '/register'),
-                      child: RichText(text: TextSpan(
-                        style: TextStyle(fontSize: 14, color: context.secondaryText),
-                        children: [
-                          TextSpan(text: '¿No tienes cuenta? '),
-                          TextSpan(text: 'Regístrate gratis', style: TextStyle(color: AppTheme.accentAmber, fontWeight: FontWeight.w700)),
-                        ],
-                      )),
                     ),
-                  ),
-                  SizedBox(height: 32),
-                ],
+                  ],
+                ),
               ),
-              ), // FadeTransition
-            ), // SingleChildScrollView
-          ), // Center
-        ), // SafeArea
-        ],
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildHeroStat(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF45C388),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.6),
+            fontSize: 10.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

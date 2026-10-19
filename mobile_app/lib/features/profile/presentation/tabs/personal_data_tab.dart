@@ -1,130 +1,200 @@
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/api_client.dart';
 
 class PersonalDataTab extends StatefulWidget {
-  final VoidCallback? onUpdate;
-  const PersonalDataTab({super.key, this.onUpdate});
+  final VoidCallback? onProfileUpdated;
+  const PersonalDataTab({super.key, this.onProfileUpdated});
 
   @override
   State<PersonalDataTab> createState() => _PersonalDataTabState();
 }
 
-class _PersonalDataTabState extends State<PersonalDataTab> with AutomaticKeepAliveClientMixin {
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+class _PersonalDataTabState extends State<PersonalDataTab> {
+  final _firstNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _gradYearCtrl = TextEditingController();
+  final _bioCtrl = TextEditingController();
+  final _newSkillCtrl = TextEditingController();
+  final _expectedSalaryCtrl = TextEditingController();
 
-  final TextEditingController _firstNameCtrl = TextEditingController();
-  final TextEditingController _lastNameCtrl = TextEditingController();
-  final TextEditingController _emailCtrl = TextEditingController();
-  final TextEditingController _phoneCtrl = TextEditingController();
-  final TextEditingController _gradYearCtrl = TextEditingController();
-  final TextEditingController _bioCtrl = TextEditingController();
-  
-  bool _isUploadingCv = false;
+  String _availabilityStatus = 'OPEN_TO_WORK';
+  String _preferredModality = 'Cualquiera';
+  String _availabilityNotice = 'Inmediata';
+  bool _jobAlertsEnabled = true;
+
+  int _selectedProgramId = 1;
+  List<Map<String, dynamic>> _programs = [];
+  List<Map<String, dynamic>> _allSkills = [];
+  Set<int> _selectedSkillIds = {};
+
   String? _cvUrl;
-  List<dynamic> _skills = [];
-  List<dynamic> _allSkills = [];
-
-  @override
-  bool get wantKeepAlive => true;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isUploadingCv = false;
+  bool _isEditingSkills = false;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _loadData();
   }
 
-  Future<void> _loadProfile() async {
+  @override
+  void dispose() {
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _gradYearCtrl.dispose();
+    _bioCtrl.dispose();
+    _newSkillCtrl.dispose();
+    _expectedSalaryCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
-    // Attempt to load email from token
+
+    // 1. Load Academic Programs Catalog (Matches GraduateProfile.tsx GET /api/modulo2/programs)
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token');
-      if (token != null && token.isNotEmpty) {
-        Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-        _emailCtrl.text = decodedToken['sub'] ?? '';
+      final progRes = await ApiClient.instance.get('/modulo2/programs');
+      if (progRes.data is List) {
+        _programs = List<Map<String, dynamic>>.from(
+          (progRes.data as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+        );
       }
     } catch (_) {}
 
+    // 2. Load Skills Catalog
     try {
       final skillsRes = await ApiClient.instance.get('/modulo1/skills');
-      if (skillsRes.data != null) {
-        _allSkills = skillsRes.data;
+      if (skillsRes.data is List) {
+        _allSkills = List<Map<String, dynamic>>.from(
+          (skillsRes.data as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+        );
       }
     } catch (_) {}
 
+    // 3. Load Graduate Profile
     try {
-      final response = await ApiClient.instance.get('/modulo1/profile');
-      if (response.data != null) {
-        final data = response.data;
-        _firstNameCtrl.text = data['first_name'] ?? '';
-        _lastNameCtrl.text = data['last_name'] ?? '';
-        _phoneCtrl.text = data['phone'] ?? '';
-        _gradYearCtrl.text = data['graduation_year']?.toString() ?? '';
-        _bioCtrl.text = data['profile_summary'] ?? '';
-        _cvUrl = data['cv_url'];
-        if (data['skills'] != null) {
-          _skills = List<dynamic>.from(data['skills']);
+      final profRes = await ApiClient.instance.get('/modulo1/profile');
+      if (profRes.data is Map) {
+        final d = profRes.data as Map<String, dynamic>;
+        _firstNameCtrl.text = d['first_name']?.toString() ?? '';
+        _lastNameCtrl.text = d['last_name']?.toString() ?? '';
+        _emailCtrl.text = d['email']?.toString() ?? '';
+        _phoneCtrl.text = d['phone']?.toString() ?? '';
+        _gradYearCtrl.text = d['graduation_year']?.toString() ?? '2024';
+        _bioCtrl.text = d['profile_summary']?.toString() ?? '';
+        _cvUrl = d['cv_url']?.toString();
+        _availabilityStatus = d['availability_status']?.toString() ?? 'OPEN_TO_WORK';
+        _preferredModality = d['preferred_modality']?.toString() ?? 'Cualquiera';
+        _availabilityNotice = d['availability_notice']?.toString() ?? 'Inmediata';
+        _expectedSalaryCtrl.text = d['expected_salary'] != null ? d['expected_salary'].toString() : '';
+        _jobAlertsEnabled = d['job_alerts_enabled'] != null ? (d['job_alerts_enabled'] == true) : true;
+
+        if (d['program_id'] != null) {
+          _selectedProgramId = (d['program_id'] as num).toInt();
+        } else if (_programs.isNotEmpty) {
+          _selectedProgramId = (_programs.first['id'] as num).toInt();
         }
+
+        final userSkills = d['skills'] as List? ?? [];
+        final ids = <int>{};
+        for (final s in userSkills) {
+          if (s is Map) {
+            final rawId = s['skill_id'] ?? s['id'];
+            if (rawId is num) ids.add(rawId.toInt());
+          }
+        }
+        _selectedSkillIds = ids;
       }
-    } catch (e) {
-      if (e is DioException && e.response?.statusCode == 404) {
-        // Nuevo perfil
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error al cargar perfil'),
-          backgroundColor: AppTheme.accentPink,
-        ));
+    } catch (_) {}
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _saveProfile() async {
+    setState(() => _isSaving = true);
+    try {
+      final expSal = double.tryParse(_expectedSalaryCtrl.text.trim());
+      await ApiClient.instance.post('/modulo1/profile', data: {
+        'first_name': _firstNameCtrl.text.trim(),
+        'last_name': _lastNameCtrl.text.trim(),
+        'program_id': _selectedProgramId,
+        'graduation_year': int.tryParse(_gradYearCtrl.text.trim()) ?? 2024,
+        'phone': _phoneCtrl.text.trim(),
+        'profile_summary': _bioCtrl.text.trim(),
+        'availability_status': _availabilityStatus,
+        'preferred_modality': _preferredModality,
+        'availability_notice': _availabilityNotice,
+        'expected_salary': expSal,
+        'job_alerts_enabled': _jobAlertsEnabled,
+      });
+      widget.onProfileUpdated?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Datos básicos actualizados correctamente!'),
+            backgroundColor: AppTheme.primaryColor,
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      String msg = 'Error al guardar los datos del perfil.';
+      if (e.response?.data != null && e.response?.data is Map) {
+        msg = e.response?.data['detail']?.toString() ?? msg;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.statusRechazado),
+        );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  Future<void> _uploadCv() async {
+  Future<void> _uploadCvPdf() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (files.isEmpty) return;
+
+    final file = files.first;
+    setState(() => _isUploadingCv = true);
+
     try {
-      PlatformFile? result = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
+      final bytes = await file.readAsBytes();
+      final multipart = MultipartFile.fromBytes(bytes, filename: file.name);
 
-      if (result != null) {
-        setState(() => _isUploadingCv = true);
-        
-        final filename = result.name;
-        final bytes = await result.readAsBytes();
+      final formData = FormData.fromMap({'file': multipart});
+      await ApiClient.instance.post('/modulo1/cv', data: formData);
+      await _loadData();
+      widget.onProfileUpdated?.call();
 
-        FormData formData = FormData.fromMap({
-          "file": MultipartFile.fromBytes(bytes, filename: filename),
-        });
-
-        final res = await ApiClient.instance.post(
-          '/modulo1/cv', 
-          data: formData,
-        );
-
-        setState(() {
-          _cvUrl = res.data['cv_url'];
-        });
-
-        if (mounted) {
-          widget.onUpdate?.call();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Hoja de vida subida exitosamente'), backgroundColor: AppTheme.primaryColor),
-          );
-        }
-      }
-    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al subir la hoja de vida'), backgroundColor: AppTheme.statusRechazado),
+          const SnackBar(
+            content: Text('¡Hoja de Vida (PDF) actualizada exitosamente!'),
+            backgroundColor: AppTheme.primaryColor,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al subir la Hoja de Vida en PDF.'),
+            backgroundColor: AppTheme.statusRechazado,
+          ),
         );
       }
     } finally {
@@ -132,372 +202,594 @@ class _PersonalDataTabState extends State<PersonalDataTab> with AutomaticKeepAli
     }
   }
 
-  Future<void> _previewDocument(String url) async {
-    String fullUrl = url;
-    if (url.startsWith('/')) {
-      String base = ApiClient.instance.options.baseUrl.replaceAll(RegExp(r'/api$'), '');
-      fullUrl = base + url;
-    }
-    final uri = Uri.parse(fullUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+  Future<void> _saveSkills() async {
+    setState(() => _isSaving = true);
+    try {
+      final payload = _selectedSkillIds
+          .map((id) => {'skill_id': id, 'proficiency_level': 'Intermedio'})
+          .toList();
+      await ApiClient.instance.put('/modulo1/profile/skills', data: {'skills': payload});
+      widget.onProfileUpdated?.call();
       if (mounted) {
+        setState(() => _isEditingSkills = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo abrir el documento.'), backgroundColor: AppTheme.statusRechazado),
+          const SnackBar(
+            content: Text('¡Habilidades actualizadas! Tu afinidad en vacantes ha sido recalculada.'),
+            backgroundColor: AppTheme.primaryColor,
+          ),
         );
       }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al actualizar las habilidades.'),
+            backgroundColor: AppTheme.statusRechazado,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _createNewSkill() async {
+    final name = _newSkillCtrl.text.trim();
+    if (name.isEmpty) return;
 
-    setState(() => _isLoading = true);
     try {
-      await ApiClient.instance.post('/modulo1/profile', data: {
-        'first_name': _firstNameCtrl.text,
-        'last_name': _lastNameCtrl.text,
-        'phone': _phoneCtrl.text,
-        'graduation_year': int.tryParse(_gradYearCtrl.text) ?? 0,
-        'profile_summary': _bioCtrl.text,
-        'program_id': 1,
-      });
+      final res = await ApiClient.instance.post('/modulo1/skills', data: {'name': name});
+      if (res.data is Map && res.data['id'] != null) {
+        final newSkill = Map<String, dynamic>.from(res.data);
+        final id = (newSkill['id'] as num).toInt();
+        setState(() {
+          if (!_allSkills.any((s) => s['id'] == id)) {
+            _allSkills.add(newSkill);
+          }
+          _selectedSkillIds.add(id);
+          _newSkillCtrl.clear();
+        });
+      }
+    } catch (_) {}
+  }
 
-      if (mounted) {
-        widget.onUpdate?.call();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Datos guardados correctamente'),
-          backgroundColor: AppTheme.primaryColor,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error al guardar: $e'),
-          backgroundColor: AppTheme.accentPink,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  Future<void> _openCvUrl() async {
+    if (_cvUrl == null || _cvUrl!.isEmpty) return;
+    final full = _cvUrl!.startsWith('http') ? _cvUrl! : '${ApiClient.rootUrl}$_cvUrl';
+    final uri = Uri.tryParse(full);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+    }
+
+    final selectedSkillsList = _allSkills
+        .where((s) => _selectedSkillIds.contains((s['id'] as num).toInt()))
+        .toList();
+
     return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Row(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 104),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Card 1: Hoja de Vida (CV PDF) ──
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
+              borderRadius: AppTheme.cardRadius,
+              border: Border.all(color: context.borderColor),
+              boxShadow: AppTheme.subtleShadow,
+            ),
+            child: Row(
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _firstNameCtrl,
-                    decoration: AppTheme.inputDecoration(context, label: 'NOMBRES', icon: Icons.person_outline),
-                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: const Icon(Icons.picture_as_pdf_outlined, color: AppTheme.primaryColor, size: 22),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: TextFormField(
-                    controller: _lastNameCtrl,
-                    decoration: AppTheme.inputDecoration(context, label: 'APELLIDOS', icon: Icons.person_outline),
-                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: _emailCtrl,
-              readOnly: true,
-              decoration: AppTheme.inputDecoration(context,  label: 'CORREO ELECTRÓNICO', icon: Icons.email_outlined),
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _phoneCtrl,
-                    decoration: AppTheme.inputDecoration(context,  label: 'TELÉFONO', icon: Icons.phone_outlined),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _gradYearCtrl,
-                    decoration: AppTheme.inputDecoration(context,  label: 'AÑO DE GRADO', icon: Icons.workspace_premium_outlined),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: _bioCtrl,
-              decoration: AppTheme.inputDecoration(context,  label: 'PERFIL PROFESIONAL (BIO)', icon: Icons.description_outlined),
-              maxLines: 4,
-            ),
-            SizedBox(height: 24),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: context.surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.picture_as_pdf_rounded, color: AppTheme.primaryColor, size: 28),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Hoja de Vida (CV)', style: TextStyle(fontWeight: FontWeight.w700, color: context.primaryText)),
-                        Text(
-                          _cvUrl != null ? 'CV subido correctamente' : 'Sube tu CV en formato PDF',
-                          style: TextStyle(fontSize: 12, color: context.secondaryText),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_cvUrl != null)
-                    IconButton(
-                      icon: Icon(Icons.remove_red_eye_outlined, color: AppTheme.primaryColor),
-                      onPressed: () => _previewDocument(_cvUrl!),
-                      tooltip: 'Previsualizar',
-                    ),
-                  ElevatedButton(
-                    onPressed: _isUploadingCv ? null : _uploadCv,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _cvUrl != null ? AppTheme.accentBlue.withValues(alpha: 0.1) : AppTheme.primaryColor.withValues(alpha: 0.1),
-                      foregroundColor: _cvUrl != null ? AppTheme.accentBlue : (context.isDark ? AppTheme.primaryColor : AppTheme.primaryDark),
-                      elevation: 0,
-                    ),
-                    child: _isUploadingCv 
-                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(_cvUrl != null ? 'Actualizar' : 'Subir'),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 24),
-            Container(
-              padding: EdgeInsets.all(16),
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: context.surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(Icons.star_rounded, color: AppTheme.primaryColor),
-                          SizedBox(width: 12),
-                          Text('Mis Habilidades', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: context.primaryText)),
-                        ],
+                      Text(
+                        'Hoja de Vida Institucional (PDF)',
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: context.primaryText),
                       ),
-                      TextButton.icon(
-                        icon: Icon(Icons.edit, size: 16),
-                        label: Text('Editar'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.primaryColor,
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size(50, 30),
+                      const SizedBox(height: 2),
+                      Text(
+                        (_cvUrl != null && _cvUrl!.isNotEmpty)
+                            ? 'Documento PDF cargado y visible para empresas'
+                            : 'Aún no has adjuntado tu CV en formato PDF',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: (_cvUrl != null && _cvUrl!.isNotEmpty) ? AppTheme.brand500 : context.secondaryText,
+                          fontWeight: FontWeight.w600,
                         ),
-                        onPressed: () async {
-                          final result = await showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: context.surfaceColor,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                            ),
-                            builder: (ctx) => _SkillsManager(currentSkills: _skills),
-                          );
-                          if (result == true) {
-                            _loadProfile();
-                            widget.onUpdate?.call();
-                          }
-                        },
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
-                  if (_skills.isEmpty)
-                    Text('No has registrado habilidades. Puedes editarlas desde la versión web.', style: TextStyle(color: context.secondaryText, fontSize: 13))
+                ),
+                if (_cvUrl != null && _cvUrl!.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Ver PDF actual',
+                    onPressed: _openCvUrl,
+                    icon: const Icon(Icons.open_in_new_rounded, color: AppTheme.primaryColor, size: 20),
+                  ),
+                ElevatedButton.icon(
+                  onPressed: _isUploadingCv ? null : _uploadCvPdf,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  icon: _isUploadingCv
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.upload_file_rounded, size: 16),
+                  label: Text(
+                    (_cvUrl != null && _cvUrl!.isNotEmpty) ? 'Actualizar' : 'Subir PDF',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Card 2: Habilidades y Competencias (Matches GraduateProfile.tsx inline editor) ──
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
+              borderRadius: AppTheme.cardRadius,
+              border: Border.all(color: context.borderColor),
+              boxShadow: AppTheme.subtleShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome_outlined, color: AppTheme.primaryColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Habilidades y Competencias',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.primaryText),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => setState(() => _isEditingSkills = !_isEditingSkills),
+                      icon: Icon(_isEditingSkills ? Icons.close_rounded : Icons.edit_outlined, size: 15),
+                      label: Text(
+                        _isEditingSkills ? 'Cerrar' : 'Editar',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                if (!_isEditingSkills) ...[
+                  if (selectedSkillsList.isEmpty)
+                    Text(
+                      'No has seleccionado habilidades aún. Toca "Editar Habilidades" para activar el motor de afinidad con vacantes.',
+                      style: TextStyle(fontSize: 12.5, color: context.secondaryText),
+                    )
                   else
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _skills.map((s) {
-                        String name = 'Skill';
-                        try {
-                          final match = _allSkills.firstWhere((as) => as['id'] == s['skill_id']);
-                          name = match['name'] ?? 'Skill';
-                        } catch (_) {}
-                        return Chip(
-                          label: Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                          labelStyle: TextStyle(color: context.isDark ? AppTheme.primaryColor : AppTheme.primaryDark),
-                          side: BorderSide.none,
+                      children: selectedSkillsList.map((s) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.brand50,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: AppTheme.brand200),
+                          ),
+                          child: Text(
+                            s['name']?.toString() ?? '',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.brand800,
+                            ),
+                          ),
                         );
                       }).toList(),
                     ),
-                ],
-              ),
-            ),
-            SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _isLoading
-                    ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: context.surfaceColor, strokeWidth: 2))
-                    : Text('Guardar Datos', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SkillsManager extends StatefulWidget {
-  final List<dynamic> currentSkills;
-  const _SkillsManager({required this.currentSkills});
-
-  @override
-  State<_SkillsManager> createState() => _SkillsManagerState();
-}
-
-class _SkillsManagerState extends State<_SkillsManager> {
-  bool _isLoading = true;
-  List<dynamic> _allSkills = [];
-  List<int> _selectedIds = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIds = widget.currentSkills.map((s) => s['skill_id'] as int).toList();
-    _loadAllSkills();
-  }
-
-  Future<void> _loadAllSkills() async {
-    try {
-      final res = await ApiClient.instance.get('/modulo1/skills');
-      setState(() {
-        _allSkills = res.data;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar habilidades')));
-      }
-    }
-  }
-
-  Future<void> _saveSkills() async {
-    setState(() => _isLoading = true);
-    try {
-      final formattedSkills = _selectedIds.map((id) => {
-        'skill_id': id,
-        'proficiency_level': 'Intermedio',
-      }).toList();
-
-      await ApiClient.instance.put('/modulo1/profile/skills', data: {
-        'skills': formattedSkills,
-      });
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        String errorMsg = 'Error al guardar habilidades';
-        if (e is DioException && e.response?.data != null && e.response?.data['detail'] != null) {
-          errorMsg = e.response!.data['detail'];
-        }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: AppTheme.accentPink));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      padding: EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Gestionar Habilidades', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.primaryText)),
-              IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          SizedBox(height: 16),
-          Expanded(
-            child: _isLoading 
-              ? Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  child: Wrap(
+                ] else ...[
+                  // Inline Skills Selector + Add New Skill (Exact match to GraduateProfile.tsx)
+                  Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _allSkills.map((skill) {
-                      final isSelected = _selectedIds.contains(skill['id']);
+                    children: _allSkills.map((s) {
+                      final id = (s['id'] as num).toInt();
+                      final isSelected = _selectedSkillIds.contains(id);
                       return FilterChip(
-                        label: Text(skill['name'] ?? ''),
+                        label: Text(s['name']?.toString() ?? ''),
                         selected: isSelected,
-                        selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        selectedColor: AppTheme.brand50,
                         checkmarkColor: AppTheme.primaryColor,
+                        labelStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? AppTheme.primaryColor : context.secondaryText,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(color: isSelected ? AppTheme.primaryColor : context.borderColor),
+                        ),
                         onSelected: (val) {
                           setState(() {
                             if (val) {
-                              _selectedIds.add(skill['id']);
+                              _selectedSkillIds.add(id);
                             } else {
-                              _selectedIds.remove(skill['id']);
+                              _selectedSkillIds.remove(id);
                             }
                           });
                         },
                       );
                     }).toList(),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _newSkillCtrl,
+                          decoration: AppTheme.inputDecoration(
+                            context,
+                            label: '¿No encuentras tu habilidad? Añádela',
+                            hint: 'Ej. Python, Gestión de Proyectos...',
+                            icon: Icons.add_circle_outline_rounded,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: _createNewSkill,
+                        child: const Text('Añadir'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveSkills,
+                      icon: const Icon(Icons.save_outlined, size: 18),
+                      label: const Text('Guardar Habilidades'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveSkills,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isLoading 
-                ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Guardar Habilidades'),
+          const SizedBox(height: 16),
+
+          // ── Card 3: Datos Personales y Programa Académico ──
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
+              borderRadius: AppTheme.cardRadius,
+              border: Border.all(color: context.borderColor),
+              boxShadow: AppTheme.subtleShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Información Personal y Académica',
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _firstNameCtrl,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Nombres *',
+                          icon: Icons.person_outline_rounded,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _lastNameCtrl,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Apellidos *',
+                          icon: Icons.person_outline_rounded,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                if (_programs.isNotEmpty) ...[
+                  DropdownButtonFormField<int>(
+                    initialValue: _programs.any((p) => (p['id'] as num).toInt() == _selectedProgramId)
+                        ? _selectedProgramId
+                        : (_programs.first['id'] as num).toInt(),
+                    isExpanded: true,
+                    decoration: AppTheme.inputDecoration(
+                      context,
+                      label: 'Programa Académico UPC *',
+                      icon: Icons.school_outlined,
+                    ),
+                    items: _programs.map((p) {
+                      final id = (p['id'] as num).toInt();
+                      return DropdownMenuItem<int>(
+                        value: id,
+                        child: Text(
+                          p['name']?.toString() ?? 'Programa $id',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13.5),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _selectedProgramId = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Teléfono / Celular',
+                          icon: Icons.phone_outlined,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _gradYearCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Año de Grado *',
+                          icon: Icons.calendar_today_outlined,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _bioCtrl,
+                  maxLines: 4,
+                  decoration: AppTheme.inputDecoration(
+                    context,
+                    label: 'Resumen Profesional (Perfil)',
+                    hint: 'Describe tu perfil profesional, fortalezas e intereses laborales...',
+                    icon: Icons.notes_rounded,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                    label: const Text('Guardar Datos Básicos'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Card 4: Estado #OpenToWork, Preferencias y Alertas Inteligentes ──
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
+              borderRadius: AppTheme.cardRadius,
+              border: Border.all(color: context.borderColor),
+              boxShadow: AppTheme.subtleShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF15803D), size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Estado #OpenToWork y Preferencias',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.primaryText),
+                          ),
+                          Text(
+                            'Configura tu disponibilidad para el motor de afinidad IA',
+                            style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  initialValue: _availabilityStatus,
+                  isExpanded: true,
+                  decoration: AppTheme.inputDecoration(
+                    context,
+                    label: 'Estado de Búsqueda Laboral',
+                    icon: Icons.work_outline_rounded,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'OPEN_TO_WORK', child: Text('🟢 #OpenToWork · Buscando activamente')),
+                    DropdownMenuItem(value: 'OPEN_TO_OFFERS', child: Text('🔵 Abierto a escuchar ofertas')),
+                    DropdownMenuItem(value: 'EMPLOYED_CLOSED', child: Text('⚪ No busco empleo por ahora')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _availabilityStatus = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _preferredModality,
+                        isExpanded: true,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Modalidad Preferida',
+                          icon: Icons.laptop_mac_rounded,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Cualquiera', child: Text('Cualquiera')),
+                          DropdownMenuItem(value: 'Remoto', child: Text('Remoto')),
+                          DropdownMenuItem(value: 'Híbrido', child: Text('Híbrido')),
+                          DropdownMenuItem(value: 'Presencial', child: Text('Presencial')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => _preferredModality = v);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _availabilityNotice,
+                        isExpanded: true,
+                        decoration: AppTheme.inputDecoration(
+                          context,
+                          label: 'Incorporación',
+                          icon: Icons.schedule_rounded,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Inmediata', child: Text('Inmediata')),
+                          DropdownMenuItem(value: '1 semana', child: Text('1 semana')),
+                          DropdownMenuItem(value: '2 semanas', child: Text('2 semanas')),
+                          DropdownMenuItem(value: '1 mes', child: Text('1 mes')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => _availabilityNotice = v);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: _expectedSalaryCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: AppTheme.inputDecoration(
+                    context,
+                    label: 'Aspiración Salarial Mensual (COP)',
+                    hint: 'Ej. 3500000',
+                    icon: Icons.payments_outlined,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: context.mutedColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.borderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.notifications_active_outlined, color: AppTheme.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Alertas Inteligentes de Vacantes',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                            Text(
+                              'Notificarme cuando haya vacantes con >75% de afinidad',
+                              style: TextStyle(fontSize: 11, color: context.secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _jobAlertsEnabled,
+                        activeThumbColor: AppTheme.primaryColor,
+                        onChanged: (val) => setState(() => _jobAlertsEnabled = val),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                    label: const Text('Guardar Preferencias Laborales'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

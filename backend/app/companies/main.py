@@ -30,6 +30,17 @@ app.include_router(application_router)
 app.include_router(internal_router)
 
 
+from sqlalchemy import text
+from app.database import engine
+
+@app.on_event("startup")
+def ensure_companies_schema():
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS cover_letter TEXT;"))
+    except Exception as e:
+        print(f"Schema check warning in companies: {e}")
+
 @app.get("/")
 def health_check():
     return {"service": "companies", "status": "ok"}

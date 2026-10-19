@@ -1,7 +1,7 @@
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host " Iniciando Despliegue Multi-AZ (3 Instancias + 2 ALBs) " -ForegroundColor Cyan -BackgroundColor DarkBlue
+Write-Host " Iniciando Despliegue Multi-AZ (2 EC2 ASG + 2 ALBs + RDS Multi-AZ) " -ForegroundColor Cyan -BackgroundColor DarkBlue
 Write-Host "=======================================================" -ForegroundColor Cyan
 
 # Credenciales: se cargan desde aws/credentials.ps1 (ignorado por git).
@@ -10,11 +10,8 @@ if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps
 $AZ_A = "us-east-1a"
 $AZ_B = "us-east-1b"
 
-$oldErr = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
 $IdentityJson = aws sts get-caller-identity --output json 2>$null
 $Ec2Test = aws ec2 describe-vpcs --max-items 1 2>&1
-$ErrorActionPreference = $oldErr
 
 if ($LASTEXITCODE -ne 0 -or $Ec2Test -match "voc-cancel-cred" -or $Ec2Test -match "UnauthorizedOperation") { 
     Write-Host "`n=======================================================" -ForegroundColor Red
@@ -91,24 +88,28 @@ aws ec2 create-tags --resources $SgAlbInt --tags Key=Name,Value=sg_alb_int | Out
 $SgBack   = aws ec2 create-security-group --group-name "sg_back" --description "Backend EC2 ASG" --vpc-id $VpcId --query "GroupId" --output text
 aws ec2 create-tags --resources $SgBack --tags Key=Name,Value=sg_back | Out-Null
 
-$SgData   = aws ec2 create-security-group --group-name "sg_data" --description "Data EC2" --vpc-id $VpcId --query "GroupId" --output text
-aws ec2 create-tags --resources $SgData --tags Key=Name,Value=sg_data | Out-Null
+$SgData   = aws ec2 create-security-group --group-name "sg_rds" --description "Amazon RDS PostgreSQL Multi-AZ" --vpc-id $VpcId --query "GroupId" --output text
+aws ec2 create-tags --resources $SgData --tags Key=Name,Value=sg_rds | Out-Null
 
 # Reglas de Ingress
 aws ec2 authorize-security-group-ingress --group-id $SgAlbExt --protocol tcp --port 80 --cidr 0.0.0.0/0 | Out-Null
 aws ec2 authorize-security-group-ingress --group-id $SgAlbExt --protocol tcp --port 443 --cidr 0.0.0.0/0 | Out-Null
 
 aws ec2 authorize-security-group-ingress --group-id $SgFront --protocol tcp --port 80 --source-group $SgAlbExt | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgFront --protocol tcp --port 80 --cidr 0.0.0.0/0 2>$null | Out-Null
 aws ec2 authorize-security-group-ingress --group-id $SgAlbInt --protocol tcp --port 80 --source-group $SgFront | Out-Null
 aws ec2 authorize-security-group-ingress --group-id $SgBack --protocol tcp --port 80 --source-group $SgAlbInt | Out-Null
+aws ec2 authorize-security-group-ingress --group-id $SgBack --protocol tcp --port 80 --source-group $SgFront 2>$null | Out-Null
 
-# Acceso de Back hacia Data (Postgres, RabbitMQ, Loki)
+# Acceso seguro desde Backend EC2 hacia Amazon RDS PostgreSQL (Puerto 5432)
 aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 5432 --source-group $SgBack | Out-Null
-aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 5672 --source-group $SgBack | Out-Null
-aws ec2 authorize-security-group-ingress --group-id $SgData --protocol tcp --port 3100 --source-group $SgBack | Out-Null
 
 $AmiId = aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 --query "Parameters[0].Value" --output text
 $KeyName = "portal_egresado_key"
+aws ec2 describe-key-pairs --key-names $KeyName 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    aws ec2 create-key-pair --key-name $KeyName --query "KeyMaterial" --output text > "$PSScriptRoot\$KeyName.pem" 2>$null
+}
 $IamProfile = "LabInstanceProfile"
 
 # Script base para aprovisionar Docker y clonar la app
@@ -129,49 +130,51 @@ chown -R ec2-user:ec2-user app
 cd app
 "@
 
-Write-Host "`n[S3] Creando buckets para almacenamiento de archivos (CVs, Avatares, Entregables)..." -ForegroundColor Yellow
+Write-Host "`n[S3] Creando o verificando buckets para almacenamiento de archivos (CVs, Avatares, Entregables)..." -ForegroundColor Yellow
 Write-Host "  -> NOTA: En esta Arquitectura 1 (IaaS Tradicional), el FRONTEND se ejecuta 100% en EC2" -ForegroundColor Cyan
 Write-Host "     dentro de un contenedor Nginx con React. S3 solo guarda adjuntos de usuarios." -ForegroundColor Cyan
 $BucketCvs      = "portal-cvs-$AccountId"
 $BucketAvatars  = "portal-avatars-$AccountId"
 $BucketDeliver  = "portal-deliverables-$AccountId"
 foreach ($bucket in @($BucketCvs, $BucketAvatars, $BucketDeliver)) {
-    aws s3 mb "s3://$bucket" --region us-east-1 2>$null
+    aws s3api head-bucket --bucket $bucket 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  -> Bucket ya existe: $bucket (reutilizando)" -ForegroundColor Green
+    } else {
+        aws s3 mb "s3://$bucket" --region us-east-1 2>$null | Out-Null
+        Write-Host "  -> Bucket creado: $bucket" -ForegroundColor Cyan
+    }
 }
 
-Write-Host "`n[Fase 3: Capa Data - Instancia EC2 1/3 (portal_data)]" -ForegroundColor Yellow
-$DataUserData = @"
-#!/bin/bash
-exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-$DockerBase
-cat <<'EOF' > .env.data
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=PasswordSegura123
-POSTGRES_DB=postgres
-RABBITMQ_DEFAULT_USER=guest
-RABBITMQ_DEFAULT_PASS=guest
-EOF
-/usr/local/bin/docker-compose -f docker-compose.data.yml --env-file .env.data up -d --build
-"@
-$DataUdEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($DataUserData))
+Write-Host "`n[Fase 3: Capa Data - Amazon RDS PostgreSQL Multi-AZ (Alta Disponibilidad en 2 AZs)]" -ForegroundColor Yellow
+$RdsSubnetGroup = "portal-db-subnets"
+aws rds describe-db-subnet-groups --db-subnet-group-name $RdsSubnetGroup 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    aws rds create-db-subnet-group `
+      --db-subnet-group-name $RdsSubnetGroup `
+      --db-subnet-group-description "Subredes privadas Multi-AZ para Amazon RDS PostgreSQL" `
+      --subnet-ids $SubDbA $SubDbB 2>$null | Out-Null
+    Write-Host "  -> DB Subnet Group creado: $RdsSubnetGroup ($SubDbA, $SubDbB)" -ForegroundColor Cyan
+}
 
-$DataId = aws ec2 run-instances `
-  --image-id $AmiId `
-  --instance-type t3.small `
-  --key-name $KeyName `
-  --security-group-ids $SgData `
-  --subnet-id $SubDbA `
-  --iam-instance-profile "Name=$IamProfile" `
-  --block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=30,VolumeType=gp3}" `
-  --user-data $DataUdEnc `
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=portal_data}]" `
-  --query "Instances[0].InstanceId" `
-  --output text
+Write-Host "Lanzando instancia RDS PostgreSQL 15 Multi-AZ (Primaria en $AZ_A + Standby en $AZ_B)..." -ForegroundColor Cyan
+aws rds create-db-instance `
+  --db-instance-identifier portal-db-rds `
+  --db-instance-class db.t3.micro `
+  --engine postgres `
+  --engine-version 15 `
+  --master-username postgres `
+  --master-user-password PasswordSegura123 `
+  --allocated-storage 20 `
+  --storage-type gp3 `
+  --db-subnet-group-name $RdsSubnetGroup `
+  --vpc-security-group-ids $SgData `
+  --no-publicly-accessible `
+  --multi-az `
+  --backup-retention-period 0 `
+  --tags "Key=Name,Value=portal-db-rds" 2>$null | Out-Null
 
-Write-Host "Instancia Data lanzada ($DataId). Esperando estado running..." -ForegroundColor Cyan
-aws ec2 wait instance-running --instance-ids $DataId
-$DataIp = (aws ec2 describe-instances --instance-ids $DataId --query "Reservations[0].Instances[0].PrivateIpAddress" --output text).Trim()
-Write-Host "Instancia portal_data en ejecucion (IP privada: $DataIp)" -ForegroundColor Green
+Write-Host "Instancia RDS 'portal-db-rds' lanzada (creándose en segundo plano mientras se crean los balanceadores ALBs)..." -ForegroundColor Green
 
 Write-Host "`n[Fase 4: Balanceadores de Carga (2 ALBs: Externo e Interno)]" -ForegroundColor Yellow
 
@@ -231,13 +234,32 @@ aws elbv2 create-listener --load-balancer-arn $AlbIntArn --protocol HTTP --port 
 $AlbIntDns = (aws elbv2 describe-load-balancers --load-balancer-arns $AlbIntArn --query "LoadBalancers[0].DNSName" --output text).Trim()
 Write-Host "ALB Interno Privado DNS: $AlbIntDns" -ForegroundColor Green
 
-Write-Host "`n[Fase 5: Capa Back - Instancia EC2 2/3 (portal_back en ASG)]" -ForegroundColor Yellow
+Write-Host "`n[Fase 5: Capa Back - Instancia EC2 (portal_back en ASG)]" -ForegroundColor Yellow
+Write-Host "Esperando a que Amazon RDS portal-db-rds esté en estado 'available'..." -ForegroundColor Cyan
+aws rds wait db-instance-available --db-instance-identifier portal-db-rds
+$RdsHost = (aws rds describe-db-instances --db-instance-identifier portal-db-rds --query "DBInstances[0].Endpoint.Address" --output text).Trim()
+Write-Host "Amazon RDS PostgreSQL Multi-AZ 100% activo (Endpoint: $RdsHost)" -ForegroundColor Green
+
 $BackUserData = @"
 #!/bin/bash
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 $DockerBase
+
+# 1. Esperar que RDS acepte conexiones en el puerto 5432
+echo "Esperando que RDS PostgreSQL acepte conexiones en $RdsHost:5432..."
+until docker run --rm postgres:15-alpine pg_isready -h "$RdsHost" -p 5432 -U postgres; do
+    sleep 5
+done
+
+# 2. Inicializar bases de datos y esquema con init.sql
+echo "Ejecutando script de inicialización init.sql en RDS PostgreSQL..."
+docker run --rm -e PGPASSWORD=PasswordSegura123 \
+  -v /home/ec2-user/app/backend/init.sql:/init.sql \
+  postgres:15-alpine \
+  psql -h "$RdsHost" -U postgres -d postgres -f /init.sql
+
 cat <<'EOF' > .env.back
-DATA_HOST=$DataIp
+DATA_HOST=$RdsHost
 DB_USER=postgres
 DB_PASSWORD=PasswordSegura123
 MINIO_BUCKET_NAME=$BucketCvs
@@ -246,7 +268,7 @@ S3_BUCKET_DELIVERABLES=$BucketDeliver
 AWS_DEFAULT_REGION=us-east-1
 SECRET_KEY=clave_secreta_super_segura_de_32_caracteres_minimo
 MATCHMAKING_INTERNAL_TOKEN=token_interno_servicios_seguro
-RABBITMQ_URL=amqp://guest:guest@${DataIp}:5672/
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
 FRONTEND_URL=http://$AlbExtDns
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -254,6 +276,24 @@ SMTP_USER=portal.egresados.upc@gmail.com
 SMTP_PASS=vmxlkvqzcpycsxlk
 SMTP_FROM_EMAIL=portal.egresados.upc@gmail.com
 EOF
+
+# Garantizar que rabbitmq esté definido en docker-compose.back.yml
+if ! grep -q "portaldel_egresado_rabbitmq" docker-compose.back.yml; then
+cat <<'EOFRABBIT' >> docker-compose.back.yml
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: portaldel_egresado_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+EOFRABBIT
+fi
+
 /usr/local/bin/docker-compose -f docker-compose.back.yml --env-file .env.back up -d --build
 "@
 $BackUdEnc = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($BackUserData))
@@ -343,10 +383,47 @@ aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-high-front --metric-name 
 $PolicyInFront = aws autoscaling put-scaling-policy --auto-scaling-group-name asg-portal-front --policy-name scale-in-cpu-front --policy-type SimpleScaling --adjustment-type ChangeInCapacity --scaling-adjustment -1 --cooldown 300 --query "PolicyARN" --output text 2>$null
 aws cloudwatch put-metric-alarm --alarm-name alarm-cpu-low-front --metric-name CPUUtilization --namespace AWS/EC2 --statistic Average --period 60 --threshold 30 --comparison-operator LessThanThreshold --dimensions "Name=AutoScalingGroupName,Value=asg-portal-front" --evaluation-periods 2 --alarm-actions $PolicyInFront 2>$null
 
-Write-Host "`nEsperando que el ALB Externo este activo..." -ForegroundColor Yellow
+Write-Host "`nEsperando que el ALB Externo y las instancias EC2 de ASG esten activas..." -ForegroundColor Yellow
 aws elbv2 wait load-balancer-available --load-balancer-arns $AlbExtArn
+Start-Sleep -Seconds 10
 
-Write-Host "`n[Verificación] Esperando a que las 3 instancias inicialicen Docker y la aplicacion..." -ForegroundColor Yellow
+$BackIp = (aws ec2 describe-instances --filters "Name=tag:Name,Values=portal_back" "Name=instance-state-name,Values=pending,running" --query "Reservations[0].Instances[0].PrivateIpAddress" --output text 2>$null).Trim()
+$FrontPublicIp = (aws ec2 describe-instances --filters "Name=tag:Name,Values=portal_front" "Name=instance-state-name,Values=pending,running" --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>$null).Trim()
+
+$BackendPublicEndpoint = if ($FrontPublicIp -and $FrontPublicIp -ne "None") { $FrontPublicIp } else { $AlbExtDns }
+
+# Implantar tempranamente en el código de la App Móvil (api_client.dart) y en .env la IP / Endpoint del Backend de Arquitectura 1
+$ApiClientDartPath = "$PSScriptRoot\..\mobile_app\lib\core\network\api_client.dart"
+if (Test-Path $ApiClientDartPath) {
+    $dartContent = [System.IO.File]::ReadAllText($ApiClientDartPath, [System.Text.Encoding]::UTF8)
+    $dartContent = $dartContent -replace "static const String activeArchitecture = '[^']*';", "static const String activeArchitecture = 'ARCH1_EC2_BACKEND';"
+    $dartContent = $dartContent -replace "static const String deployedHost = '[^']*';", "static const String deployedHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String authServiceHost = '[^']*';", "static const String authServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String graduatesServiceHost = '[^']*';", "static const String graduatesServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String companiesServiceHost = '[^']*';", "static const String companiesServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String matchmakingServiceHost = '[^']*';", "static const String matchmakingServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String dashboardServiceHost = '[^']*';", "static const String dashboardServiceHost = 'http://$AlbExtDns';"
+    [System.IO.File]::WriteAllText($ApiClientDartPath, $dartContent, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+$MobileEnvPath = "$PSScriptRoot\..\mobile_app\.env"
+$EnvText = @"
+# Generado automáticamente por deploy.ps1 (Arquitectura 1 - Backend EC2)
+DEPLOY_ARCHITECTURE=ARCH1_EC2_BACKEND
+BACKEND_PRIVATE_IP=$BackIp
+BACKEND_INTERNAL_ALB=$AlbIntDns
+BACKEND_PUBLIC_IP=$BackendPublicEndpoint
+ALB_EXT_DNS=$AlbExtDns
+API_BASE_URL=http://$AlbExtDns/api
+AUTH_URL=http://$AlbExtDns
+GRADUATES_URL=http://$AlbExtDns
+COMPANIES_URL=http://$AlbExtDns
+MATCHMAKING_URL=http://$AlbExtDns
+DASHBOARD_URL=http://$AlbExtDns
+"@
+[System.IO.File]::WriteAllText($MobileEnvPath, $EnvText, (New-Object System.Text.UTF8Encoding($false)))
+
+Write-Host "`n[Verificación] Esperando a que las instancias inicialicen Docker y la aplicacion..." -ForegroundColor Yellow
 Write-Host "(Descargando paquetes, compilando React y levantando microservicios. Consultando cada 15s...)" -ForegroundColor DarkGray
 
 $MaxAttempts = 35
@@ -372,24 +449,62 @@ for ($i = 1; $i -le $MaxAttempts; $i++) {
     Start-Sleep -Seconds 15
 }
 
+# Refrescar IPs por si el ASG terminó de asignarlas durante la espera
+$BackIp = (aws ec2 describe-instances --filters "Name=tag:Name,Values=portal_back" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].PrivateIpAddress" --output text 2>$null).Trim()
+$FrontPublicIp = (aws ec2 describe-instances --filters "Name=tag:Name,Values=portal_front" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>$null).Trim()
+$BackendPublicEndpoint = if ($FrontPublicIp -and $FrontPublicIp -ne "None") { $FrontPublicIp } else { $AlbExtDns }
+
 if ($AppReady) {
-    Write-Host "¡Aplicacion verificada con exito! La arquitectura de 3 capas esta 100% activa." -ForegroundColor Green
+    Write-Host "¡Aplicacion verificada con exito! La arquitectura de 3 capas con RDS Multi-AZ esta 100% activa." -ForegroundColor Green
 } else {
     Write-Host "[AVISO] Los balanceadores estan listos. Los contenedores pueden demorar 1-2 minutos mas en compilarse por completo." -ForegroundColor DarkYellow
 }
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
-Write-Host " ¡Despliegue Arquitectura 1 (3 Instancias + 2 ALBs) Finalizado! " -ForegroundColor Green -BackgroundColor Black
+Write-Host " ¡Despliegue Arquitectura 1 (2 EC2 ASG + 2 ALBs + RDS Multi-AZ) Finalizado! " -ForegroundColor Green -BackgroundColor Black
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host "Topologia de 3 Capas Desplegada (IaaS Clasica en EC2):" -ForegroundColor Yellow
-Write-Host "  1. Capa Front : 1 Instancia EC2 'portal_front' (Nginx + React SPA en ASG)" -ForegroundColor White
+Write-Host "Topologia Desplegada (IaaS EC2 + PaaS RDS Multi-AZ):" -ForegroundColor Yellow
+Write-Host "  1. Capa Front : 1 Instancia EC2 'portal_front' (IP Publica: $FrontPublicIp | Nginx + React SPA en ASG)" -ForegroundColor White
 Write-Host "                  Detras de alb-portal-ext. (Frontend corre 100% en EC2, NO en S3)" -ForegroundColor DarkGray
-Write-Host "  2. Capa Back  : 1 Instancia EC2 'portal_back' (Nginx Gateway + 5 Microservicios en ASG)" -ForegroundColor White
-Write-Host "                  Detras de alb-portal-int." -ForegroundColor DarkGray
-Write-Host "  3. Capa Data  : 1 Instancia EC2 'portal_data' (PostgreSQL 15 + RabbitMQ + Loki)" -ForegroundColor White
-Write-Host "                  En subred privada de datos." -ForegroundColor DarkGray
+Write-Host "  2. Capa Back  : 1 Instancia EC2 'portal_back' (IP Privada: $BackIp | Nginx Gateway + 5 Microservicios + RabbitMQ en ASG)" -ForegroundColor White
+Write-Host "                  Detras de alb-portal-int ($AlbIntDns)." -ForegroundColor DarkGray
+Write-Host "  3. Capa Data  : Amazon RDS PostgreSQL 15 Multi-AZ ('portal-db-rds' | Endpoint: $RdsHost)" -ForegroundColor White
+Write-Host "                  Alta Disponibilidad nativa (Primaria en $AZ_A + Standby en $AZ_B)." -ForegroundColor DarkGray
 Write-Host "  - Balanceo    : 2 ALBs (alb-portal-ext publico + alb-portal-int interno)" -ForegroundColor White
 Write-Host "  - Storage S3  : Unicamente buckets para archivos de usuarios (CVs, Avatares, Entregables)" -ForegroundColor White
 Write-Host "`nYa puedes ingresar inmediatamente a tu aplicacion en:" -ForegroundColor Yellow
 Write-Host "http://$AlbExtDns" -ForegroundColor Cyan
-Write-Host "ALB Interno DNS: http://$AlbIntDns" -ForegroundColor DarkGray
+Write-Host "Endpoint RDS PostgreSQL Multi-AZ: $RdsHost:5432" -ForegroundColor DarkGray
+Write-Host "IP Publica Gateway (Front -> Back): http://$BackendPublicEndpoint/api" -ForegroundColor DarkGray
+Write-Host "IP Privada Instancia Backend (portal_back): $BackIp" -ForegroundColor DarkGray
+Write-Host "ALB Interno DNS (Backend): http://$AlbIntDns" -ForegroundColor DarkGray
+
+# Implantar directamente en el código de la App Móvil (api_client.dart) y en .env la conexión al Backend de la Arquitectura 1
+if (Test-Path $ApiClientDartPath) {
+    $dartContent = [System.IO.File]::ReadAllText($ApiClientDartPath, [System.Text.Encoding]::UTF8)
+    $dartContent = $dartContent -replace "static const String activeArchitecture = '[^']*';", "static const String activeArchitecture = 'ARCH1_EC2_BACKEND';"
+    $dartContent = $dartContent -replace "static const String deployedHost = '[^']*';", "static const String deployedHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String authServiceHost = '[^']*';", "static const String authServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String graduatesServiceHost = '[^']*';", "static const String graduatesServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String companiesServiceHost = '[^']*';", "static const String companiesServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String matchmakingServiceHost = '[^']*';", "static const String matchmakingServiceHost = 'http://$AlbExtDns';"
+    $dartContent = $dartContent -replace "static const String dashboardServiceHost = '[^']*';", "static const String dashboardServiceHost = 'http://$AlbExtDns';"
+    [System.IO.File]::WriteAllText($ApiClientDartPath, $dartContent, (New-Object System.Text.UTF8Encoding($false)))
+}
+$EnvText = @"
+# Generado automáticamente por deploy.ps1 (Arquitectura 1 - Backend EC2)
+DEPLOY_ARCHITECTURE=ARCH1_EC2_BACKEND
+BACKEND_PRIVATE_IP=$BackIp
+BACKEND_INTERNAL_ALB=$AlbIntDns
+BACKEND_PUBLIC_IP=$BackendPublicEndpoint
+ALB_EXT_DNS=$AlbExtDns
+API_BASE_URL=http://$AlbExtDns/api
+AUTH_URL=http://$AlbExtDns
+GRADUATES_URL=http://$AlbExtDns
+COMPANIES_URL=http://$AlbExtDns
+MATCHMAKING_URL=http://$AlbExtDns
+DASHBOARD_URL=http://$AlbExtDns
+"@
+[System.IO.File]::WriteAllText($MobileEnvPath, $EnvText, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "App Móvil (api_client.dart + .env) vinculada directamente al Backend de Arquitectura 1 (IP Back: $BackIp | Gateway: http://$AlbExtDns/api)" -ForegroundColor Green
+

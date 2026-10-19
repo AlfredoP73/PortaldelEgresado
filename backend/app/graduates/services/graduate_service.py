@@ -167,7 +167,10 @@ def get_all_skills(db: Session):
     return db.query(models.Skill).all()
 
 def create_skill(skill: schemas.SkillBase, db: Session):
-    db_skill = models.Skill(name=skill.name)
+    existing = db.query(models.Skill).filter(models.Skill.name.ilike(skill.name.strip())).first()
+    if existing:
+        return existing
+    db_skill = models.Skill(name=skill.name.strip())
     db.add(db_skill)
     db.commit()
     db.refresh(db_skill)
@@ -191,3 +194,44 @@ def update_skills(skills_data: schemas.GraduateSkillsUpdate, current_user: dict,
     db.commit()
     matchmaking_adapter.trigger_recalculate(graduate_id=current_user["id"])
     return {"detail": "Habilidades actualizadas"}
+
+def quick_add_skill(body: schemas.QuickAddSkillRequest, current_user: dict, db: Session):
+    db_profile = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
+    if not db_profile:
+        raise HTTPException(status_code=400, detail="Completa primero tus datos básicos del perfil")
+
+    skill_id = body.skill_id
+    skill_obj = None
+    if skill_id:
+        skill_obj = db.query(models.Skill).filter(models.Skill.id == skill_id).first()
+    if not skill_obj and body.skill_name:
+        skill_obj = db.query(models.Skill).filter(models.Skill.name.ilike(body.skill_name.strip())).first()
+        if not skill_obj:
+            skill_obj = models.Skill(name=body.skill_name.strip())
+            db.add(skill_obj)
+            db.commit()
+            db.refresh(skill_obj)
+        skill_id = skill_obj.id
+
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Debe indicar skill_id o skill_name")
+
+    existing = db.query(models.GraduateSkill).filter(
+        models.GraduateSkill.graduate_id == current_user["id"],
+        models.GraduateSkill.skill_id == skill_id
+    ).first()
+    if not existing:
+        db.add(models.GraduateSkill(
+            graduate_id=current_user["id"],
+            skill_id=skill_id,
+            proficiency_level=body.proficiency_level or "Intermedio"
+        ))
+        db.commit()
+        matchmaking_adapter.trigger_recalculate(graduate_id=current_user["id"])
+
+    return {
+        "detail": "Habilidad agregada a tu perfil y afinidad recalculada",
+        "skill_id": skill_id,
+        "skill_name": skill_obj.name if skill_obj else (body.skill_name or f"Skill #{skill_id}"),
+    }
+

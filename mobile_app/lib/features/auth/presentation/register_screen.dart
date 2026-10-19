@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
-
+import 'package:dio/dio.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 
@@ -14,242 +13,830 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  bool _isLoading = false;
+
+  int _registerStep = 1; // 1: Credenciales, 2: Privacidad
+  static const int _roleId = 3; // 3 = Egresado UPC (Exclusivo en app móvil)
   bool _obscurePassword = true;
-  String? _errorMessage;
-  double _passwordStrength = 0.0;
   bool _acceptPrivacy = false;
+  bool _authorizeData = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _nameController.dispose();
     super.dispose();
   }
 
-  void _checkPasswordStrength(String password) {
-    double strength = 0;
-    if (password.length > 5) strength += 0.25;
-    if (password.contains(RegExp(r'[A-Z]'))) strength += 0.25;
-    if (password.contains(RegExp(r'[0-9]'))) strength += 0.25;
-    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) strength += 0.25;
-    setState(() { _passwordStrength = strength; });
+  int get _passwordStrength {
+    final pwd = _passwordController.text;
+    if (pwd.isEmpty) return 0;
+    int score = 0;
+    if (pwd.length > 8) score++;
+    if (RegExp(r'[A-Z]').hasMatch(pwd)) score++;
+    if (RegExp(r'[0-9]').hasMatch(pwd)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(pwd)) score++;
+    return score;
   }
 
-  Color _getStrengthColor() {
-    if (_passwordStrength <= 0.25) return AppTheme.statusRechazado;
-    if (_passwordStrength <= 0.50) return AppTheme.statusEntrevistado;
-    if (_passwordStrength <= 0.75) return AppTheme.primaryColor.withValues(alpha: 0.7);
-    return AppTheme.primaryColor;
+  Future<void> _handleNextStep() async {
+    setState(() => _errorMessage = null);
+
+    if (_registerStep == 1) {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      if (email.isEmpty) {
+        setState(() => _errorMessage = 'Ingresa tu correo institucional para continuar.');
+        return;
+      }
+      if (!email.toLowerCase().endsWith('@unicesar.edu.co')) {
+        setState(() => _errorMessage = 'Debes ingresar tu correo institucional @unicesar.edu.co');
+        return;
+      }
+      if (password.length < 8 || _passwordStrength < 2) {
+        setState(() => _errorMessage = 'La contraseña debe tener al menos 8 caracteres y cumplir los requisitos de seguridad.');
+        return;
+      }
+
+      setState(() => _isLoading = true);
+      try {
+        await ApiClient.instance.post('/auth/validate-graduate-email', data: {
+          'email': email,
+        });
+
+        if (mounted) {
+          setState(() {
+            _registerStep = 2;
+            _errorMessage = null;
+          });
+        }
+      } on DioException catch (e) {
+        String msg = 'No se pudo conectar con el servidor institucional.';
+        if (e.response?.data != null && e.response?.data is Map) {
+          msg = e.response?.data['detail']?.toString() ?? msg;
+        }
+        if (mounted) {
+          setState(() => _errorMessage = msg);
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _errorMessage = 'Error al validar el correo institucional: $e');
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
   }
 
-  Future<void> _register() async {
-    setState(() { _isLoading = true; _errorMessage = null; });
-    if (!_acceptPrivacy) {
-      setState(() { _errorMessage = 'Debes aceptar las políticas de privacidad y el tratamiento de datos para registrarte.'; });
-      setState(() { _isLoading = false; });
+  Future<void> _submitRegister() async {
+    if (_registerStep < 2) {
+      await _handleNextStep();
       return;
     }
 
+    if (!_acceptPrivacy || !_authorizeData) {
+      setState(() => _errorMessage = 'Debes aceptar las políticas y autorizar el tratamiento de datos para continuar.');
+      return;
+    }
+
+    final email = _emailController.text.trim();
+    if (!email.toLowerCase().endsWith('@unicesar.edu.co')) {
+      setState(() => _errorMessage = 'Debes registrarte con tu correo institucional @unicesar.edu.co');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      await ApiClient.instance.post('/auth/register', data: {
-        'email': _emailController.text.trim(),
+      final response = await ApiClient.instance.post('/auth/register', data: {
+        'email': email,
         'password': _passwordController.text,
-        'full_name': _nameController.text.trim(),
-        'role_id': 3,
+        'role_id': _roleId,
         'accept_privacy_policy': _acceptPrivacy,
-        'authorize_data_treatment': _acceptPrivacy,
+        'authorize_data_treatment': _authorizeData,
       });
-      
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registro exitoso. Por favor revisa tu correo para verificar tu cuenta antes de iniciar sesión.'),
-          backgroundColor: AppTheme.statusContratado,
-        ),
-      );
-      Navigator.pop(context);
-    } catch (e) {
-      setState(() { _errorMessage = 'Error al registrar el usuario'; });
+
+      final message = response.data is Map ? (response.data['message']?.toString() ?? '') : '';
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          '/verify_email',
+          arguments: {
+            'email': email,
+            'message': message,
+          },
+        );
+      }
+    } on DioException catch (e) {
+      String msg = 'No se pudo conectar con el servidor. Intenta de nuevo.';
+      if (e.response?.data != null && e.response?.data is Map) {
+        msg = e.response?.data['detail']?.toString() ?? msg;
+      }
+      if (mounted) {
+        setState(() => _errorMessage = msg);
+      }
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final strength = _passwordStrength;
+    final strengthLabels = ['Muy débil', 'Débil', 'Aceptable', 'Fuerte', 'Muy fuerte'];
+    final strengthColors = [
+      const Color(0xFFF87171),
+      const Color(0xFFFB923C),
+      const Color(0xFFFACC15),
+      AppTheme.brand400,
+      const Color(0xFF10B981),
+    ];
+
+    final stepSubtitle = _registerStep == 1
+        ? 'Paso 1 de 2 · Credenciales institucionales'
+        : 'Paso 2 de 2 · Privacidad y tratamiento de datos';
+
     return Scaffold(
       backgroundColor: context.bgColor,
-      body: Stack(
-        children: [
-          // Background ambient glows
-          Positioned(
-            top: -150, right: -50,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryColor.withValues(alpha: 0.15)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          Positioned(
-            bottom: -50, left: -100,
-            child: Container(
-              width: 250, height: 250,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.accentAmber.withValues(alpha: 0.1)),
-              child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(color: Colors.transparent)),
-            ),
-          ),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-              children: [
-                SizedBox(height: 20),
-                Container(
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(child: Text('🎓', style: TextStyle(fontSize: 40))),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // ── Compact Institutional Top Banner ──
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: AppTheme.heroBannerGradient,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
                 ),
-                SizedBox(height: 20),
-                Text('Únete al Portal',
-                  style: TextStyle(color: context.primaryText, fontSize: 24, fontWeight: FontWeight.w800)),
-                SizedBox(height: 24),
-
-
-
-                if (_errorMessage != null) ...[
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    margin: EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3D0D0D), borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
-                    ),
-                    child: Row(children: [
-                      Icon(Icons.error_outline, size: 16, color: Color(0xFFEF4444)),
-                      SizedBox(width: 8),
-                      Expanded(child: Text(_errorMessage!, style: TextStyle(color: context.primaryText, fontSize: 13))),
-                    ]),
-                  ),
-                ],
-
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                  decoration: BoxDecoration(
-                    color: context.surfaceColor,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: context.isDark ? context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05)),
-                    boxShadow: [
-                      BoxShadow(color: context.isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05), blurRadius: 40, offset: Offset(0, 20)),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'UNIVERSIDAD POPULAR DEL CESAR',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.65),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.3,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Registro y Activación de Cuenta',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    TextField(
-                      controller: _nameController,
-                      keyboardType: TextInputType.name,
-                      style: TextStyle(color: context.primaryText, fontSize: 15),
-                      decoration: context.isDark 
-                          ? AppTheme.inputDecoration(context, label: 'Nombre completo', icon: Icons.person_outline, hint: 'Juan Perez')
-                          : AppTheme.inputDecorationLight(label: 'Nombre completo', icon: Icons.person_outline, hint: 'Juan Perez'),
-                    ),
-                    SizedBox(height: 18),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(color: context.primaryText, fontSize: 15),
-                      decoration: context.isDark 
-                          ? AppTheme.inputDecoration(context, label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co')
-                          : AppTheme.inputDecorationLight(label: 'Correo Electrónico', icon: Icons.email_outlined, hint: 'correo@upc.edu.co'),
-                    ),
-                    SizedBox(height: 18),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      onChanged: _checkPasswordStrength,
-                      style: TextStyle(color: context.primaryText, fontSize: 15),
-                      decoration: (context.isDark 
-                          ? AppTheme.inputDecoration(context, label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')
-                          : AppTheme.inputDecorationLight(label: 'Contraseña', icon: Icons.lock_outline_rounded, hint: '••••••••')).copyWith(
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: context.secondaryText, size: 20),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
+                ),
+              ),
+            ),
+
+            // ── 3-Step Registration Card (Exact match to web Login.tsx) ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: context.surfaceColor,
+                  borderRadius: AppTheme.authCardRadius,
+                  border: Border.all(color: context.borderColor),
+                  boxShadow: AppTheme.premiumShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Card Header + 3-Step Progress Bar
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: context.borderColor.withValues(alpha: 0.6))),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: AppTheme.primaryGradient,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Crear Cuenta',
+                                      style: TextStyle(
+                                        fontSize: 21,
+                                        fontWeight: FontWeight.w900,
+                                        color: context.primaryText,
+                                        letterSpacing: -0.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      stepSubtitle,
+                                      style: TextStyle(fontSize: 12, color: context.secondaryText),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.brand50,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: AppTheme.brand200),
+                                ),
+                                child: Text(
+                                  'ETAPA $_registerStep/2',
+                                  style: const TextStyle(
+                                    color: AppTheme.brand700,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 2-Step Indicator Bar
+                          Row(
+                            children: [
+                              _buildStepPill(1, '1. Credenciales'),
+                              const SizedBox(width: 8),
+                              _buildStepPill(2, '2. Privacidad'),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 12),
-                    Row(
-                      children: List.generate(4, (index) => Expanded(
-                        child: Container(
-                          height: 4,
-                          margin: EdgeInsets.only(right: index < 3 ? 4 : 0),
-                          decoration: BoxDecoration(
-                            color: _passwordStrength > (index * 0.25) ? _getStrengthColor() : context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(2),
+
+                    // Step Body
+                    Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── ETAPA 1: CORREO INSTITUCIONAL + CONTRASEÑA + REQUISITOS ──
+                          if (_registerStep == 1) ...[
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppTheme.brand50,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppTheme.brand200),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.school_rounded, color: AppTheme.primaryColor, size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Registro Exclusivo de Egresados UPC',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppTheme.brand700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Ingresa tu correo institucional @unicesar.edu.co para validar tu titulación. Las empresas aliadas gestionan sus vacantes en el portal web.',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: context.secondaryText,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            Text(
+                              'CORREO INSTITUCIONAL (@UNICESAR.EDU.CO)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
+                                color: context.secondaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              onChanged: (_) => setState(() {}),
+                              style: TextStyle(color: context.primaryText, fontSize: 15),
+                              decoration: AppTheme.inputDecoration(
+                                context,
+                                label: 'Correo institucional',
+                                hint: 'usuario@unicesar.edu.co',
+                                icon: Icons.mail_outline_rounded,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            Text(
+                              'CONTRASEÑA',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
+                                color: context.secondaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              onChanged: (_) => setState(() {}),
+                              style: TextStyle(color: context.primaryText, fontSize: 15),
+                              decoration: AppTheme.inputDecoration(
+                                context,
+                                label: 'Contraseña segura',
+                                hint: '••••••••',
+                                icon: Icons.lock_outline_rounded,
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                    color: context.tertiaryText,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                ),
+                              ),
+                            ),
+
+                            if (_passwordController.text.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: List.generate(4, (index) {
+                                  return Expanded(
+                                    child: Container(
+                                      height: 6,
+                                      margin: EdgeInsets.only(right: index < 3 ? 4 : 0),
+                                      decoration: BoxDecoration(
+                                        color: index < strength
+                                            ? strengthColors[strength]
+                                            : context.borderColor,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  strengthLabels[strength],
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: strengthColors[strength],
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 12),
+                            // Requisitos de seguridad
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: context.mutedColor,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: context.borderColor),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'REQUISITOS DE SEGURIDAD',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.0,
+                                      color: context.secondaryText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildReqItem('Mín. 8 caracteres', _passwordController.text.length >= 8),
+                                      _buildReqItem('Una mayúscula', RegExp(r'[A-Z]').hasMatch(_passwordController.text)),
+                                      _buildReqItem('Una minúscula', RegExp(r'[a-z]').hasMatch(_passwordController.text)),
+                                      _buildReqItem('Un número', RegExp(r'[0-9]').hasMatch(_passwordController.text)),
+                                      _buildReqItem('Carácter especial', RegExp(r'[^A-Za-z0-9]').hasMatch(_passwordController.text)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          // ── ETAPA 2: AVISOS DE PRIVACIDAD Y TRATAMIENTO DE DATOS ──
+                          if (_registerStep == 2) ...[
+                            // Selected Email Summary Chip
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.brand50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.brand200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'ACTIVACIÓN DE EGRESADO UPC',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppTheme.brand700,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _emailController.text.trim(),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppTheme.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Row(
+                                          children: [
+                                            Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10B981)),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Verificado en censo oficial UPC',
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF047857),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _errorMessage = null;
+                                        _registerStep = 1;
+                                      });
+                                    },
+                                    child: const Text(
+                                      'Cambiar correo',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.brand700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Consent Checkboxes Box
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: context.mutedColor,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: context.borderColor),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'CONSENTIMIENTO Y PROTECCIÓN DE DATOS (LEY 1581 DE 2012)',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.6,
+                                      color: context.secondaryText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Material(
+                                    color: Colors.transparent,
+                                    child: Column(
+                                      children: [
+                                        CheckboxListTile(
+                                          value: _acceptPrivacy,
+                                          onChanged: (v) => setState(() => _acceptPrivacy = v ?? false),
+                                          activeColor: AppTheme.primaryColor,
+                                          contentPadding: EdgeInsets.zero,
+                                          controlAffinity: ListTileControlAffinity.leading,
+                                          title: Text(
+                                            'He leído y acepto el Aviso de Privacidad de la Universidad Popular del Cesar. *',
+                                            style: TextStyle(fontSize: 12.5, color: context.primaryText, height: 1.35),
+                                          ),
+                                        ),
+                                        const Divider(height: 8),
+                                        CheckboxListTile(
+                                          value: _authorizeData,
+                                          onChanged: (v) => setState(() => _authorizeData = v ?? false),
+                                          activeColor: AppTheme.primaryColor,
+                                          contentPadding: EdgeInsets.zero,
+                                          controlAffinity: ListTileControlAffinity.leading,
+                                          title: Text(
+                                            'Autorizo de manera previa, expresa e informada a la UPC para el Tratamiento de mis Datos Personales conforme a la Ley 1581 de 2012. *',
+                                            style: TextStyle(fontSize: 12.5, color: context.primaryText, height: 1.35),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _errorMessage!.replaceAll(RegExp(r'<[^>]*>'), ''),
+                                      style: const TextStyle(
+                                        color: Color(0xFFDC2626),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 20),
+
+                          // Navigation Buttons (Atrás / Continuar / Verificar y activar cuenta)
+                          Row(
+                            children: [
+                              if (_registerStep > 1) ...[
+                                OutlinedButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _errorMessage = null;
+                                            _registerStep = 1;
+                                          });
+                                        },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  ),
+                                  child: const Text('Atrás', style: TextStyle(fontWeight: FontWeight.w700)),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              Expanded(
+                                child: SizedBox(
+                                  height: 50,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: AppTheme.primaryGradient,
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF158A58).withValues(alpha: 0.28),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : _submitRegister,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                                            )
+                                          : Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  _registerStep < 2
+                                                      ? 'Continuar'
+                                                      : 'Verificar y activar cuenta',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                if (_registerStep < 2) ...[
+                                                  const SizedBox(width: 6),
+                                                  const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17),
+                                                ],
+                                              ],
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Footer Toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22),
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: context.borderColor.withValues(alpha: 0.6))),
+                      ),
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: RichText(
+                            text: TextSpan(
+                              text: '¿Ya tienes cuenta? ',
+                              style: TextStyle(
+                                color: context.secondaryText,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              children: const [
+                                TextSpan(
+                                  text: 'Inicia sesión',
+                                  style: TextStyle(
+                                    color: Color(0xFF158A58),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      )),
-                    ),
-                    SizedBox(height: 16),
-                    CheckboxListTile(
-                      value: _acceptPrivacy,
-                      onChanged: (val) {
-                        setState(() {
-                          _acceptPrivacy = val ?? false;
-                        });
-                      },
-                      title: Text(
-                        'Acepto la Política de Privacidad y el tratamiento de mis datos personales.',
-                        style: TextStyle(color: context.secondaryText, fontSize: 12, height: 1.4),
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: AppTheme.primaryColor,
-                      checkColor: Colors.white,
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                    ),
-                    SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _register,
-                        child: _isLoading
-                          ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Text('Crear Cuenta'),
                       ),
                     ),
-                  ]),
-                  ), // Material
+                  ],
                 ),
-                SizedBox(height: 24),
-                Center(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: RichText(text: TextSpan(
-                      style: TextStyle(fontSize: 14, color: context.secondaryText),
-                      children: [
-                        TextSpan(text: '¿Ya tienes cuenta? '),
-                        TextSpan(text: 'Inicia sesión', style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700)),
-                      ],
-                    )),
-                  ),
-                ),
-                SizedBox(height: 20),
-                SizedBox(height: 32),
-              ],
+              ),
             ),
-            ), // SingleChildScrollView
-          ), // Center
-        ), // SafeArea
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepPill(int step, String label) {
+    final active = _registerStep == step;
+    final completed = _registerStep > step;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: completed
+            ? () {
+                setState(() {
+                  _errorMessage = null;
+                  _registerStep = step;
+                });
+              }
+            : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: completed
+                    ? AppTheme.primaryColor
+                    : active
+                        ? AppTheme.brand500
+                        : context.borderColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: active
+                    ? AppTheme.brand700
+                    : completed
+                        ? context.primaryText
+                        : context.tertiaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildReqItem(String label, bool met) {
+    return SizedBox(
+      width: 140,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 15,
+            height: 15,
+            decoration: BoxDecoration(
+              color: met ? AppTheme.brand500 : context.borderColor,
+              shape: BoxShape.circle,
+            ),
+            child: met ? const Icon(Icons.check, color: Colors.white, size: 10) : null,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: met ? FontWeight.w700 : FontWeight.w500,
+                color: met ? AppTheme.brand700 : context.secondaryText,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -172,3 +172,8 @@ def create_skill(skill: schemas.SkillBase, db: Session = Depends(get_db)):
 @router.put("/profile/skills")
 def update_skills(skills_data: schemas.GraduateSkillsUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return graduate_service.update_skills(skills_data, current_user, db)
+
+@router.post("/profile/skills/quick-add")
+def quick_add_skill(body: schemas.QuickAddSkillRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return graduate_service.quick_add_skill(body, current_user, db)
+

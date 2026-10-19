@@ -106,6 +106,35 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
         ),
     )
 
+def validate_graduate_email(email: str, db: Session) -> dict:
+    """Verifica si un correo institucional pertenece al censo oficial de egresados precargado en la base de datos."""
+    email_clean = email.strip().lower()
+    if not email_clean.endswith("@unicesar.edu.co"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes ingresar tu correo institucional @unicesar.edu.co"
+        )
+
+    user = db.query(models.User).filter(func.lower(models.User.email) == email_clean).first()
+    if not user or user.role_id != 3:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC. Si eres egresado, solicita tu importación en la Oficina de Seguimiento a Egresados."
+        )
+
+    if user.is_active and user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tu cuenta de egresado ya se encuentra activa. Por favor inicia sesión directamente."
+        )
+
+    return {
+        "valid": True,
+        "message": "Egresado verificado en la base de datos oficial de la UPC.",
+        "email": user.email
+    }
+
+
 def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "unknown") -> dict:
     email_clean = body.email.strip().lower()
     existing_user = db.query(models.User).filter(func.lower(models.User.email) == email_clean).first()
