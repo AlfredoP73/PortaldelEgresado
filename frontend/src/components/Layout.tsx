@@ -21,12 +21,17 @@ import {
   Trophy,
   Sparkles,
   ShieldAlert,
-  KeyRound
+  KeyRound,
+  BarChart3,
+  Calendar,
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
+import { getAuthNotifications } from '../api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -90,6 +95,13 @@ const getNavItems = (role: string) => {
       icon: LayoutDashboard,
       roles: ['ADMIN'],
       section: 'Administración Global',
+    },
+    {
+      name: 'Analítica BI Ejecutiva',
+      path: '/admin/analytics',
+      icon: BarChart3,
+      roles: ['ADMIN'],
+      section: 'Inteligencia Institucional',
     },
 
     {
@@ -178,6 +190,29 @@ const getNavItems = (role: string) => {
       roles: ['GRADUATE'],
       section: 'Institucional',
     },
+
+    // Módulo Comunidad, Red y Eventos
+    {
+      name: 'Directorio Egresados',
+      path: '/directory',
+      icon: Users,
+      roles: ['GRADUATE', 'ADMIN'],
+      section: 'Comunidad & Red',
+    },
+    {
+      name: 'Eventos y Ferias',
+      path: '/events',
+      icon: Calendar,
+      roles: ['GRADUATE', 'COMPANY', 'ADMIN'],
+      section: 'Comunidad & Red',
+    },
+    {
+      name: 'Mensajería Directa',
+      path: '/messages',
+      icon: MessageSquare,
+      roles: ['GRADUATE', 'COMPANY', 'ADMIN'],
+      section: 'Comunidad & Red',
+    },
   ];
 
   return allItems.filter((item) => item.roles.includes(role));
@@ -192,6 +227,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const pageTitles: Record<string, string> = {
     '/admin/dashboard': 'Dashboard Administrativo',
+    '/admin/analytics': 'Analítica BI Ejecutiva (Estilo Power BI)',
     '/company/dashboard': 'Dashboard Empresa',
     '/graduate/dashboard': 'Dashboard Egresado',
     '/companies': 'Directorio de Empresas',
@@ -199,12 +235,18 @@ export default function Layout({ children }: LayoutProps) {
     '/kanban': 'Gestión de Candidatos',
     '/profile': 'Mi Perfil Profesional',
     '/jobs': 'Explorar Ofertas Laborales',
+    '/directory': 'Directorio de Egresados & Mentorías',
+    '/events': 'Eventos, Ferias y Convocatorias',
+    '/messages': 'Mensajería Directa y Red de Contactos',
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('sidebarOpen');
     return saved !== null ? saved === 'true' : true;
   });
+
+  const [loginAlerts, setLoginAlerts] = useState<any[]>([]);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('sidebarOpen', String(isSidebarOpen));
@@ -256,6 +298,18 @@ export default function Layout({ children }: LayoutProps) {
         ws.close();
       }
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || user.role_name !== 'GRADUATE') return;
+    getAuthNotifications()
+      .then((res) => {
+        const unread = res.data?.filter((n: any) => !n.is_read) || [];
+        if (unread.length > 0) {
+          setLoginAlerts(unread);
+        }
+      })
+      .catch(() => {});
   }, [user?.id]);
 
   const handleLogout = () => {
@@ -762,6 +816,44 @@ export default function Layout({ children }: LayoutProps) {
               pb-10
             "
           >
+            {/* Banner de Alertas Notificaciones al Ingresar el Egresado */}
+            {roleName === 'GRADUATE' && loginAlerts.length > 0 && !bannerDismissed && (
+              <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white shadow-xl flex items-center justify-between gap-4 animate-fade-in border border-emerald-400/30">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                    <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm tracking-tight flex items-center gap-2">
+                      ¡Tienes {loginAlerts.length} alerta{loginAlerts.length > 1 ? 's' : ''} activa{loginAlerts.length > 1 ? 's' : ''}!
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/50 uppercase font-black tracking-wider">
+                        Nuevo
+                      </span>
+                    </p>
+                    <p className="text-xs text-emerald-100 truncate mt-0.5">
+                      {loginAlerts[0]?.title ? `${loginAlerts[0].title}: ` : ''}{loginAlerts[0]?.message}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    to="/matchmaking"
+                    className="px-4 py-2 rounded-xl bg-white text-emerald-800 font-bold text-xs hover:bg-emerald-50 transition-all shadow-md active:scale-95"
+                  >
+                    Ver Oportunidades
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setBannerDismissed(true)}
+                    className="p-1.5 rounded-xl text-emerald-200 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Cerrar aviso"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {children}
           </div>
         </main>

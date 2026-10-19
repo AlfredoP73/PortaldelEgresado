@@ -84,6 +84,9 @@ class GraduateBase(BaseModel):
     availability_notice: Optional[str] = "Inmediata"
     expected_salary: Optional[int] = None
     job_alerts_enabled: Optional[bool] = True
+    alert_min_score: Optional[int] = 75
+    mentor_opt_in: Optional[bool] = False
+    directory_visible: Optional[bool] = True
 
 class GraduateCreate(GraduateBase):
     user_id: Optional[int] = None
@@ -102,6 +105,9 @@ class GraduateUpdate(BaseModel):
     availability_notice: Optional[str] = None
     expected_salary: Optional[int] = None
     job_alerts_enabled: Optional[bool] = None
+    alert_min_score: Optional[int] = None
+    mentor_opt_in: Optional[bool] = None
+    directory_visible: Optional[bool] = None
     
     # Extra fields sent by mobile app that we can safely ignore
     document_id: Optional[str] = None
@@ -109,6 +115,81 @@ class GraduateUpdate(BaseModel):
     address: Optional[str] = None
     bio: Optional[str] = None
     document_type: Optional[str] = None
+
+class SavedSearchBase(BaseModel):
+    name: str
+    filters_json: Dict[str, Any]
+
+class SavedSearchCreate(SavedSearchBase):
+    pass
+
+class SavedSearchResponse(SavedSearchBase):
+    id: int
+    graduate_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class AlertSettingsUpdate(BaseModel):
+    job_alerts_enabled: Optional[bool] = None
+    alert_min_score: Optional[int] = None
+
+class AlertSettingsResponse(BaseModel):
+    job_alerts_enabled: bool
+    alert_min_score: int
+
+class MentorProfileBase(BaseModel):
+    headline: Optional[str] = None
+    bio: Optional[str] = None
+    areas_json: Optional[List[str]] = []
+    max_mentees: Optional[int] = 3
+    is_active: Optional[bool] = True
+
+class MentorProfileCreate(MentorProfileBase):
+    pass
+
+class MentorProfileResponse(MentorProfileBase):
+    graduate_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class MentorshipRequestCreate(BaseModel):
+    mentor_id: int
+    message: str
+    goal: Optional[str] = None
+
+class MentorshipRequestResponse(BaseModel):
+    id: int
+    mentee_id: int
+    mentor_id: int
+    message: str
+    goal: Optional[str] = None
+    status: str
+    conversation_id: Optional[int] = None
+    created_at: datetime
+    mentee_name: Optional[str] = None
+    mentor_name: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class MentorshipRequestStatusUpdate(BaseModel):
+    status: str # ACCEPTED, REJECTED, FINISHED
+
+class DirectoryGraduateResponse(BaseModel):
+    user_id: int
+    first_name: str
+    last_name: str
+    program_id: int
+    program_name: Optional[str] = None
+    graduation_year: int
+    profile_summary: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    current_company: Optional[str] = None
+    current_position: Optional[str] = None
+    mentor_opt_in: bool = False
+    mentor_profile: Optional[MentorProfileResponse] = None
+    skills: List[str] = []
 
 class GraduateSkillsUpdate(BaseModel):
     skills: List[GraduateSkillCreate]

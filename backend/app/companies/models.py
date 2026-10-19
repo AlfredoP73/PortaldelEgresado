@@ -133,3 +133,45 @@ class ApplicationSubProcess(Base):
     score = Column(Integer, nullable=True)
 
     application = relationship("CandidateApplication", back_populates="sub_processes")
+
+
+class EventStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    CANCELLED = "CANCELLED"
+    FINISHED = "FINISHED"
+
+class EventModality(str, enum.Enum):
+    PRESENCIAL = "PRESENCIAL"
+    VIRTUAL = "VIRTUAL"
+    HIBRIDO = "HIBRIDO"
+
+class Event(Base):
+    __tablename__ = "events"
+    id = Column(Integer, primary_key=True, index=True)
+    organizer_user_id = Column(Integer, nullable=False, index=True)
+    organizer_role = Column(String(50), default="COMPANY") # "COMPANY" o "ADMIN"
+    organizer_name = Column(String(200), nullable=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    modality = Column(String(50), default="VIRTUAL") # VIRTUAL, PRESENCIAL, HIBRIDO
+    location_or_url = Column(String(500), nullable=True)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    capacity = Column(Integer, nullable=True) # None = ilimitado
+    status = Column(String(50), default="PUBLISHED") # DRAFT, PUBLISHED, CANCELLED, FINISHED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    registrations = relationship("EventRegistration", back_populates="event", cascade="all, delete-orphan")
+
+class EventRegistration(Base):
+    __tablename__ = "event_registrations"
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    graduate_id = Column(Integer, nullable=False, index=True)
+    graduate_name = Column(String(200), nullable=True)
+    graduate_email = Column(String(200), nullable=True)
+    registered_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    event = relationship("Event", back_populates="registrations")
+

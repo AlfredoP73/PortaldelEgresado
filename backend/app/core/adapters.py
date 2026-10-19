@@ -102,6 +102,9 @@ class GraduatesServicePort(ABC):
     @abstractmethod
     def get_matchmaking_graduate_ids(self) -> list: pass
 
+    @abstractmethod
+    def get_all_saved_searches(self) -> list: pass
+
 class HttpGraduatesAdapter(GraduatesServicePort):
     def __init__(self):
         self.base_url = os.getenv("GRADUATES_URL", "http://graduates:8000")
@@ -127,6 +130,12 @@ class HttpGraduatesAdapter(GraduatesServicePort):
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_graduate_ids(self) -> list:
         resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_all_saved_searches(self) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/saved-searches", timeout=5.0)
         resp.raise_for_status()
         return resp.json()
 
@@ -336,6 +345,12 @@ class AuthServicePort(ABC):
     @abstractmethod
     def create_user(self, payload: dict) -> dict: pass
 
+    @abstractmethod
+    def send_notification(self, user_id: int, title: str, message: str, type: str = "system", payload: dict = None, dedup_key: str = None) -> dict: pass
+
+    @abstractmethod
+    def create_conversation(self, context_type: str, participant_ids: list, context_id: int = None) -> dict: pass
+
 class HttpAuthAdapter(AuthServicePort):
     def __init__(self):
         self.base_url = os.getenv("AUTH_URL", "http://auth:8000")
@@ -343,5 +358,30 @@ class HttpAuthAdapter(AuthServicePort):
     @circuit(failure_threshold=3, recovery_timeout=30)
     def create_user(self, payload: dict) -> dict:
         resp = httpx.post(f"{self.base_url}/api/internal/users", json=payload, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def send_notification(self, user_id: int, title: str, message: str, type: str = "system", payload: dict = None, dedup_key: str = None) -> dict:
+        body = {
+            "user_id": user_id,
+            "title": title,
+            "message": message,
+            "type": type,
+            "payload": payload,
+            "dedup_key": dedup_key
+        }
+        resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def create_conversation(self, context_type: str, participant_ids: list, context_id: int = None) -> dict:
+        body = {
+            "context_type": context_type,
+            "context_id": context_id,
+            "participant_ids": participant_ids
+        }
+        resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=5.0)
         resp.raise_for_status()
         return resp.json()

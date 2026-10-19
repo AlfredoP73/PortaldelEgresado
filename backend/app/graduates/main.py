@@ -44,6 +44,9 @@ def ensure_graduates_schema():
             conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS availability_notice VARCHAR(50) DEFAULT 'Inmediata';"))
             conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS expected_salary INTEGER;"))
             conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS job_alerts_enabled BOOLEAN DEFAULT TRUE;"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS alert_min_score INTEGER DEFAULT 75;"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS mentor_opt_in BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS directory_visible BOOLEAN DEFAULT TRUE;"))
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS saved_jobs (
                     id SERIAL PRIMARY KEY,
@@ -53,6 +56,39 @@ def ensure_graduates_schema():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS saved_searches (
+                    id SERIAL PRIMARY KEY,
+                    graduate_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                    name VARCHAR(100) NOT NULL,
+                    filters_json JSON NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS mentor_profiles (
+                    graduate_id INTEGER PRIMARY KEY REFERENCES graduates(user_id) ON DELETE CASCADE,
+                    headline VARCHAR(200),
+                    bio TEXT,
+                    areas_json JSON,
+                    max_mentees INTEGER DEFAULT 3,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS mentorship_requests (
+                    id SERIAL PRIMARY KEY,
+                    mentee_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                    mentor_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                    message TEXT NOT NULL,
+                    goal VARCHAR(200),
+                    status VARCHAR(50) DEFAULT 'PENDING',
+                    conversation_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            print("Graduates schema check completed successfully.")
     except Exception as e:
         print(f"Schema check warning in graduates: {e}")
 

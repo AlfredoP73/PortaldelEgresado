@@ -32,12 +32,48 @@ class Graduate(Base):
     availability_notice = Column(String(50), default="Inmediata")
     expected_salary = Column(Integer, nullable=True)
     job_alerts_enabled = Column(Boolean, default=True)
+    alert_min_score = Column(Integer, default=75)
+    mentor_opt_in = Column(Boolean, default=False)
+    directory_visible = Column(Boolean, default=True)
 
     experiences = relationship("WorkExperience", back_populates="graduate")
     academic_histories = relationship("AcademicHistory", back_populates="graduate")
     certifications = relationship("Certification", back_populates="graduate")
     skills = relationship("GraduateSkill", cascade="all, delete-orphan")
     saved_jobs = relationship("SavedJob", cascade="all, delete-orphan")
+    saved_searches = relationship("SavedSearch", cascade="all, delete-orphan")
+
+class SavedSearch(Base):
+    __tablename__ = "saved_searches"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    filters_json = Column(JSON, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+class MentorProfile(Base):
+    __tablename__ = "mentor_profiles"
+    __table_args__ = {'extend_existing': True}
+    graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), primary_key=True)
+    headline = Column(String(200), nullable=True)
+    bio = Column(Text, nullable=True)
+    areas_json = Column(JSON, nullable=True)
+    max_mentees = Column(Integer, default=3)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+class MentorshipRequest(Base):
+    __tablename__ = "mentorship_requests"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    mentee_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    mentor_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    goal = Column(String(200), nullable=True)
+    status = Column(String(50), default="PENDING") # PENDING, ACCEPTED, REJECTED, FINISHED
+    conversation_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 class SavedJob(Base):
     __tablename__ = "saved_jobs"

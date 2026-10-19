@@ -24,10 +24,11 @@ UMBRAL_NOTIFICACION = Decimal("75.00")
 
 
 # ── Lectura de datos de otros dominios (API Composition) ──
-from app.core.adapters import HttpGraduatesAdapter, HttpCompaniesAdapter
+from app.core.adapters import HttpGraduatesAdapter, HttpCompaniesAdapter, HttpAuthAdapter
 
 graduates_adapter = HttpGraduatesAdapter()
 companies_adapter = HttpCompaniesAdapter()
+auth_adapter = HttpAuthAdapter()
 
 def _get_graduate_data(db: Session, graduate_id: int) -> Optional[dict]:
     try:
@@ -61,7 +62,7 @@ def calcular_afinidad(graduate: dict, job_offer: dict, weights: dict) -> dict:
 
 
 # ── Persistencia + notificaciones ────────────────────────────────────────────
-def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict) -> Match:
+def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict, graduate: Optional[dict] = None, job_offer: Optional[dict] = None) -> Match:
     existing = db.query(Match).filter_by(graduate_id=graduate_id, job_offer_id=job_offer_id).first()
     if existing:
         existing.score = result["score"]
@@ -82,7 +83,10 @@ def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict
     db.commit()
     db.refresh(match)
 
-    if result["score"] >= UMBRAL_NOTIFICACION:
+    alerts_enabled = graduate.get("job_alerts_enabled", True) if graduate else True
+    min_threshold = Decimal(str(graduate.get("alert_min_score", 75))) if graduate else UMBRAL_NOTIFICACION
+
+    if alerts_enabled and result["score"] >= min_threshold:
         ya_notificado = (
             db.query(MatchNotification)
             .filter_by(graduate_id=graduate_id, job_offer_id=job_offer_id)
@@ -98,6 +102,21 @@ def _upsert_match(db: Session, graduate_id: int, job_offer_id: int, result: dict
             )
             db.commit()
             
+            # Enviar alerta transversal a Auth (notificación web + push FCM)
+            try:
+                job_title = (job_offer.get("title") if job_offer else None) or "Nueva Vacante"
+                company_name = (job_offer.get("company_name") if job_offer else None) or "Empresa Aliada"
+                auth_adapter.send_notification(
+                    user_id=graduate_id,
+                    title=f"¡{int(result['score'])}% de afinidad con nueva vacante!",
+                    message=f"La oferta '{job_title}' en {company_name} coincide con tu perfil.",
+                    type="JOB_ALERT",
+                    payload={"job_offer_id": job_offer_id, "score": float(result["score"])},
+                    dedup_key=f"job_alert_{graduate_id}_{job_offer_id}"
+                )
+            except Exception as e:
+                print(f"Error sending auth notification: {e}")
+
             # Notificar en tiempo real por WebSockets
             try:
                 loop = asyncio.get_event_loop()
@@ -120,7 +139,7 @@ def calcular_match_individual(db: Session, graduate_id: int, job_offer_id: int) 
 
     weights = get_weights(db)
     result = calcular_afinidad(graduate, job_offer, weights)
-    return _upsert_match(db, graduate_id, job_offer_id, result)
+    return _upsert_match(db, graduate_id, job_offer_id, result, graduate=graduate, job_offer=job_offer)
 
 
 def recalcular_por_egresado(db: Session, graduate_id: int) -> list[Match]:
@@ -148,6 +167,39 @@ def recalcular_por_vacante(db: Session, job_offer_id: int) -> list[Match]:
         m = calcular_match_individual(db, gid, job_offer_id)
         if m:
             resultados.append(m)
+
+    # Coincidencia con Búsquedas Guardadas
+    try:
+        job_offer = _get_job_offer_data(db, job_offer_id) or {}
+        job_title = (job_offer.get("title") or "").lower()
+        job_desc = (job_offer.get("description") or "").lower()
+        job_modality = (job_offer.get("modality") or "").lower()
+        company_name = job_offer.get("company_name", "Empresa Aliada")
+        
+        saved_searches = graduates_adapter.get_all_saved_searches()
+        for s in saved_searches:
+            filters = s.get("filters_json") or {}
+            q = (filters.get("q") or "").strip().lower()
+            modality = (filters.get("modality") or "").strip().lower()
+            
+            match_q = True if not q else (q in job_title or q in job_desc)
+            match_mod = True if not modality or modality == "cualquiera" else (modality in job_modality)
+            
+            if match_q and match_mod and (q or (modality and modality != "cualquiera")):
+                try:
+                    auth_adapter.send_notification(
+                        user_id=s["graduate_id"],
+                        title=f"Coincidencia con tu búsqueda: '{s['name']}'",
+                        message=f"La oferta '{job_offer.get('title', 'Vacante')}' en {company_name} coincide con tu búsqueda guardada.",
+                        type="JOB_ALERT",
+                        payload={"job_offer_id": job_offer_id, "search_id": s["id"]},
+                        dedup_key=f"saved_search_{s['id']}_{job_offer_id}"
+                    )
+                except Exception as e:
+                    print(f"Error notifying saved search: {e}")
+    except Exception as e:
+        print(f"Error checking saved searches: {e}")
+
     return resultados
 
 

@@ -204,3 +204,49 @@ class GraduateWithContact(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class EventBase(BaseModel):
+    title: str
+    description: str
+    modality: Optional[str] = "VIRTUAL" # VIRTUAL, PRESENCIAL, HIBRIDO
+    location_or_url: Optional[str] = None
+    starts_at: datetime
+    ends_at: datetime
+    capacity: Optional[int] = None
+
+class EventCreate(EventBase):
+    pass
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    modality: Optional[str] = None
+    location_or_url: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    capacity: Optional[int] = None
+    status: Optional[str] = None
+
+class EventRegistrationResponse(BaseModel):
+    id: int
+    event_id: int
+    graduate_id: int
+    graduate_name: Optional[str] = None
+    graduate_email: Optional[str] = None
+    registered_at: datetime
+    class Config:
+        from_attributes = True
+
+class EventResponse(EventBase):
+    id: int
+    organizer_user_id: int
+    organizer_role: str
+    organizer_name: Optional[str] = None
+    status: str
+    created_at: datetime
+    registered_count: int = 0
+    is_registered: Optional[bool] = False
+    class Config:
+        from_attributes = True
+

@@ -16,6 +16,8 @@ import '../../matchmaking/presentation/matchmaking_screen.dart';
 import '../../applications/presentation/applications_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../events/presentation/events_screen.dart';
+import '../../messages/presentation/messages_screen.dart';
 
 class MainLayoutScreen extends StatefulWidget {
   final int initialIndex;
@@ -523,6 +525,30 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                         tooltip: context.isDark ? 'Modo Claro' : 'Modo Oscuro',
                         icon: context.isDark ? Icons.wb_sunny_rounded : Icons.dark_mode_outlined,
                         onTap: () => themeProvider.toggleTheme(!context.isDark),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildHeaderActionBtn(
+                        context,
+                        tooltip: 'Eventos y Ferias',
+                        icon: Icons.event_available_outlined,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const EventsScreen()),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      _buildHeaderActionBtn(
+                        context,
+                        tooltip: 'Mensajería Directa',
+                        icon: Icons.chat_bubble_outline_rounded,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const MessagesScreen()),
+                          );
+                        },
                       ),
                       const SizedBox(width: 6),
                       _buildHeaderActionBtn(

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -55,6 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         await prefs.setString('user_data', jsonEncode(user));
       }
+
+      // Register device FCM token for push notifications
+      PushNotificationService.registerTokenWithBackend();
 
       if (mounted) {
         if (user != null && user['privacy_policy_accepted'] == false) {

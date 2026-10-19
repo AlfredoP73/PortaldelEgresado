@@ -1,10 +1,10 @@
 import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
-import { graduatesApi, matchmakingApi } from '../../../api';
+import { graduatesApi, matchmakingApi, getSavedSearches, createSavedSearch, deleteSavedSearch } from '../../../api';
 import {
   Search, MapPin, Building2, Briefcase, CalendarDays, CheckCircle2,
   DollarSign, X, FileText, Bookmark, BookmarkCheck, Scale, Sparkles,
-  Plus, AlertCircle, Users, Clock, TrendingUp, Award, Layers
+  Plus, AlertCircle, Users, Clock, TrendingUp, Award, Layers, Bell, BookmarkPlus
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
@@ -121,14 +121,83 @@ export default function JobBoard() {
 
   const [successMessage, setSuccessMessage] = useState('');
 
+  // ── Búsquedas Guardadas (Fase 1) ──────────────────────────────────────────
+  const [savedSearches, setSavedSearches] = useState<any[]>([]);
+  const [isSaveSearchModalOpen, setIsSaveSearchModalOpen] = useState(false);
+  const [isSavedSearchesListOpen, setIsSavedSearchesListOpen] = useState(false);
+  const [savedSearchName, setSavedSearchName] = useState('');
+  const [savingSearch, setSavingSearch] = useState(false);
+
   const rawUser = localStorage.getItem('user');
   const user = rawUser ? JSON.parse(rawUser) : null;
   const graduateId = user?.id;
+
+  const loadSavedSearches = async () => {
+    try {
+      const res = await getSavedSearches();
+      setSavedSearches(res.data || []);
+    } catch (e) {}
+  };
+
+  const handleSaveCurrentSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!savedSearchName.trim()) {
+      toast.error('Asigna un nombre a tu búsqueda');
+      return;
+    }
+    try {
+      setSavingSearch(true);
+      await createSavedSearch({
+        name: savedSearchName.trim(),
+        filters_json: {
+          q: searchTerm,
+          salary_min: minSalaryFilter,
+          sector: sectorFilter,
+          city: cityFilter,
+          modality: modalityFilter,
+          contract: contractTypeFilter,
+          match: matchFilter
+        }
+      });
+      toast.success('¡Búsqueda guardada! Recibirás alertas cuando se publiquen vacantes afines.');
+      setIsSaveSearchModalOpen(false);
+      setSavedSearchName('');
+      loadSavedSearches();
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al guardar búsqueda');
+    } finally {
+      setSavingSearch(false);
+    }
+  };
+
+  const handleApplySavedSearch = (s: any) => {
+    const f = s.filters_json || {};
+    if (f.q !== undefined) setSearchTerm(f.q);
+    if (f.salary_min !== undefined) setMinSalaryFilter(f.salary_min);
+    if (f.sector !== undefined) setSectorFilter(f.sector);
+    if (f.city !== undefined) setCityFilter(f.city);
+    if (f.modality !== undefined) setModalityFilter(f.modality);
+    if (f.contract !== undefined) setContractTypeFilter(f.contract);
+    if (f.match !== undefined) setMatchFilter(f.match);
+    setIsSavedSearchesListOpen(false);
+    toast.success(`Filtros aplicados desde "${s.name}"`);
+  };
+
+  const handleDeleteSavedSearch = async (id: number) => {
+    try {
+      await deleteSavedSearch(id);
+      toast.success('Búsqueda eliminada');
+      loadSavedSearches();
+    } catch (e) {
+      toast.error('Error al eliminar búsqueda');
+    }
+  };
 
   useEffect(() => {
     fetchJobs();
     fetchSavedJobs();
     fetchCompaniesDirectory();
+    loadSavedSearches();
     if (graduateId) {
       refreshMatches();
     }
@@ -518,6 +587,30 @@ export default function JobBoard() {
                     <option value="75">Mayor a 75%</option>
                     <option value="90">Mayor a 90%</option>
                   </select>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsSaveSearchModalOpen(true)}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl border border-brand-300 text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 transition-all"
+                      title="Guardar los filtros actuales para recibir alertas"
+                    >
+                      <BookmarkPlus className="w-3.5 h-3.5 text-brand-600" />
+                      <span>Guardar búsqueda</span>
+                    </button>
+                    {savedSearches.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSavedSearchesListOpen(true)}
+                        className="px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition-all hover:bg-muted"
+                        style={{ borderColor: 'var(--border-color)' }}
+                        title="Ver mis búsquedas guardadas"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-brand-600" />
+                        <span>Búsquedas ({savedSearches.length})</span>
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -1278,6 +1371,128 @@ export default function JobBoard() {
           </>
         )}
       </Modal>
+
+      {/* Modal: Guardar Búsqueda */}
+      {isSaveSearchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div 
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                  <BookmarkPlus className="w-5 h-5 text-brand-600" />
+                  Guardar Búsqueda y Crear Alerta
+                </h3>
+                <p className="text-xs text-ink-secondary mt-0.5">
+                  Recibirás alertas web y notificaciones push en tu teléfono cuando haya nuevas vacantes afines.
+                </p>
+              </div>
+              <button onClick={() => setIsSaveSearchModalOpen(false)} className="text-ink-tertiary hover:text-ink">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveCurrentSearch} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">Nombre de la Búsqueda *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Desarrollador Python Remoto en Bogotá"
+                  value={savedSearchName}
+                  onChange={(e) => setSavedSearchName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted text-xs space-y-1">
+                <p className="font-bold text-ink">Filtros que se guardarán:</p>
+                <p className="text-ink-secondary">• Término: {searchTerm || 'Cualquiera'}</p>
+                <p className="text-ink-secondary">• Sector: {sectorFilter === 'ALL' ? 'Todos' : sectorFilter}</p>
+                <p className="text-ink-secondary">• Ciudad: {cityFilter === 'ALL' ? 'Todas' : cityFilter}</p>
+                <p className="text-ink-secondary">• Modalidad: {modalityFilter === 'ALL' ? 'Todas' : modalityFilter}</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsSaveSearchModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSearch}
+                  className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  style={{ backgroundColor: '#087443' }}
+                >
+                  <span>{savingSearch ? 'Guardando...' : 'Guardar Búsqueda'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Mis Búsquedas Guardadas */}
+      {isSavedSearchesListOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div 
+            className="w-full max-w-lg rounded-2xl border shadow-2xl p-6 space-y-4 max-h-[80vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-brand-600" />
+                  Mis Búsquedas y Alertas Guardadas ({savedSearches.length})
+                </h3>
+                <p className="text-xs text-ink-secondary">
+                  Haz clic para aplicar los filtros o elimina las que ya no necesites.
+                </p>
+              </div>
+              <button onClick={() => setIsSavedSearchesListOpen(false)} className="text-ink-tertiary hover:text-ink">✕</button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 divide-y custom-scrollbar" style={{ borderColor: 'var(--border-color)' }}>
+              {savedSearches.length === 0 ? (
+                <p className="text-center py-8 text-xs text-ink-tertiary">No tienes búsquedas guardadas aún.</p>
+              ) : (
+                savedSearches.map((s) => (
+                  <div key={s.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-ink truncate">{s.name}</h4>
+                      <p className="text-xs text-ink-secondary truncate mt-0.5">
+                        {s.filters_json?.q ? `"${s.filters_json.q}" • ` : ''}
+                        {s.filters_json?.sector !== 'ALL' && s.filters_json?.sector ? `${s.filters_json.sector} • ` : ''}
+                        {s.filters_json?.modality !== 'ALL' && s.filters_json?.modality ? `${s.filters_json.modality}` : 'Cualquier modalidad'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleApplySavedSearch(s)}
+                        className="px-3 py-1.5 bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg text-xs font-bold transition-all"
+                      >
+                        Aplicar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSavedSearch(s.id)}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                        title="Eliminar búsqueda"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

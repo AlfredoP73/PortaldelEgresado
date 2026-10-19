@@ -194,28 +194,361 @@ def system_database_dump(
 
 # ── NOTIFICATIONS ────────────────────────────────────────────────────────────
 @router.get("/notifications", response_model=List[schemas.NotificationResponse])
-def get_my_notifications(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    """Devuelve las notificaciones del usuario autenticado."""
+def get_my_notifications(
+    unread_only: bool = False,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """Devuelve las notificaciones del usuario autenticado (con filtro opcional unread_only)."""
     user = auth_service.get_user_from_token(token, db)
     from app.auth.models import Notification
-    return db.query(Notification).filter(Notification.user_id == user.id).order_by(Notification.created_at.desc()).limit(50).all()
+    q = db.query(Notification).filter(Notification.user_id == user.id)
+    if unread_only:
+        q = q.filter(Notification.is_read == False)
+    return q.order_by(Notification.created_at.desc()).limit(50).all()
+
+@router.get("/notifications/unread-count")
+def get_unread_count(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Contador de alertas pendientes para la campana del Navbar."""
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Notification
+    count = db.query(Notification).filter(Notification.user_id == user.id, Notification.is_read == False).count()
+    return {"unread_count": count}
 
 @router.put("/notifications/{notification_id}/read")
 def mark_notification_read(notification_id: int, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     user = auth_service.get_user_from_token(token, db)
     from app.auth.models import Notification
-    from fastapi import HTTPException
+    from datetime import datetime, timezone
     notif = db.query(Notification).filter(Notification.id == notification_id, Notification.user_id == user.id).first()
     if not notif:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
     notif.is_read = True
+    notif.read_at = datetime.now(timezone.utc)
     db.commit()
     return {"message": "Notificación marcada como leída"}
+
+@router.put("/notifications/read-all")
+def mark_all_notifications_read(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Notification
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    db.query(Notification).filter(
+        Notification.user_id == user.id,
+        Notification.is_read == False
+    ).update({"is_read": True, "read_at": now})
+    db.commit()
+    return {"message": "Todas las notificaciones marcadas como leídas"}
+
+# ── DISPOSITIVOS PUSH (FCM) ───────────────────────────────────────────────────
+@router.post("/devices")
+def register_device_token(
+    body: schemas.DeviceTokenRegisterRequest,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """Registra o actualiza el token FCM de un dispositivo móvil para recibir alertas push."""
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import DeviceToken
+    from datetime import datetime, timezone
+    tok = (body.token or "").strip()
+    if not tok:
+        raise HTTPException(status_code=400, detail="Token no válido")
+    
+    existing = db.query(DeviceToken).filter(DeviceToken.token == tok).first()
+    if existing:
+        existing.user_id = user.id
+        existing.platform = body.platform or "android"
+        existing.last_seen_at = datetime.now(timezone.utc)
+    else:
+        new_dev = DeviceToken(
+            user_id=user.id,
+            token=tok,
+            platform=body.platform or "android"
+        )
+        db.add(new_dev)
+    db.commit()
+    return {"status": "ok", "message": "Dispositivo registrado para alertas push"}
+
+@router.delete("/devices/{device_token}")
+def unregister_device_token(
+    device_token: str,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """Elimina el token FCM al cerrar sesión para no recibir notificaciones de otro usuario."""
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import DeviceToken
+    db.query(DeviceToken).filter(DeviceToken.token == device_token, DeviceToken.user_id == user.id).delete()
+    db.commit()
+    return {"status": "ok", "message": "Dispositivo desvinculado"}
+
+
+# ── MENSAJERÍA DIRECTA (Fase 4) ───────────────────────────────────────────────
+@router.get("/conversations", response_model=List[schemas.ConversationResponse])
+def get_user_conversations(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Conversation, ConversationParticipant, Message, User
+    
+    participations = db.query(ConversationParticipant).filter(ConversationParticipant.user_id == user.id).all()
+    conv_ids = [p.conversation_id for p in participations]
+    if not conv_ids:
+        return []
+        
+    conversations = db.query(Conversation).filter(Conversation.id.in_(conv_ids)).all()
+    last_reads = {p.conversation_id: p.last_read_at for p in participations}
+    
+    results = []
+    for c in conversations:
+        all_parts = [cp.user_id for cp in db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id == c.id).all()]
+        last_msg = db.query(Message).filter(Message.conversation_id == c.id).order_by(Message.created_at.desc()).first()
+        last_msg_resp = None
+        if last_msg:
+            sender = db.query(User).filter(User.id == last_msg.sender_id).first()
+            last_msg_resp = schemas.MessageResponse(
+                id=last_msg.id,
+                conversation_id=last_msg.conversation_id,
+                sender_id=last_msg.sender_id,
+                sender_email=sender.email if sender else f"user_{last_msg.sender_id}",
+                body=last_msg.body,
+                created_at=last_msg.created_at
+            )
+            
+        lr = last_reads.get(c.id)
+        msg_query = db.query(Message).filter(Message.conversation_id == c.id, Message.sender_id != user.id)
+        if lr:
+            unread_count = msg_query.filter(Message.created_at > lr).count()
+        else:
+            unread_count = msg_query.count()
+            
+        results.append(schemas.ConversationResponse(
+            id=c.id,
+            context_type=c.context_type,
+            context_id=c.context_id,
+            created_at=c.created_at,
+            participants=all_parts,
+            unread_count=unread_count,
+            last_message=last_msg_resp
+        ))
+        
+    return results
+
+@router.get("/conversations/{conversation_id}")
+def get_conversation_detail(
+    conversation_id: int,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Conversation, ConversationParticipant, Message, User
+    from datetime import datetime, timezone
+    
+    part = db.query(ConversationParticipant).filter(
+        ConversationParticipant.conversation_id == conversation_id,
+        ConversationParticipant.user_id == user.id
+    ).first()
+    if not part:
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta conversación")
+        
+    part.last_read_at = datetime.now(timezone.utc)
+    db.commit()
+    
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+        
+    msgs = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.asc()).all()
+    senders = {u.id: u.email for u in db.query(User).filter(User.id.in_([m.sender_id for m in msgs])).all()}
+    
+    messages_resp = [
+        {
+            "id": m.id,
+            "conversation_id": m.conversation_id,
+            "sender_id": m.sender_id,
+            "sender_email": senders.get(m.sender_id, f"user_{m.sender_id}"),
+            "body": m.body,
+            "created_at": m.created_at
+        } for m in msgs
+    ]
+    
+    return {
+        "id": conv.id,
+        "context_type": conv.context_type,
+        "context_id": conv.context_id,
+        "created_at": conv.created_at,
+        "messages": messages_resp
+    }
+
+@router.post("/conversations/{conversation_id}/messages", response_model=schemas.MessageResponse)
+def send_conversation_message(
+    conversation_id: int,
+    body: schemas.MessageCreate,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Conversation, ConversationParticipant, Message, User, DeviceToken, Notification
+    from app.auth.services.push_service import send_multicast_push
+    from datetime import datetime, timezone
+    
+    part = db.query(ConversationParticipant).filter(
+        ConversationParticipant.conversation_id == conversation_id,
+        ConversationParticipant.user_id == user.id
+    ).first()
+    if not part:
+        raise HTTPException(status_code=403, detail="No participas en esta conversación")
+        
+    part.last_read_at = datetime.now(timezone.utc)
+    
+    msg_body = (body.body or "").strip()
+    if not msg_body:
+        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
+        
+    new_msg = Message(
+        conversation_id=conversation_id,
+        sender_id=user.id,
+        body=msg_body
+    )
+    db.add(new_msg)
+    db.commit()
+    db.refresh(new_msg)
+    
+    other_parts = db.query(ConversationParticipant).filter(
+        ConversationParticipant.conversation_id == conversation_id,
+        ConversationParticipant.user_id != user.id
+    ).all()
+    
+    for op in other_parts:
+        db_notif = Notification(
+            user_id=op.user_id,
+            title="Nuevo mensaje",
+            message=f"{user.email.split('@')[0]}: {msg_body[:80]}",
+            type="MESSAGE",
+            payload={"conversation_id": conversation_id, "message_id": new_msg.id},
+            is_read=False
+        )
+        db.add(db_notif)
+        
+        tokens = [t.token for t in db.query(DeviceToken).filter(DeviceToken.user_id == op.user_id).all()]
+        if tokens:
+            send_multicast_push(
+                tokens=tokens,
+                title="Nuevo mensaje",
+                body=f"{user.email.split('@')[0]}: {msg_body[:80]}",
+                data={"type": "MESSAGE", "conversation_id": str(conversation_id)}
+            )
+            
+    db.commit()
+    return schemas.MessageResponse(
+        id=new_msg.id,
+        conversation_id=new_msg.conversation_id,
+        sender_id=new_msg.sender_id,
+        sender_email=user.email,
+        body=new_msg.body,
+        created_at=new_msg.created_at
+    )
+
+@router.post("/conversations", response_model=schemas.ConversationResponse)
+def create_or_get_conversation(
+    body: schemas.ConversationCreate,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    user = auth_service.get_user_from_token(token, db)
+    from app.auth.models import Conversation, ConversationParticipant
+    
+    if body.context_id:
+        existing = db.query(Conversation).filter(
+            Conversation.context_type == body.context_type,
+            Conversation.context_id == body.context_id
+        ).first()
+        if existing:
+            parts = [cp.user_id for cp in db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id == existing.id).all()]
+            return schemas.ConversationResponse(
+                id=existing.id,
+                context_type=existing.context_type,
+                context_id=existing.context_id,
+                created_at=existing.created_at,
+                participants=parts
+            )
+            
+    new_conv = Conversation(
+        context_type=body.context_type,
+        context_id=body.context_id
+    )
+    db.add(new_conv)
+    db.commit()
+    db.refresh(new_conv)
+    
+    all_participants = set(body.participant_ids)
+    all_participants.add(user.id)
+    
+    for pid in all_participants:
+        db.add(ConversationParticipant(conversation_id=new_conv.id, user_id=pid))
+    db.commit()
+    
+    return schemas.ConversationResponse(
+        id=new_conv.id,
+        context_type=new_conv.context_type,
+        context_id=new_conv.context_id,
+        created_at=new_conv.created_at,
+        participants=list(all_participants)
+    )
+
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.sql import func
 
 internal_router = APIRouter(prefix="/api/internal", tags=["Internal"])
+
+@internal_router.post("/notifications")
+def create_internal_notification(
+    body: schemas.CreateInternalNotificationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint interno utilizado por matchmaking/companies/graduates para generar
+    alertas inteligentes. Incluye deduplicación y envío de push móvil automático.
+    """
+    from app.auth.models import Notification, DeviceToken
+    from app.auth.services.push_service import send_multicast_push
+
+    # Deduplicación: Si ya existe una alerta con ese dedup_key para este usuario, no duplicar
+    if body.dedup_key:
+        exists = db.query(Notification).filter(
+            Notification.user_id == body.user_id,
+            Notification.dedup_key == body.dedup_key
+        ).first()
+        if exists:
+            return {"status": "duplicate", "notification_id": exists.id}
+
+    notif = Notification(
+        user_id=body.user_id,
+        title=body.title,
+        message=body.message,
+        type=body.type or "system",
+        payload=body.payload,
+        dedup_key=body.dedup_key,
+        is_read=False
+    )
+    db.add(notif)
+    db.commit()
+    db.refresh(notif)
+
+    # Disparar Push móvil si el usuario tiene dispositivos registrados
+    tokens = [t.token for t in db.query(DeviceToken).filter(DeviceToken.user_id == body.user_id).all()]
+    if tokens:
+        push_data = {"type": body.type or "system"}
+        if body.payload and isinstance(body.payload, dict):
+            for k, v in body.payload.items():
+                push_data[str(k)] = str(v)
+        send_multicast_push(tokens=tokens, title=body.title, body=body.message, data=push_data)
+
+    return {"status": "created", "notification_id": notif.id}
 
 @internal_router.post("/users")
 def create_user_internal(body: dict, db: Session = Depends(get_db)):
@@ -259,3 +592,26 @@ def create_user_internal(body: dict, db: Session = Depends(get_db)):
         "is_active": new_user.is_active,
         "email_verified": new_user.email_verified,
     }
+
+@internal_router.post("/conversations")
+def create_internal_conversation(body: schemas.ConversationCreate, db: Session = Depends(get_db)):
+    from app.auth.models import Conversation, ConversationParticipant
+    if body.context_id:
+        existing = db.query(Conversation).filter(
+            Conversation.context_type == body.context_type,
+            Conversation.context_id == body.context_id
+        ).first()
+        if existing:
+            return {"id": existing.id, "status": "existing"}
+            
+    new_conv = Conversation(
+        context_type=body.context_type,
+        context_id=body.context_id
+    )
+    db.add(new_conv)
+    db.commit()
+    db.refresh(new_conv)
+    for pid in body.participant_ids:
+        db.add(ConversationParticipant(conversation_id=new_conv.id, user_id=pid))
+    db.commit()
+    return {"id": new_conv.id, "status": "created"}

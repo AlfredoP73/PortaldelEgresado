@@ -32,6 +32,10 @@ import CompanyDashboard from './features/company/pages/CompanyDashboard';
 import GraduateDashboard from './features/graduate/pages/GraduateDashboard';
 import AdminMatchmaking from './features/admin/pages/AdminMatchmaking';
 import AdminSettings from './features/admin/pages/AdminSettings';
+import ExecutiveAnalyticsDashboard from './features/dashboard/pages/ExecutiveAnalyticsDashboard';
+import AlumniDirectoryPage from './features/graduates/pages/AlumniDirectoryPage';
+import EventsPage from './features/events/pages/EventsPage';
+import MessagesPage from './features/messages/pages/MessagesPage';
 
 const HomeRedirect = () => {
   const rawUser = localStorage.getItem('user');
@@ -67,6 +71,10 @@ export default function App() {
               path="/admin/settings"
               element={<Layout><AdminSettings /></Layout>}
             />
+            <Route
+              path="/admin/analytics"
+              element={<Layout><ExecutiveAnalyticsDashboard /></Layout>}
+            />
           </Route>
 
           {/* Rutas para todos los roles logueados */}
@@ -78,6 +86,14 @@ export default function App() {
             <Route
               path="/account"
               element={<Layout><AccountSettings /></Layout>}
+            />
+            <Route
+              path="/events"
+              element={<Layout><EventsPage /></Layout>}
+            />
+            <Route
+              path="/messages"
+              element={<Layout><MessagesPage /></Layout>}
             />
           </Route>
 
@@ -162,6 +178,10 @@ export default function App() {
             <Route
               path="/surveys"
               element={<Layout><GraduateSurveys /></Layout>}
+            />
+            <Route
+              path="/directory"
+              element={<Layout><AlumniDirectoryPage /></Layout>}
             />
           </Route>
 

@@ -8,6 +8,7 @@ import 'widgets/password_dialog.dart';
 import 'widgets/privacy_dialog.dart';
 import 'widgets/support_dialog.dart';
 import 'widgets/terms_dialog.dart';
+import '../../../core/services/push_notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _logout() async {
+    await PushNotificationService.unregisterTokenFromBackend();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('jwt_token');
     await prefs.remove('user_data');

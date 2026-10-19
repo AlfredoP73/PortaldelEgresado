@@ -40,3 +40,7 @@ terraform.rc
 *.sh
 # Credenciales AWS locales
 aws/credentials.ps1
+
+# Firebase credenciales y servicios
+*firebase*.json
+google-services.json

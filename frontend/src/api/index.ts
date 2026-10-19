@@ -120,14 +120,124 @@ export interface AuthNotification {
   title: string;
   message: string;
   type: string | null;
+  payload?: any;
   is_read: boolean;
   created_at: string;
 }
 
-export const getAuthNotifications = () =>
-  authApi.get<AuthNotification[]>('/notifications');
+export const getAuthNotifications = (unreadOnly = false) =>
+  authApi.get<AuthNotification[]>('/notifications', { params: { unread_only: unreadOnly } });
 
 export const markAuthNotificationRead = (notificationId: number) =>
   authApi.put(`/notifications/${notificationId}/read`);
 
-export default api;
+export const markAllAuthNotificationsRead = () =>
+  authApi.put('/notifications/read-all');
+
+// ── Cliente Dashboard ────────────────────────────────────────────────────────
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? '';
+export const dashboardApi = axios.create({
+  baseURL: `${DASHBOARD_URL}/api`,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+dashboardApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+dashboardApi.interceptors.response.use((res) => res, handleGlobalError);
+
+// ── Búsquedas Guardadas y Alertas (Fase 1) ────────────────────────────────────
+export const getSavedSearches = () =>
+  graduatesApi.get('/saved-searches');
+
+export const createSavedSearch = (data: { name: string; filters_json: any }) =>
+  graduatesApi.post('/saved-searches', data);
+
+export const deleteSavedSearch = (searchId: number) =>
+  graduatesApi.delete(`/saved-searches/${searchId}`);
+
+export const getAlertsSettings = () =>
+  graduatesApi.get('/profile/alerts-settings');
+
+export const updateAlertsSettings = (data: { job_alerts_enabled?: boolean; alert_min_score?: number }) =>
+  graduatesApi.put('/profile/alerts-settings', data);
+
+// ── Parser de CV por Reglas (Fase 3) ─────────────────────────────────────────
+export const parseCvPdf = (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return graduatesApi.post('/cv/parse', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
+
+// ── Mensajería Directa (Fase 4) ──────────────────────────────────────────────
+export const getConversations = () =>
+  authApi.get('/conversations');
+
+export const getConversation = (conversationId: number) =>
+  authApi.get(`/conversations/${conversationId}`);
+
+export const sendConversationMessage = (conversationId: number, body: string) =>
+  authApi.post(`/conversations/${conversationId}/messages`, { body });
+
+export const startConversation = (data: { context_type: string; context_id?: number; participant_ids: number[] }) =>
+  authApi.post('/conversations', data);
+
+// ── Red de Egresados y Mentoría (Fase 5) ──────────────────────────────────────
+export const getAlumniDirectory = (params: any) =>
+  graduatesApi.get('/directory', { params });
+
+export const getMentorProfile = () =>
+  graduatesApi.get('/mentor-profile');
+
+export const saveMentorProfile = (data: any) =>
+  graduatesApi.post('/mentor-profile', data);
+
+export const requestMentorship = (data: { mentor_id: number; message: string; goal?: string }) =>
+  graduatesApi.post('/mentorships/request', data);
+
+export const getMentorships = () =>
+  graduatesApi.get('/mentorships');
+
+export const updateMentorshipStatus = (requestId: number, status: string) =>
+  graduatesApi.put(`/mentorships/${requestId}/status`, { status });
+
+// ── Eventos y Ferias (Fase 6) ────────────────────────────────────────────────
+export const getEvents = (params?: any) =>
+  api.get('/events', { params });
+
+export const getMyEvents = () =>
+  api.get('/events/my-events');
+
+export const getEventDetail = (eventId: number) =>
+  api.get(`/events/${eventId}`);
+
+export const createEvent = (data: any) =>
+  api.post('/events', data);
+
+export const updateEvent = (eventId: number, data: any) =>
+  api.put(`/events/${eventId}`, data);
+
+export const registerToEvent = (eventId: number) =>
+  api.post(`/events/${eventId}/register`);
+
+export const cancelEventRegistration = (eventId: number) =>
+  api.delete(`/events/${eventId}/register`);
+
+export const getEventRegistrations = (eventId: number) =>
+  api.get(`/events/${eventId}/registrations`);
+
+export const getEventIcsUrl = (eventId: number) =>
+  `${COMPANIES_URL}/api/modulo2/events/${eventId}/ics`;
+
+// ── Analítica BI y Executive Dashboard (Fase 7) ──────────────────────────────
+export const getExecutiveAnalytics = (params?: any) =>
+  dashboardApi.get('/dashboard/admin/analytics', { params });
+
+export default api;

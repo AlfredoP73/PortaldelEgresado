@@ -127,11 +127,27 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     type: Optional[str] = None
+    payload: Optional[dict] = None
     is_read: bool
+    read_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class CreateInternalNotificationRequest(BaseModel):
+    user_id: int
+    title: str
+    message: str
+    type: Optional[str] = "system"
+    payload: Optional[dict] = None
+    dedup_key: Optional[str] = None
+
+
+class DeviceTokenRegisterRequest(BaseModel):
+    token: str
+    platform: Optional[str] = "android"
 
 
 class ValidateGraduateEmailRequest(BaseModel):
@@ -142,6 +158,39 @@ class ValidateGraduateEmailResponse(BaseModel):
     valid: bool = True
     message: str
     email: str
+
+
+class MessageCreate(BaseModel):
+    body: str
+
+
+class MessageResponse(BaseModel):
+    id: int
+    conversation_id: int
+    sender_id: int
+    sender_email: Optional[str] = None
+    body: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+class ConversationCreate(BaseModel):
+    context_type: str
+    context_id: Optional[int] = None
+    participant_ids: List[int]
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    context_type: str
+    context_id: Optional[int] = None
+    created_at: datetime
+    participants: List[int] = []
+    unread_count: int = 0
+    last_message: Optional[MessageResponse] = None
+    class Config:
+        from_attributes = True
 
 
 # Resolver referencia forward

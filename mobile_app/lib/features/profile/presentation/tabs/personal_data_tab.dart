@@ -37,6 +37,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isUploadingCv = false;
+  bool _isParsingCv = false;
   bool _isEditingSkills = false;
 
   @override
@@ -202,6 +203,153 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
     }
   }
 
+  Future<void> _parseCvPdf() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (files.isEmpty) return;
+
+    final file = files.first;
+    setState(() => _isParsingCv = true);
+
+    try {
+      final bytes = await file.readAsBytes();
+      final multipart = MultipartFile.fromBytes(bytes, filename: file.name);
+
+      final formData = FormData.fromMap({'file': multipart});
+      final res = await ApiClient.instance.post('/modulo1/cv/parse', data: formData);
+
+      if (mounted && res.data != null) {
+        _showParsedCvDialog(Map<String, dynamic>.from(res.data));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al analizar CV por reglas: $e'),
+            backgroundColor: AppTheme.statusRechazado,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isParsingCv = false);
+    }
+  }
+
+  void _showParsedCvDialog(Map<String, dynamic> data) {
+    final phone = data['phone']?.toString() ?? '';
+    final summary = data['profile_summary']?.toString() ?? '';
+    final skills = data['skills'] is List ? List<Map<String, dynamic>>.from(data['skills']) : [];
+    final experiences = data['experiences'] is List ? List<Map<String, dynamic>>.from(data['experiences']) : [];
+    final education = data['academic_histories'] is List ? List<Map<String, dynamic>>.from(data['academic_histories']) : [];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.rule_folder_rounded, color: AppTheme.brand500),
+            SizedBox(width: 8),
+            Expanded(child: Text('Datos Extraídos del CV', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand50.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.brand300),
+                ),
+                child: const Text(
+                  'Motor Heurístico y de Reglas UPC (Sin IA externa ni costos). Revisa la información antes de aplicar.',
+                  style: TextStyle(fontSize: 11, color: AppTheme.primaryColor),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (phone.isNotEmpty) ...[
+                const Text('Teléfono:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                Text(phone, style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              if (summary.isNotEmpty) ...[
+                const Text('Resumen Profesional:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                Text(summary, style: const TextStyle(fontSize: 12), maxLines: 4, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+              ],
+              Text('Habilidades detectadas: ${skills.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              if (skills.isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  children: skills.map((s) => Chip(
+                    label: Text(s['skill_name']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
+                    backgroundColor: AppTheme.brand500.withValues(alpha: 0.15),
+                  )).toList(),
+                ),
+              const SizedBox(height: 8),
+              Text('Experiencias detectadas: ${experiences.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Text('Formaciones detectadas: ${education.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Descartar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (phone.isNotEmpty) _phoneCtrl.text = phone;
+              if (summary.isNotEmpty) _bioCtrl.text = summary;
+              for (final sk in skills) {
+                final id = sk['skill_id'];
+                if (id is int) _selectedSkillIds.add(id);
+              }
+              for (final exp in experiences) {
+                try {
+                  await ApiClient.instance.post('/modulo1/experiences', data: {
+                    'company_name': exp['company_name'] ?? 'Empresa',
+                    'position': exp['position'] ?? 'Cargo',
+                    'start_date': exp['start_date'] ?? '2023-01-01',
+                    'end_date': exp['end_date'],
+                    'description': exp['description'] ?? '',
+                  });
+                } catch (_) {}
+              }
+              for (final edu in education) {
+                try {
+                  await ApiClient.instance.post('/modulo1/academic_histories', data: {
+                    'institution': edu['institution'] ?? 'Universidad',
+                    'degree': edu['degree'] ?? 'Título',
+                    'start_date': edu['start_date'] ?? '2019-01-01',
+                    'end_date': edu['end_date'],
+                  });
+                } catch (_) {}
+              }
+              await _saveProfile();
+              await _saveSkills();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('¡Datos del CV aplicados con éxito a tu perfil!'),
+                    backgroundColor: AppTheme.brand500,
+                  ),
+                );
+              }
+            },
+            child: const Text('Aplicar al Perfil'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveSkills() async {
     setState(() => _isSaving = true);
     try {
@@ -341,6 +489,24 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
                   label: Text(
                     (_cvUrl != null && _cvUrl!.isNotEmpty) ? 'Actualizar' : 'Subir PDF',
                     style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _isParsingCv ? null : _parseCvPdf,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
+                  icon: _isParsingCv
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_fix_high_rounded, size: 16),
+                  label: const Text(
+                    'Escanear (Reglas)',
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
               ],

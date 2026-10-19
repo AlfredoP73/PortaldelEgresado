@@ -41,7 +41,41 @@ CREATE TABLE notifications (
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     type VARCHAR(50),
+    payload JSONB,
+    read_at TIMESTAMP,
+    dedup_key VARCHAR(150),
     is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE device_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(500) UNIQUE NOT NULL,
+    platform VARCHAR(50) DEFAULT 'android',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE conversations (
+    id SERIAL PRIMARY KEY,
+    context_type VARCHAR(50) NOT NULL,
+    context_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE conversation_participants (
+    conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    last_read_at TIMESTAMP,
+    PRIMARY KEY (conversation_id, user_id)
+);
+
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id INT REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -288,7 +322,52 @@ CREATE TABLE graduates (
     phone VARCHAR(20),
     cv_url VARCHAR(255),
     profile_summary TEXT,
-    profile_picture_url VARCHAR(255)
+    profile_picture_url VARCHAR(255),
+    availability_status VARCHAR(50) DEFAULT 'open_to_work',
+    preferred_modality VARCHAR(50) DEFAULT 'Cualquiera',
+    availability_notice VARCHAR(50) DEFAULT 'Inmediata',
+    expected_salary INT,
+    job_alerts_enabled BOOLEAN DEFAULT TRUE,
+    alert_min_score INT DEFAULT 75,
+    mentor_opt_in BOOLEAN DEFAULT FALSE,
+    directory_visible BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE saved_searches (
+    id SERIAL PRIMARY KEY,
+    graduate_id INT REFERENCES graduates(user_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    filters_json JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE mentor_profiles (
+    graduate_id INT PRIMARY KEY REFERENCES graduates(user_id) ON DELETE CASCADE,
+    headline VARCHAR(200),
+    bio TEXT,
+    areas_json JSONB,
+    max_mentees INT DEFAULT 3,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE mentorship_requests (
+    id SERIAL PRIMARY KEY,
+    mentee_id INT REFERENCES graduates(user_id) ON DELETE CASCADE,
+    mentor_id INT REFERENCES graduates(user_id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    goal VARCHAR(200),
+    status VARCHAR(50) DEFAULT 'PENDING',
+    conversation_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE saved_jobs (
+    id SERIAL PRIMARY KEY,
+    graduate_id INT REFERENCES graduates(user_id) ON DELETE CASCADE,
+    job_offer_id INT NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE graduate_skills (
@@ -607,7 +686,8 @@ CREATE TABLE applications (
     graduate_id INT NOT NULL, -- NO FOREIGN KEY TO GRADUATES
     application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) DEFAULT 'POSTULADO',
-    rejection_reason TEXT
+    rejection_reason TEXT,
+    cover_letter TEXT
 );
 
 CREATE TABLE application_sub_processes (
@@ -625,6 +705,32 @@ CREATE TABLE application_sub_processes (
     enlace_adjunto VARCHAR(255),
     archivo_respuesta VARCHAR(255),
     score INT
+);
+
+CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    organizer_user_id INT NOT NULL,
+    organizer_role VARCHAR(50) DEFAULT 'COMPANY',
+    organizer_name VARCHAR(200),
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    modality VARCHAR(50) DEFAULT 'VIRTUAL',
+    location_or_url VARCHAR(500),
+    starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    capacity INT,
+    status VARCHAR(50) DEFAULT 'PUBLISHED',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE event_registrations (
+    id SERIAL PRIMARY KEY,
+    event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    graduate_id INT NOT NULL,
+    graduate_name VARCHAR(200),
+    graduate_email VARCHAR(200),
+    registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_event_graduate UNIQUE(event_id, graduate_id)
 );
 
 INSERT INTO countries (name) VALUES ('Colombia');

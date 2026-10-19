@@ -1,0 +1,665 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Users, Search, GraduationCap, Briefcase, Award, 
+  Sparkles, CheckCircle2, XCircle, MessageSquare, 
+  Send, UserCheck, ShieldCheck, ChevronRight 
+} from 'lucide-react';
+import { 
+  getAlumniDirectory, getMentorships, requestMentorship, 
+  updateMentorshipStatus, getMentorProfile, saveMentorProfile 
+} from '../../../api';
+import toast from 'react-hot-toast';
+
+export default function AlumniDirectoryPage() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'directory' | 'mentorships'>('directory');
+  const [graduates, setGraduates] = useState<any[]>([]);
+  const [mentorships, setMentorships] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filtros
+  const [search, setSearch] = useState('');
+  const [mentorsOnly, setMentorsOnly] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<string>('');
+
+  // Modales
+  const [requestModalMentor, setRequestModalMentor] = useState<any | null>(null);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [requestGoal, setRequestGoal] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
+
+  const [mentorConfigOpen, setMentorConfigOpen] = useState(false);
+  const [mentorHeadline, setMentorHeadline] = useState('');
+  const [mentorBio, setMentorBio] = useState('');
+  const [mentorAreas, setMentorAreas] = useState('');
+  const [savingMentor, setSavingMentor] = useState(false);
+
+  const rawUser = localStorage.getItem('user');
+  const currentUser = rawUser ? JSON.parse(rawUser) : null;
+
+  const fetchDirectory = async () => {
+    try {
+      setLoading(true);
+      const params: any = {};
+      if (search) params.q = search;
+      if (mentorsOnly) params.mentors_only = true;
+      if (selectedYear) params.graduation_year = parseInt(selectedYear);
+      const res = await getAlumniDirectory(params);
+      setGraduates(res.data || []);
+    } catch (e) {
+      toast.error('Error al cargar directorio');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMentorships = async () => {
+    try {
+      const res = await getMentorships();
+      setMentorships(res.data || []);
+    } catch (e) {
+      // silent
+    }
+  };
+
+  const fetchMyMentorProfile = async () => {
+    try {
+      const res = await getMentorProfile();
+      if (res.data) {
+        setMentorHeadline(res.data.headline || '');
+        setMentorBio(res.data.bio || '');
+        setMentorAreas((res.data.areas_json || []).join(', '));
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchDirectory();
+  }, [mentorsOnly, selectedYear]);
+
+  useEffect(() => {
+    if (activeTab === 'mentorships') {
+      fetchMentorships();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchMyMentorProfile();
+  }, []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchDirectory();
+  };
+
+  const handleSendMentorshipRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestModalMentor) return;
+    if (!requestMessage.trim()) {
+      toast.error('Por favor escribe un mensaje de presentación');
+      return;
+    }
+
+    try {
+      setSendingRequest(true);
+      await requestMentorship({
+        mentor_id: requestModalMentor.user_id,
+        message: requestMessage.trim(),
+        goal: requestGoal.trim() || undefined
+      });
+      toast.success('¡Solicitud de mentoría enviada exitosamente!');
+      setRequestModalMentor(null);
+      setRequestMessage('');
+      setRequestGoal('');
+      fetchMentorships();
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al enviar solicitud');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  const handleUpdateStatus = async (id: number, status: string) => {
+    try {
+      await updateMentorshipStatus(id, status);
+      toast.success(status === 'ACCEPTED' ? 'Mentoría aceptada. ¡Conversación creada!' : 'Solicitud actualizada');
+      fetchMentorships();
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al actualizar');
+    }
+  };
+
+  const handleSaveMentorProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingMentor(true);
+      const areasList = mentorAreas.split(',').map((a) => a.trim()).filter(Boolean);
+      await saveMentorProfile({
+        headline: mentorHeadline.trim(),
+        bio: mentorBio.trim(),
+        areas_json: areasList,
+        max_mentees: 3,
+        is_active: true
+      });
+      toast.success('¡Perfil de mentor guardado y activo en el directorio!');
+      setMentorConfigOpen(false);
+      fetchDirectory();
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al guardar perfil de mentor');
+    } finally {
+      setSavingMentor(false);
+    }
+  };
+
+  const receivedRequests = mentorships.filter((m) => m.mentor_id === currentUser?.id);
+  const sentRequests = mentorships.filter((m) => m.mentee_id === currentUser?.id);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-ink flex items-center gap-2">
+            <Users className="w-7 h-7 text-brand-600" />
+            Red de Egresados y Mentoría UPC
+          </h1>
+          <p className="text-sm text-ink-secondary mt-1">
+            Conecta con egresados de todas las promociones, comparte experiencias e impulsa tu carrera profesional.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMentorConfigOpen(true)}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold border flex items-center gap-2 transition-all hover:bg-muted"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+          >
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            <span>Ser Mentor UPC</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b" style={{ borderColor: 'var(--border-color)' }}>
+        <button
+          onClick={() => setActiveTab('directory')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+            activeTab === 'directory'
+              ? 'border-brand-600 text-brand-600'
+              : 'border-transparent text-ink-secondary hover:text-ink'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Directorio ({graduates.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('mentorships')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
+            activeTab === 'mentorships'
+              ? 'border-brand-600 text-brand-600'
+              : 'border-transparent text-ink-secondary hover:text-ink'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          Mis Mentorías
+          {receivedRequests.filter((r) => r.status === 'PENDING').length > 0 && (
+            <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {receivedRequests.filter((r) => r.status === 'PENDING').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'directory' ? (
+        <>
+          {/* Slicers y Filtros superiores */}
+          <div 
+            className="p-4 rounded-2xl border shadow-xs flex flex-col md:flex-row items-center gap-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <form onSubmit={handleSearchSubmit} className="flex-1 relative w-full">
+              <Search className="w-4 h-4 text-ink-tertiary absolute left-3 top-3.5" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, cargo, empresa o competencia..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                style={{ borderColor: 'var(--border-color)' }}
+              />
+            </form>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="px-3 py-2.5 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <option value="">Año de Graduación: Todos</option>
+                {Array.from({ length: 15 }, (_, i) => 2026 - i).map((y) => (
+                  <option key={y} value={y}>
+                    Promoción {y}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setMentorsOnly(!mentorsOnly)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold border flex items-center gap-2 transition-all ${
+                  mentorsOnly
+                    ? 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300'
+                    : 'bg-transparent text-ink-secondary border-neutral-300 dark:border-neutral-700'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span>Solo Mentores</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid de Egresados */}
+          {loading ? (
+            <div className="py-16 text-center text-sm text-ink-tertiary">
+              Cargando red de egresados...
+            </div>
+          ) : graduates.length === 0 ? (
+            <div className="py-16 text-center text-sm text-ink-tertiary">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p className="font-semibold text-ink">No se encontraron egresados con los filtros seleccionados</p>
+              <p className="text-xs mt-1">Intenta con otros términos o elimina el filtro de año.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {graduates.map((g) => {
+                const isMe = g.user_id === currentUser?.id;
+                const isMentor = g.mentor_opt_in;
+                const initials = `${g.first_name?.[0] || ''}${g.last_name?.[0] || ''}`.toUpperCase();
+
+                return (
+                  <div
+                    key={g.user_id}
+                    className="rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    {isMentor && (
+                      <div className="absolute top-0 right-0 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl flex items-center gap-1 shadow-xs">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Mentor UPC</span>
+                      </div>
+                    )}
+
+                    <div>
+                      {/* Avatar y Datos Principales */}
+                      <div className="flex items-start gap-4">
+                        {g.profile_picture_url ? (
+                          <img
+                            src={g.profile_picture_url}
+                            alt={g.first_name}
+                            className="w-14 h-14 rounded-2xl object-cover border"
+                            style={{ borderColor: 'var(--border-color)' }}
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                            {initials}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-bold text-ink truncate">
+                            {g.first_name} {g.last_name}
+                          </h3>
+                          <p className="text-xs text-ink-secondary flex items-center gap-1 mt-0.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-brand-600 flex-shrink-0" />
+                            <span className="truncate">{g.program_name} • {g.graduation_year}</span>
+                          </p>
+                          {(g.current_position || g.current_company) && (
+                            <p className="text-xs text-ink-secondary flex items-center gap-1 mt-1 font-medium">
+                              <Briefcase className="w-3.5 h-3.5 text-ink-tertiary flex-shrink-0" />
+                              <span className="truncate">
+                                {g.current_position || 'Profesional'} {g.current_company ? `en ${g.current_company}` : ''}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bio / Headline */}
+                      {g.mentor_profile?.headline ? (
+                        <p className="text-xs italic text-ink mt-3 font-medium bg-purple-50/50 dark:bg-purple-950/20 p-2 rounded-lg border border-purple-100 dark:border-purple-900/30">
+                          "{g.mentor_profile.headline}"
+                        </p>
+                      ) : g.profile_summary ? (
+                        <p className="text-xs text-ink-secondary mt-3 line-clamp-2">
+                          {g.profile_summary}
+                        </p>
+                      ) : null}
+
+                      {/* Skills Tags */}
+                      {g.skills && g.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {g.skills.slice(0, 4).map((sk: string, i: number) => (
+                            <span
+                              key={i}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary"
+                            >
+                              {sk}
+                            </span>
+                          ))}
+                          {g.skills.length > 4 && (
+                            <span className="text-[10px] text-ink-tertiary px-1 py-0.5">
+                              +{g.skills.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Acciones */}
+                    <div className="mt-5 pt-3 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--border-color)' }}>
+                      {isMe ? (
+                        <span className="text-xs text-ink-tertiary italic">Este es tu perfil público</span>
+                      ) : isMentor ? (
+                        <button
+                          onClick={() => setRequestModalMentor(g)}
+                          className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Solicitar Mentoría</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-ink-tertiary">Egresado activo en la red</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        /* Pestaña: Mis Mentorías */
+        <div className="space-y-8">
+          {/* Solicitudes Recibidas (Como mentor) */}
+          <div className="space-y-3">
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              Solicitudes Recibidas como Mentor ({receivedRequests.length})
+            </h2>
+            {receivedRequests.length === 0 ? (
+              <p className="text-sm text-ink-tertiary italic">No has recibido solicitudes de mentoría por el momento.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {receivedRequests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="p-5 rounded-2xl border shadow-xs space-y-3"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-ink">{r.mentee_name}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        r.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                        r.status === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {r.status === 'PENDING' ? 'Pendiente' : r.status === 'ACCEPTED' ? 'Aceptada' : 'Rechazada'}
+                      </span>
+                    </div>
+                    {r.goal && (
+                      <p className="text-xs text-brand-600 font-semibold">
+                        Objetivo: {r.goal}
+                      </p>
+                    )}
+                    <p className="text-xs text-ink-secondary bg-muted p-3 rounded-xl italic">
+                      "{r.message}"
+                    </p>
+
+                    {r.status === 'PENDING' ? (
+                      <div className="flex items-center gap-2 pt-2">
+                        <button
+                          onClick={() => handleUpdateStatus(r.id, 'ACCEPTED')}
+                          className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Aceptar Mentoría
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(r.id, 'REJECTED')}
+                          className="px-3 py-1.5 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    ) : r.status === 'ACCEPTED' ? (
+                      <button
+                        onClick={() => navigate('/messages')}
+                        className="w-full py-1.5 bg-brand-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Ir al Chat
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Solicitudes Enviadas (Como mentee) */}
+          <div className="space-y-3 pt-6 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <Send className="w-5 h-5 text-brand-600" />
+              Solicitudes que Has Enviado ({sentRequests.length})
+            </h2>
+            {sentRequests.length === 0 ? (
+              <p className="text-sm text-ink-tertiary italic">No has enviado solicitudes de mentoría aún.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sentRequests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="p-5 rounded-2xl border shadow-xs space-y-3"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-ink">Mentor: {r.mentor_name}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        r.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                        r.status === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {r.status === 'PENDING' ? 'En espera de respuesta' : r.status === 'ACCEPTED' ? 'Aceptada' : 'No disponible'}
+                      </span>
+                    </div>
+                    {r.goal && (
+                      <p className="text-xs text-brand-600 font-semibold">
+                        Objetivo: {r.goal}
+                      </p>
+                    )}
+                    <p className="text-xs text-ink-secondary bg-muted p-3 rounded-xl italic">
+                      "{r.message}"
+                    </p>
+                    {r.status === 'ACCEPTED' && (
+                      <button
+                        onClick={() => navigate('/messages')}
+                        className="w-full py-1.5 bg-brand-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Abrir Conversación con tu Mentor
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Solicitar Mentoría */}
+      {requestModalMentor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div 
+            className="w-full max-w-lg rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h3 className="text-lg font-bold text-ink">Solicitar Mentoría</h3>
+                <p className="text-xs text-ink-secondary">
+                  A {requestModalMentor.first_name} {requestModalMentor.last_name} ({requestModalMentor.program_name})
+                </p>
+              </div>
+              <button 
+                onClick={() => setRequestModalMentor(null)}
+                className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendMentorshipRequest} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Objetivo o Meta de la Mentoría (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Orientación para conseguir mi primer empleo como desarrollador"
+                  value={requestGoal}
+                  onChange={(e) => setRequestGoal(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Mensaje de Presentación *
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Cuéntale al mentor sobre ti, tu trayectoria académica y por qué te gustaría recibir su guía..."
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRequestModalMentor(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingRequest}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{sendingRequest ? 'Enviando...' : 'Enviar Solicitud'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Configurar Perfil de Mentor */}
+      {mentorConfigOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div 
+            className="w-full max-w-lg rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  Tu Perfil de Mentor UPC
+                </h3>
+                <p className="text-xs text-ink-secondary">
+                  Comparte tu experiencia laboral y guía a egresados recién graduados.
+                </p>
+              </div>
+              <button 
+                onClick={() => setMentorConfigOpen(false)}
+                className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMentorProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Titular Profesional / Enfoque
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Senior Software Engineer | Especialista en inserción tecnológica"
+                  value={mentorHeadline}
+                  onChange={(e) => setMentorHeadline(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Áreas de Experiencia (separadas por coma)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Desarrollo Web, Entrevistas Técnicas, Liderazgo, Sector Salud"
+                  value={mentorAreas}
+                  onChange={(e) => setMentorAreas(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Breve Biografía para Mentees
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Comparte cómo puedes apoyar a tus compañeros egresados..."
+                  value={mentorBio}
+                  onChange={(e) => setMentorBio(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMentorConfigOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMentor}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <span>{savingMentor ? 'Guardando...' : 'Activar Perfil de Mentor'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

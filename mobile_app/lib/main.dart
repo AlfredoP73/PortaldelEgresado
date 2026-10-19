@@ -11,6 +11,9 @@ import 'features/auth/presentation/verify_pin_screen.dart';
 import 'features/auth/presentation/reset_password_screen.dart';
 import 'features/auth/presentation/privacy_settings_screen.dart';
 import 'features/main/presentation/main_layout_screen.dart';
+import 'features/events/presentation/events_screen.dart';
+import 'features/messages/presentation/messages_screen.dart';
+import 'core/services/push_notification_service.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -21,6 +24,7 @@ void main() async {
   } catch (_) {}
 
   await ApiClient.init();
+  await PushNotificationService.initialize();
 
   runApp(
     ChangeNotifierProvider(
@@ -51,6 +55,8 @@ class EgresadoApp extends StatelessWidget {
             '/forgot_password': (context) => const ForgotPasswordScreen(),
             '/privacy_settings': (context) => const PrivacySettingsScreen(),
             '/dashboard': (context) => const MainLayoutScreen(),
+            '/events': (context) => const EventsScreen(),
+            '/messages': (context) => const MessagesScreen(),
           },
           onGenerateRoute: (settings) {
             if (settings.name == '/verify_pin') {

@@ -35,6 +35,25 @@ def get_dashboard(
     return facade.get_admin_dashboard(program_id, year)
 
 @router.get(
+    "/dashboard/admin/analytics",
+    dependencies=[Depends(require_admin)]
+)
+def get_executive_bi_analytics(
+    program_id: int = Query(None),
+    year_min: int = Query(None),
+    year_max: int = Query(None),
+    modality: str = Query(None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Dashboard Ejecutivo de Analítica y Business Intelligence (Estilo Power BI / Tableau).
+    Soporta segmentadores interactivos (slicers) por programa, cohorte y modalidad.
+    """
+    facade = DashboardFacade(db)
+    return facade.get_executive_analytics(program_id, year_min, year_max, modality)
+
+@router.get(
     "/company/dashboard",
     response_model=schemas.CompanyDashboardResponse,
     dependencies=[Depends(require_company)]
