@@ -18,6 +18,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor", "error": str(exc)},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
 from app.auth.controllers.auth_controller import router, internal_router
 from app.auth.controllers.privacy_controller import router as privacy_router
 
