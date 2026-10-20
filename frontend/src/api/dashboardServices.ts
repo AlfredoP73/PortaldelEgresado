@@ -1,5 +1,4 @@
-const DASHBOARD_URL =
-  (import.meta.env.VITE_DASHBOARD_URL ?? '')
+import { dashboardApi } from './index'
 
 export interface DashboardData {
   summary: {
@@ -91,50 +90,20 @@ export interface GraduateDashboardData {
 }
 
 export async function getDashboard(programId?: number, year?: number): Promise<DashboardData> {
-  const token = localStorage.getItem('access_token')
-  const params = new URLSearchParams()
-  if (programId) params.append('program_id', programId.toString())
-  if (year) params.append('year', year.toString())
+  const params: Record<string, any> = {}
+  if (programId) params.program_id = programId
+  if (year) params.year = year
 
-  const url = `${DASHBOARD_URL}/api/dashboard${params.toString() ? '?' + params.toString() : ''}`
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error('No se pudieron obtener los datos del dashboard')
-  }
-
-  return response.json()
+  const response = await dashboardApi.get<DashboardData>('/dashboard', { params })
+  return response.data
 }
 
 export async function getCompanyDashboard(): Promise<CompanyDashboardData> {
-  const token = localStorage.getItem('access_token')
-  const response = await fetch(`${DASHBOARD_URL}/api/company/dashboard`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  })
-  if (!response.ok) throw new Error('No se pudieron obtener los datos del dashboard de empresa')
-  return response.json()
+  const response = await dashboardApi.get<CompanyDashboardData>('/company/dashboard')
+  return response.data
 }
 
 export async function getGraduateDashboard(): Promise<GraduateDashboardData> {
-  const token = localStorage.getItem('access_token')
-  const response = await fetch(`${DASHBOARD_URL}/api/graduate/dashboard`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  })
-  if (!response.ok) throw new Error('No se pudieron obtener los datos del dashboard de egresado')
-  return response.json()
+  const response = await dashboardApi.get<GraduateDashboardData>('/graduate/dashboard')
+  return response.data
 }

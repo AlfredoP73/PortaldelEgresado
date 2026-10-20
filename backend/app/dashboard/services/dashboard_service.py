@@ -9,11 +9,19 @@ graduates_adapter = HttpGraduatesAdapter()
 companies_adapter = HttpCompaniesAdapter()
 
 def get_dashboard(db, program_id: int = None, year: int = None):
-    graduates = graduates_adapter.get_all_graduates()
-    applications = companies_adapter.get_all_applications()
+    try:
+        graduates = graduates_adapter.get_all_graduates()
+    except Exception as e:
+        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
+        graduates = []
+    try:
+        applications = companies_adapter.get_all_applications()
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
+        applications = []
     try:
         programs_data = companies_adapter.get_programs()
-    except:
+    except Exception:
         programs_data = []
         
     program_map = {p["id"]: p["name"] for p in programs_data} if programs_data else {}
@@ -88,9 +96,17 @@ def get_dashboard(db, program_id: int = None, year: int = None):
     }
 
 def get_company_dashboard(db, company_id: int):
-    applications = companies_adapter.get_all_applications()
+    try:
+        applications = companies_adapter.get_all_applications()
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
+        applications = []
     my_apps = [a for a in applications if a.get("job_offer", {}).get("company_id") == company_id]
-    graduates = graduates_adapter.get_all_graduates()
+    try:
+        graduates = graduates_adapter.get_all_graduates()
+    except Exception as e:
+        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
+        graduates = []
     try:
         programs_data = companies_adapter.get_programs()
     except:
@@ -144,7 +160,11 @@ def get_company_dashboard(db, company_id: int):
     }
 
 def get_graduate_dashboard(db, graduate_id: int):
-    my_apps = companies_adapter.get_my_applications(graduate_id)
+    try:
+        my_apps = companies_adapter.get_my_applications(graduate_id)
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_my_applications failed: {e}")
+        my_apps = []
     try:
         all_jobs = companies_adapter.get_jobs({})
     except:
@@ -206,8 +226,16 @@ def get_graduate_dashboard(db, graduate_id: int):
 
 
 def get_executive_analytics(db, program_id: int = None, year_min: int = None, year_max: int = None, modality: str = None):
-    graduates = graduates_adapter.get_all_graduates()
-    applications = companies_adapter.get_all_applications()
+    try:
+        graduates = graduates_adapter.get_all_graduates()
+    except Exception as e:
+        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
+        graduates = []
+    try:
+        applications = companies_adapter.get_all_applications()
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
+        applications = []
     try:
         programs_data = companies_adapter.get_programs()
     except Exception:
@@ -421,4 +449,4 @@ def get_executive_analytics(db, program_id: int = None, year_min: int = None, ye
         "timeline": timeline,
         "top_companies": top_companies,
         "raw_records": raw_records
-    }
+    }
