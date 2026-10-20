@@ -654,6 +654,12 @@ def send_connection_request(
     my_id = current_user["id"]
     target_id = body.target_user_id
 
+    # Solo egresados pueden enviar solicitudes de conexion entre egresados
+    my_role = current_user.get("role", current_user.get("role_name", "")).upper()
+    requester_is_grad = db.query(Graduate).filter(Graduate.user_id == my_id).first()
+    if not requester_is_grad:
+        raise HTTPException(status_code=400, detail="Solo los egresados pueden enviar solicitudes de conexion. Las empresas contactan egresados desde el modulo de candidatos.")
+
     if my_id == target_id:
         raise HTTPException(status_code=400, detail="No puedes enviarte una solicitud de conexión a ti mismo")
 

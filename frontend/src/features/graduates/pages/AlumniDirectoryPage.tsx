@@ -494,7 +494,7 @@ export default function AlumniDirectoryPage() {
                         Ver perfil
                       </button>
 
-                      {s.connection_status === 'NONE' ? (
+                      {isGraduate && s.connection_status === 'NONE' ? (
                         <button
                           onClick={() => setConnectModalUser({ user_id: s.user_id, full_name: s.full_name, first_name: s.full_name?.split(' ')[0], last_name: s.full_name?.split(' ').slice(1).join(' '), program_name: '' })}
                           className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center gap-1 transition-all shadow-xs"
@@ -502,12 +502,12 @@ export default function AlumniDirectoryPage() {
                           <UserPlus className="w-3 h-3" />
                           Conectar
                         </button>
-                      ) : s.connection_status === 'PENDING' ? (
+                      ) : isGraduate && s.connection_status === 'PENDING' ? (
                         <span className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-muted text-ink-tertiary flex items-center justify-center gap-1 text-center">
                           <Clock className="w-3 h-3" />
                           Pendiente
                         </span>
-                      ) : s.connection_status === 'ACCEPTED' ? (
+                      ) : isGraduate && s.connection_status === 'ACCEPTED' ? (
                         <span className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 flex items-center justify-center gap-1 dark:bg-emerald-950/30 dark:text-emerald-300">
                           <CheckCircle2 className="w-3 h-3" />
                           Conectado
