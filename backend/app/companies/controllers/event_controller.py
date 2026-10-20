@@ -31,58 +31,58 @@ def get_events(
     try:
         query = db.query(models.Event)
 
-    # Si no es ADMIN ni la empresa organizadora, solo ver PUBLISHED
-    is_admin = current_user and current_user.get("role_id") == 1
-    if not is_admin:
-        if status:
+        # Si no es ADMIN ni la empresa organizadora, solo ver PUBLISHED
+        is_admin = current_user and current_user.get("role_id") == 1
+        if not is_admin:
+            if status:
+                query = query.filter(models.Event.status == status)
+            else:
+                query = query.filter(models.Event.status.in_(["PUBLISHED", "FINISHED"]))
+        elif status:
             query = query.filter(models.Event.status == status)
-        else:
-            query = query.filter(models.Event.status.in_(["PUBLISHED", "FINISHED"]))
-    elif status:
-        query = query.filter(models.Event.status == status)
 
-    if modality and modality.upper() != "TODAS":
-        query = query.filter(models.Event.modality.ilike(f"%{modality}%"))
+        if modality and modality.upper() != "TODAS":
+            query = query.filter(models.Event.modality.ilike(f"%{modality}%"))
 
-    if q:
-        query = query.filter(
-            (models.Event.title.ilike(f"%{q}%")) |
-            (models.Event.description.ilike(f"%{q}%")) |
-            (models.Event.organizer_name.ilike(f"%{q}%"))
-        )
+        if q:
+            query = query.filter(
+                (models.Event.title.ilike(f"%{q}%")) |
+                (models.Event.description.ilike(f"%{q}%")) |
+                (models.Event.organizer_name.ilike(f"%{q}%"))
+            )
 
-    events = query.order_by(models.Event.starts_at.asc()).all()
+        events = query.order_by(models.Event.starts_at.asc()).all()
 
-    user_id = current_user["id"] if current_user else None
+        user_id = current_user["id"] if current_user else None
 
-    results = []
-    for ev in events:
-        reg_count = db.query(models.EventRegistration).filter(models.EventRegistration.event_id == ev.id).count()
-        is_reg = False
-        if user_id:
-            is_reg = db.query(models.EventRegistration).filter(
-                models.EventRegistration.event_id == ev.id,
-                models.EventRegistration.graduate_id == user_id
-            ).first() is not None
+        results = []
+        for ev in events:
+            reg_count = db.query(models.EventRegistration).filter(models.EventRegistration.event_id == ev.id).count()
+            is_reg = False
+            if user_id:
+                is_reg = db.query(models.EventRegistration).filter(
+                    models.EventRegistration.event_id == ev.id,
+                    models.EventRegistration.graduate_id == user_id
+                ).first() is not None
 
-        resp = schemas.EventResponse(
-            id=ev.id,
-            organizer_user_id=ev.organizer_user_id,
-            organizer_role=ev.organizer_role,
-            organizer_name=ev.organizer_name,
-            title=ev.title,
-            description=ev.description,
-            modality=ev.modality,
-            location_or_url=ev.location_or_url,
-            starts_at=ev.starts_at,
-            ends_at=ev.ends_at,
-            capacity=ev.capacity,
-            status=ev.status,
-            created_at=ev.created_at,
-            registered_count=reg_count,
-            is_registered=is_reg
-        )
-        results.append(resp)
+            resp = schemas.EventResponse(
+                id=ev.id,
+                organizer_user_id=ev.organizer_user_id,
+                organizer_role=ev.organizer_role,
+                organizer_name=ev.organizer_name,
+                title=ev.title,
+                description=ev.description,
+                modality=ev.modality,
+                location_or_url=ev.location_or_url,
+                starts_at=ev.starts_at,
+                ends_at=ev.ends_at,
+                capacity=ev.capacity,
+                status=ev.status,
+                created_at=ev.created_at,
+                registered_count=reg_count,
+                is_registered=is_reg
+            )
+            results.append(resp)
 
         return results
     except Exception as e:

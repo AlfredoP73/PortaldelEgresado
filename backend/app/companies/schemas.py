@@ -181,7 +181,7 @@ class ApplicationSubProcessSchema(SubProcessBase):
         from_attributes = True
 
 class ApplicationWithCandidate(Application):
-    graduate: GraduateBasicInfo
+    graduate: Optional[GraduateBasicInfo] = None
     sub_processes: List[ApplicationSubProcessSchema] = []
     match_score: Optional[float] = None
     

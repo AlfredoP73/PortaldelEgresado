@@ -38,20 +38,24 @@ class SubProcessStatus(str, enum.Enum):
 # --- Tablas Catálogo (3FN) ---
 class Sector(Base):
     __tablename__ = "sectors"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     companies = relationship("Company", back_populates="sector")
 
 class City(Base):
     __tablename__ = "cities"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     companies = relationship("Company", back_populates="city")
 
 class Program(Base):
     __tablename__ = "programs"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
+    faculty_id = Column(Integer, nullable=True)
     job_offers = relationship("JobOffer", back_populates="program")
 
 class JobOfferSkill(Base):
@@ -64,6 +68,7 @@ class JobOfferSkill(Base):
 # --- Tablas Principales Módulo 2 ---
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = {'extend_existing': True}
     user_id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
     description = Column(Text)
@@ -78,6 +83,7 @@ class Company(Base):
 
 class JobOffer(Base):
     __tablename__ = "job_offers"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.user_id"), nullable=False)
     title = Column(String, index=True, nullable=False)
@@ -116,6 +122,7 @@ class CandidateApplication(Base):
 
 class ApplicationSubProcess(Base):
     __tablename__ = "application_sub_processes"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
     tipo = Column(Enum(SubProcessType, native_enum=False), nullable=False)
@@ -148,6 +155,7 @@ class EventModality(str, enum.Enum):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     organizer_user_id = Column(Integer, nullable=False, index=True)
     organizer_role = Column(String(50), default="COMPANY") # "COMPANY" o "ADMIN"
@@ -166,6 +174,7 @@ class Event(Base):
 
 class EventRegistration(Base):
     __tablename__ = "event_registrations"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
     graduate_id = Column(Integer, nullable=False, index=True)

@@ -54,9 +54,9 @@ export default function JobOffers() {
         api.get('/programs').catch(() => ({ data: [] })),
         fetch(import.meta.env.VITE_GRADUATES_URL !== undefined ? `${import.meta.env.VITE_GRADUATES_URL}/api/modulo1/skills` : '').then(r => r.json()).catch(() => [])
       ]);
-      setJobs(jobsRes.data);
-      setPrograms(progRes.data);
-      setAvailableSkills(skillsRes || []);
+      setJobs(Array.isArray(jobsRes.data) ? jobsRes.data : []);
+      setPrograms(Array.isArray(progRes.data) ? progRes.data : []);
+      setAvailableSkills(Array.isArray(skillsRes) ? skillsRes : []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

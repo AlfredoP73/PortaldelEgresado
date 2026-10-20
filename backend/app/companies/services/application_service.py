@@ -63,7 +63,16 @@ def get_applications_by_job(job_offer_id: int, current_user: dict, db: Session):
     result = []
     for app in applications:
         app_dict = {k: v for k, v in app.__dict__.items() if not k.startswith('_')}
-        app_dict["graduate"] = all_graduates.get(app.graduate_id)
+        grad_info = all_graduates.get(app.graduate_id)
+        if not grad_info:
+            grad_info = {
+                "user_id": app.graduate_id,
+                "first_name": "Egresado",
+                "last_name": f"#{app.graduate_id}",
+                "program_id": 1,
+                "graduation_year": 2024
+            }
+        app_dict["graduate"] = grad_info
         app_dict["match_score"] = float(match_scores.get(app.graduate_id, 0.0))
         app_dict["sub_processes"] = [
             {k: v for k, v in sp.__dict__.items() if not k.startswith('_')} 

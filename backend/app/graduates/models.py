@@ -139,6 +139,7 @@ class Certification(Base):
 
 class Survey(Base):
     __tablename__ = "surveys"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -148,18 +149,14 @@ class Survey(Base):
 
 class SurveyResponse(Base):
     __tablename__ = "survey_responses"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
     graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False)
     answers_json = Column(JSON, nullable=False)
     submitted_at = Column(DateTime, server_default=func.now())
 
-class Program(Base):
-    __tablename__ = "programs"
-    __table_args__ = {'extend_existing': True}
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(150), unique=True, nullable=False)
-    faculty_id = Column(Integer, nullable=True)
+from app.companies.models import Program
 
 class GraduateProject(Base):
     __tablename__ = "graduate_projects"
