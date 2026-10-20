@@ -330,3 +330,84 @@ class SurveyResponse(SurveyResponseCreate):
 
     class Config:
         from_attributes = True
+
+
+# ── Proyectos y Portafolio ───────────────────────────────────────────────
+class ProjectBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    project_url: Optional[str] = None
+    repository_url: Optional[str] = None
+    image_url: Optional[str] = None
+    technologies: Optional[str] = None
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    project_url: Optional[str] = None
+    repository_url: Optional[str] = None
+    image_url: Optional[str] = None
+    technologies: Optional[str] = None
+
+class ProjectResponse(ProjectBase):
+    id: int
+    graduate_id: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ── Conexiones y Solicitudes de Amistad ────────────────────────────────────
+class ConnectionRequestCreate(BaseModel):
+    target_user_id: int
+    message: Optional[str] = None
+
+class ConnectionAction(BaseModel):
+    action: str  # "ACCEPT" or "REJECT"
+
+class ConnectionResponse(BaseModel):
+    id: int
+    requester_id: int
+    addressee_id: int
+    status: str
+    message: Optional[str] = None
+    created_at: Optional[datetime] = None
+    peer_id: Optional[int] = None
+    peer_name: Optional[str] = None
+    peer_program: Optional[str] = None
+    peer_picture_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ConnectionStatusResponse(BaseModel):
+    status: str  # "NONE", "PENDING", "ACCEPTED", "REJECTED", "SELF"
+    is_requester: bool = False
+    connection_id: Optional[int] = None
+
+
+# ── Perfil Público Completo de Egresado ───────────────────────────────────
+class GraduatePublicProfileResponse(BaseModel):
+    user_id: int
+    first_name: str
+    last_name: str
+    program_id: int
+    program_name: Optional[str] = None
+    graduation_year: int
+    phone: Optional[str] = None
+    profile_summary: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    cv_url: Optional[str] = None
+    availability_status: Optional[str] = None
+    preferred_modality: Optional[str] = None
+    experiences: List[WorkExperience] = []
+    academic_histories: List[AcademicHistory] = []
+    certifications: List[Certification] = []
+    skills: List[str] = []
+    projects: List[ProjectResponse] = []
+    connection_status: Optional[str] = "NONE"
+    connection_id: Optional[int] = None

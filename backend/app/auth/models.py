@@ -80,9 +80,9 @@ class Conversation(Base):
 class ConversationParticipant(Base):
     __tablename__ = "conversation_participants"
 
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True)
+    id = Column(Integer, nullable=True)
     last_read_at = Column(DateTime(timezone=True), nullable=True)
 
     conversation = relationship("Conversation", back_populates="participants")

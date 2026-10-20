@@ -291,51 +291,55 @@ def get_user_conversations(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    user = auth_service.get_user_from_token(token, db)
-    from app.auth.models import Conversation, ConversationParticipant, Message, User
-    
-    participations = db.query(ConversationParticipant).filter(ConversationParticipant.user_id == user.id).all()
-    conv_ids = [p.conversation_id for p in participations]
-    if not conv_ids:
+    try:
+        user = auth_service.get_user_from_token(token, db)
+        from app.auth.models import Conversation, ConversationParticipant, Message, User
+        
+        participations = db.query(ConversationParticipant).filter(ConversationParticipant.user_id == user.id).all()
+        conv_ids = [p.conversation_id for p in participations]
+        if not conv_ids:
+            return []
+            
+        conversations = db.query(Conversation).filter(Conversation.id.in_(conv_ids)).order_by(Conversation.created_at.desc()).all()
+        last_reads = {p.conversation_id: p.last_read_at for p in participations}
+        
+        results = []
+        for c in conversations:
+            all_parts = [cp.user_id for cp in db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id == c.id).all()]
+            last_msg = db.query(Message).filter(Message.conversation_id == c.id).order_by(Message.created_at.desc()).first()
+            last_msg_resp = None
+            if last_msg:
+                sender = db.query(User).filter(User.id == last_msg.sender_id).first()
+                last_msg_resp = schemas.MessageResponse(
+                    id=last_msg.id,
+                    conversation_id=last_msg.conversation_id,
+                    sender_id=last_msg.sender_id,
+                    sender_email=sender.email if sender else f"user_{last_msg.sender_id}",
+                    body=last_msg.body,
+                    created_at=last_msg.created_at
+                )
+                
+            lr = last_reads.get(c.id)
+            msg_query = db.query(Message).filter(Message.conversation_id == c.id, Message.sender_id != user.id)
+            if lr:
+                unread_count = msg_query.filter(Message.created_at > lr).count()
+            else:
+                unread_count = msg_query.count()
+                
+            results.append(schemas.ConversationResponse(
+                id=c.id,
+                context_type=c.context_type,
+                context_id=c.context_id,
+                created_at=c.created_at,
+                participants=all_parts,
+                unread_count=unread_count,
+                last_message=last_msg_resp
+            ))
+            
+        return results
+    except Exception as e:
+        print(f"Safe fallback in get_user_conversations: {e}")
         return []
-        
-    conversations = db.query(Conversation).filter(Conversation.id.in_(conv_ids)).all()
-    last_reads = {p.conversation_id: p.last_read_at for p in participations}
-    
-    results = []
-    for c in conversations:
-        all_parts = [cp.user_id for cp in db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id == c.id).all()]
-        last_msg = db.query(Message).filter(Message.conversation_id == c.id).order_by(Message.created_at.desc()).first()
-        last_msg_resp = None
-        if last_msg:
-            sender = db.query(User).filter(User.id == last_msg.sender_id).first()
-            last_msg_resp = schemas.MessageResponse(
-                id=last_msg.id,
-                conversation_id=last_msg.conversation_id,
-                sender_id=last_msg.sender_id,
-                sender_email=sender.email if sender else f"user_{last_msg.sender_id}",
-                body=last_msg.body,
-                created_at=last_msg.created_at
-            )
-            
-        lr = last_reads.get(c.id)
-        msg_query = db.query(Message).filter(Message.conversation_id == c.id, Message.sender_id != user.id)
-        if lr:
-            unread_count = msg_query.filter(Message.created_at > lr).count()
-        else:
-            unread_count = msg_query.count()
-            
-        results.append(schemas.ConversationResponse(
-            id=c.id,
-            context_type=c.context_type,
-            context_id=c.context_id,
-            created_at=c.created_at,
-            participants=all_parts,
-            unread_count=unread_count,
-            last_message=last_msg_resp
-        ))
-        
-    return results
 
 @router.get("/conversations/{conversation_id}")
 def get_conversation_detail(

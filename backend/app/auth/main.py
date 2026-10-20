@@ -69,6 +69,7 @@ def startup_db_check():
                     UNIQUE(conversation_id, user_id)
                 );
             """))
+            conn.execute(text("ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS id SERIAL;"))
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id SERIAL PRIMARY KEY,

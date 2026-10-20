@@ -42,6 +42,7 @@ class Graduate(Base):
     skills = relationship("GraduateSkill", cascade="all, delete-orphan")
     saved_jobs = relationship("SavedJob", cascade="all, delete-orphan")
     saved_searches = relationship("SavedSearch", cascade="all, delete-orphan")
+    projects = relationship("GraduateProject", back_populates="graduate", cascade="all, delete-orphan")
 
 class SavedSearch(Base):
     __tablename__ = "saved_searches"
@@ -152,3 +153,37 @@ class SurveyResponse(Base):
     graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False)
     answers_json = Column(JSON, nullable=False)
     submitted_at = Column(DateTime, server_default=func.now())
+
+class Program(Base):
+    __tablename__ = "programs"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), unique=True, nullable=False)
+    faculty_id = Column(Integer, nullable=True)
+
+class GraduateProject(Base):
+    __tablename__ = "graduate_projects"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    project_url = Column(String(500), nullable=True)
+    repository_url = Column(String(500), nullable=True)
+    image_url = Column(String(500), nullable=True)
+    technologies = Column(String(300), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    graduate = relationship("Graduate", back_populates="projects")
+
+class GraduateConnection(Base):
+    __tablename__ = "graduate_connections"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    addressee_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(20), default="PENDING", nullable=False)
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

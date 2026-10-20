@@ -7,6 +7,7 @@ import 'tabs/personal_data_tab.dart';
 import 'tabs/experience_tab.dart';
 import 'tabs/academic_tab.dart';
 import 'tabs/surveys_tab.dart';
+import 'tabs/projects_tab.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -134,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final pct = (_completeness * 100).round();
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -327,7 +328,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         border: Border.all(color: context.borderColor),
                       ),
                       child: TabBar(
-                        isScrollable: false,
                         labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         dividerColor: Colors.transparent,
                         indicatorSize: TabBarIndicatorSize.tab,
@@ -339,10 +339,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         unselectedLabelColor: context.secondaryText,
                         labelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
                         unselectedLabelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
                         tabs: const [
                           Tab(text: 'Datos'),
                           Tab(text: 'Experiencia'),
                           Tab(text: 'Academia'),
+                          Tab(text: 'Proyectos'),
                           Tab(text: 'Seguimiento'),
                         ],
                       ),
@@ -358,6 +361,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             PersonalDataTab(onProfileUpdated: _loadProfileHeader),
             const ExperienceTab(),
             const AcademicTab(),
+            const ProjectsTab(),
             const SurveysTab(),
           ],
         ),

@@ -65,10 +65,11 @@ CREATE TABLE conversations (
 );
 
 CREATE TABLE conversation_participants (
+    id SERIAL PRIMARY KEY,
     conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     last_read_at TIMESTAMP,
-    PRIMARY KEY (conversation_id, user_id)
+    UNIQUE (conversation_id, user_id)
 );
 
 CREATE TABLE messages (
@@ -360,6 +361,30 @@ CREATE TABLE mentorship_requests (
     status VARCHAR(50) DEFAULT 'PENDING',
     conversation_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE graduate_projects (
+    id SERIAL PRIMARY KEY,
+    graduate_id INT NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    project_url VARCHAR(500),
+    repository_url VARCHAR(500),
+    image_url VARCHAR(500),
+    technologies VARCHAR(300),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE graduate_connections (
+    id SERIAL PRIMARY KEY,
+    requester_id INT NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+    addressee_id INT NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_graduate_connection UNIQUE(requester_id, addressee_id)
 );
 
 CREATE TABLE saved_jobs (
@@ -732,6 +757,13 @@ CREATE TABLE event_registrations (
     registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_event_graduate UNIQUE(event_id, graduate_id)
 );
+
+INSERT INTO events (organizer_user_id, organizer_role, organizer_name, title, description, modality, location_or_url, starts_at, ends_at, capacity, status)
+VALUES 
+(1, 'ADMIN', 'Universidad Popular del Cesar', 'Feria de Empleabilidad y Pasantías UPC 2026', 'Encuentro anual de empleabilidad donde más de 30 empresas aliadas del sector tecnológico, agroindustrial y financiero ofertan vacantes exclusivas para egresados UPC.', 'HIBRIDO', 'Auditorio Sabanas / Virtual', NOW() + INTERVAL '3 days', NOW() + INTERVAL '3 days 4 hours', 250, 'PUBLISHED'),
+(1, 'COMPANY', 'TechCaribe Solutions', 'Bootcamp Tech: Cloud Computing, Microservicios y DevOps en AWS', 'Taller práctico intensivo sobre despliegue de microservicios con ECS Fargate, Docker y monitoreo en la nube orientado a egresados de Ingeniería de Sistemas.', 'VIRTUAL', 'https://meet.google.com/upc-tech-2026', NOW() + INTERVAL '7 days', NOW() + INTERVAL '7 days 3 hours', 150, 'PUBLISHED'),
+(1, 'ADMIN', 'Coordinación de Egresados UPC', 'Masterclass: Optimización de CV de Alto Impacto y Entrevistas Técnicas', 'Aprende cómo estructurar tu perfil profesional, destacar proyectos reales y superar pruebas técnicas en procesos de selección nacionales e internacionales.', 'VIRTUAL', 'https://zoom.us/j/upc-masterclass', NOW() + INTERVAL '12 days', NOW() + INTERVAL '12 days 2 hours', 200, 'PUBLISHED'),
+(1, 'COMPANY', 'Bancolombia Talento', 'Rueda de Empleo Sector Financiero y Fintech', 'Convocatoria abierta para profesionales en Administración, Economía, Contaduría e Ingeniería con vacantes de analista y liderazgo.', 'PRESENCIAL', 'Sede Hurtado UPC - Salón de Eventos', NOW() + INTERVAL '18 days', NOW() + INTERVAL '18 days 5 hours', 100, 'PUBLISHED');
 
 INSERT INTO countries (name) VALUES ('Colombia');
 INSERT INTO states (name, country_id) VALUES ('Cesar', 1), ('Atlántico', 1), ('Bogotá D.C.', 1);

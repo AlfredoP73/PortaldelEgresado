@@ -207,6 +207,39 @@ export const getMentorships = () =>
 export const updateMentorshipStatus = (requestId: number, status: string) =>
   graduatesApi.put(`/mentorships/${requestId}/status`, { status });
 
+// ── Perfil Público, Proyectos y Conexiones (Networking) ───────────────────────
+export const getGraduatePublicProfile = (userId: number) =>
+  graduatesApi.get(`/graduates/${userId}/public-profile`);
+
+export const getMyProjects = () =>
+  graduatesApi.get('/projects');
+
+export const getGraduateProjects = (userId: number) =>
+  graduatesApi.get(`/graduates/${userId}/projects`);
+
+export const createProject = (data: { title: string; description?: string; project_url?: string; repository_url?: string; image_url?: string; technologies?: string }) =>
+  graduatesApi.post('/projects', data);
+
+export const updateProject = (projectId: number, data: any) =>
+  graduatesApi.put(`/projects/${projectId}`, data);
+
+export const deleteProject = (projectId: number) =>
+  graduatesApi.delete(`/projects/${projectId}`);
+
+export const sendConnectionRequest = (target: number | { target_user_id: number; message?: string }, message?: string) => {
+  const payload = typeof target === 'number' ? { target_user_id: target, message } : target;
+  return graduatesApi.post('/connections/request', payload);
+};
+
+export const getConnections = () =>
+  graduatesApi.get('/connections');
+
+export const respondConnection = (connectionId: number, action: 'ACCEPT' | 'REJECT') =>
+  graduatesApi.put(`/connections/${connectionId}/respond`, { action });
+
+export const getConnectionStatus = (targetUserId: number) =>
+  graduatesApi.get(`/connections/status/${targetUserId}`);
+
 // ── Eventos y Ferias (Fase 6) ────────────────────────────────────────────────
 export const getEvents = (params?: any) =>
   api.get('/events', { params });

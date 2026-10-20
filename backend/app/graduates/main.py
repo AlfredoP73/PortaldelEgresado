@@ -99,6 +99,32 @@ def ensure_graduates_schema():
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS graduate_projects (
+                        id SERIAL PRIMARY KEY,
+                        graduate_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                        title VARCHAR(200) NOT NULL,
+                        description TEXT,
+                        project_url VARCHAR(500),
+                        repository_url VARCHAR(500),
+                        image_url VARCHAR(500),
+                        technologies VARCHAR(300),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS graduate_connections (
+                        id SERIAL PRIMARY KEY,
+                        requester_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                        addressee_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                        status VARCHAR(20) DEFAULT 'PENDING',
+                        message TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT uq_graduate_connection UNIQUE(requester_id, addressee_id)
+                    );
+                """))
                 print("Graduates schema check completed successfully.")
         except Exception as e:
             print(f"Schema check warning in graduates: {e}")

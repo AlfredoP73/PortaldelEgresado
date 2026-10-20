@@ -18,6 +18,7 @@ import '../../profile/presentation/profile_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../events/presentation/events_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
+import '../../alumni/presentation/alumni_directory_screen.dart';
 
 class MainLayoutScreen extends StatefulWidget {
   final int initialIndex;
@@ -525,6 +526,18 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                         tooltip: context.isDark ? 'Modo Claro' : 'Modo Oscuro',
                         icon: context.isDark ? Icons.wb_sunny_rounded : Icons.dark_mode_outlined,
                         onTap: () => themeProvider.toggleTheme(!context.isDark),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildHeaderActionBtn(
+                        context,
+                        tooltip: 'Directorio y Red de Contactos',
+                        icon: Icons.people_alt_outlined,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const AlumniDirectoryScreen()),
+                          );
+                        },
                       ),
                       const SizedBox(width: 6),
                       _buildHeaderActionBtn(

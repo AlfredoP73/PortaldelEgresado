@@ -3,32 +3,58 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Users, Search, GraduationCap, Briefcase, Award, 
   Sparkles, CheckCircle2, XCircle, MessageSquare, 
-  Send, UserCheck, ShieldCheck, ChevronRight 
+  Send, UserCheck, ShieldCheck, ChevronRight, Eye,
+  ExternalLink, FolderGit2, UserPlus, Clock,
+  Check, X, ArrowRight
 } from 'lucide-react';
 import { 
   getAlumniDirectory, getMentorships, requestMentorship, 
-  updateMentorshipStatus, getMentorProfile, saveMentorProfile 
+  updateMentorshipStatus, getMentorProfile, saveMentorProfile,
+  getGraduatePublicProfile, getConnections, sendConnectionRequest,
+  respondConnection, getConnectionStatus
 } from '../../../api';
 import toast from 'react-hot-toast';
 
+const GithubIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+  </svg>
+);
+
 export default function AlumniDirectoryPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'directory' | 'mentorships'>('directory');
+  const [activeTab, setActiveTab] = useState<'directory' | 'connections' | 'mentorships'>('directory');
   const [graduates, setGraduates] = useState<any[]>([]);
   const [mentorships, setMentorships] = useState<any[]>([]);
+  const [connections, setConnections] = useState<{ incoming: any[]; sent: any[]; accepted: any[] }>({
+    incoming: [],
+    sent: [],
+    accepted: []
+  });
   const [loading, setLoading] = useState(true);
 
-  // Filtros
+  // Filtros Directorio
   const [search, setSearch] = useState('');
   const [mentorsOnly, setMentorsOnly] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>('');
 
-  // Modales
+  // Modal Perfil Público & Proyectos
+  const [selectedProfileUserId, setSelectedProfileUserId] = useState<number | null>(null);
+  const [publicProfile, setPublicProfile] = useState<any | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Modal Enviar Solicitud Conexión
+  const [connectModalUser, setConnectModalUser] = useState<any | null>(null);
+  const [connectNote, setConnectNote] = useState('');
+  const [sendingConnect, setSendingConnect] = useState(false);
+
+  // Modal Mentoría
   const [requestModalMentor, setRequestModalMentor] = useState<any | null>(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [requestGoal, setRequestGoal] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
 
+  // Modal Configuración Mentor
   const [mentorConfigOpen, setMentorConfigOpen] = useState(false);
   const [mentorHeadline, setMentorHeadline] = useState('');
   const [mentorBio, setMentorBio] = useState('');
@@ -37,6 +63,7 @@ export default function AlumniDirectoryPage() {
 
   const rawUser = localStorage.getItem('user');
   const currentUser = rawUser ? JSON.parse(rawUser) : null;
+  const isGraduate = currentUser?.role_name === 'GRADUATE';
 
   const fetchDirectory = async () => {
     try {
@@ -51,6 +78,21 @@ export default function AlumniDirectoryPage() {
       toast.error('Error al cargar directorio');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchConnectionsData = async () => {
+    try {
+      const res = await getConnections();
+      if (res.data) {
+        setConnections({
+          incoming: res.data.incoming || [],
+          sent: res.data.sent || [],
+          accepted: res.data.accepted || []
+        });
+      }
+    } catch (e) {
+      // silent
     }
   };
 
@@ -79,18 +121,76 @@ export default function AlumniDirectoryPage() {
   }, [mentorsOnly, selectedYear]);
 
   useEffect(() => {
-    if (activeTab === 'mentorships') {
+    if (activeTab === 'connections') {
+      fetchConnectionsData();
+    } else if (activeTab === 'mentorships') {
       fetchMentorships();
     }
   }, [activeTab]);
 
   useEffect(() => {
     fetchMyMentorProfile();
+    fetchConnectionsData();
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchDirectory();
+  };
+
+  const handleOpenPublicProfile = async (userId: number) => {
+    try {
+      setSelectedProfileUserId(userId);
+      setLoadingProfile(true);
+      const res = await getGraduatePublicProfile(userId);
+      setPublicProfile(res.data);
+    } catch (e: any) {
+      toast.error('No se pudo cargar el perfil público');
+      setSelectedProfileUserId(null);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const handleSendConnection = async (targetUserId: number, message?: string) => {
+    try {
+      setSendingConnect(true);
+      const res = await sendConnectionRequest({
+        target_user_id: targetUserId,
+        message: message?.trim() || undefined
+      });
+      toast.success('¡Solicitud de conexión enviada con éxito!');
+      setConnectModalUser(null);
+      setConnectNote('');
+      fetchConnectionsData();
+      if (publicProfile && publicProfile.user_id === targetUserId) {
+        setPublicProfile({
+          ...publicProfile,
+          connection_status: 'PENDING',
+          connection_id: res.data.connection_id
+        });
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al enviar solicitud de conexión');
+    } finally {
+      setSendingConnect(false);
+    }
+  };
+
+  const handleRespondConnection = async (connectionId: number, action: 'ACCEPT' | 'REJECT') => {
+    try {
+      await respondConnection(connectionId, action);
+      toast.success(action === 'ACCEPT' ? '¡Conexión aceptada! Ahora pueden enviarse mensajes directos.' : 'Solicitud rechazada');
+      fetchConnectionsData();
+      if (publicProfile && publicProfile.connection_id === connectionId) {
+        setPublicProfile({
+          ...publicProfile,
+          connection_status: action === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED'
+        });
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Error al responder a la conexión');
+    }
   };
 
   const handleSendMentorshipRequest = async (e: React.FormEvent) => {
@@ -162,22 +262,31 @@ export default function AlumniDirectoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-ink flex items-center gap-2">
             <Users className="w-7 h-7 text-brand-600" />
-            Red de Egresados y Mentoría UPC
+            Red de Egresados y Contactos UPC
           </h1>
           <p className="text-sm text-ink-secondary mt-1">
-            Conecta con egresados de todas las promociones, comparte experiencias e impulsa tu carrera profesional.
+            Explora perfiles públicos, portafolios de proyectos de egresados, forja conexiones y encuentra mentores.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setMentorConfigOpen(true)}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold border flex items-center gap-2 transition-all hover:bg-muted"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-          >
-            <Sparkles className="w-4 h-4 text-purple-600" />
-            <span>Ser Mentor UPC</span>
-          </button>
-        </div>
+        {isGraduate && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMentorConfigOpen(true)}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold border flex items-center gap-2 transition-all hover:bg-muted"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            >
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span>Ser Mentor UPC</span>
+            </button>
+            <button
+              onClick={() => navigate('/projects')}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white flex items-center gap-2 transition-all hover:bg-brand-700 shadow-sm"
+            >
+              <FolderGit2 className="w-4 h-4" />
+              <span>Mi Portafolio</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -193,27 +302,50 @@ export default function AlumniDirectoryPage() {
           <Users className="w-4 h-4" />
           Directorio ({graduates.length})
         </button>
-        <button
-          onClick={() => setActiveTab('mentorships')}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
-            activeTab === 'mentorships'
-              ? 'border-brand-600 text-brand-600'
-              : 'border-transparent text-ink-secondary hover:text-ink'
-          }`}
-        >
-          <GraduationCap className="w-4 h-4" />
-          Mis Mentorías
-          {receivedRequests.filter((r) => r.status === 'PENDING').length > 0 && (
-            <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {receivedRequests.filter((r) => r.status === 'PENDING').length}
-            </span>
-          )}
-        </button>
+
+        {isGraduate && (
+          <button
+            onClick={() => setActiveTab('connections')}
+            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
+              activeTab === 'connections'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-ink-secondary hover:text-ink'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            Mis Conexiones ({connections.accepted.length})
+            {connections.incoming.length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {connections.incoming.length} nueva{connections.incoming.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </button>
+        )}
+
+        {isGraduate && (
+          <button
+            onClick={() => setActiveTab('mentorships')}
+            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
+              activeTab === 'mentorships'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-ink-secondary hover:text-ink'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            Mentorías UPC
+            {receivedRequests.filter((r) => r.status === 'PENDING').length > 0 && (
+              <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {receivedRequests.filter((r) => r.status === 'PENDING').length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
-      {activeTab === 'directory' ? (
+      {/* ── TAB 1: DIRECTORIO DE EGRESADOS ─────────────────────────── */}
+      {activeTab === 'directory' && (
         <>
-          {/* Slicers y Filtros superiores */}
+          {/* Filtros superiores */}
           <div 
             className="p-4 rounded-2xl border shadow-xs flex flex-col md:flex-row items-center gap-4"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
@@ -281,7 +413,7 @@ export default function AlumniDirectoryPage() {
                 return (
                   <div
                     key={g.user_id}
-                    className="rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden"
+                    className="rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-md relative overflow-hidden group"
                     style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
                   >
                     {isMentor && (
@@ -356,20 +488,36 @@ export default function AlumniDirectoryPage() {
                       )}
                     </div>
 
-                    {/* Acciones */}
+                    {/* Acciones del Card */}
                     <div className="mt-5 pt-3 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--border-color)' }}>
-                      {isMe ? (
-                        <span className="text-xs text-ink-tertiary italic">Este es tu perfil público</span>
-                      ) : isMentor ? (
+                      <button
+                        onClick={() => handleOpenPublicProfile(g.user_id)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 hover:bg-muted transition-all"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      >
+                        <Eye className="w-3.5 h-3.5 text-brand-600" />
+                        <span>Ver Perfil & Proyectos</span>
+                      </button>
+
+                      {!isMe && isGraduate && (
+                        <button
+                          onClick={() => setConnectModalUser(g)}
+                          className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center gap-1 transition-all shadow-xs"
+                          title="Enviar solicitud de conexión"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Conectar</span>
+                        </button>
+                      )}
+
+                      {!isMe && isMentor && (
                         <button
                           onClick={() => setRequestModalMentor(g)}
-                          className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                          className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-xs"
+                          title="Solicitar mentoría"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Solicitar Mentoría</span>
                         </button>
-                      ) : (
-                        <span className="text-xs text-ink-tertiary">Egresado activo en la red</span>
                       )}
                     </div>
                   </div>
@@ -378,8 +526,155 @@ export default function AlumniDirectoryPage() {
             </div>
           )}
         </>
-      ) : (
-        /* Pestaña: Mis Mentorías */
+      )}
+
+      {/* ── TAB 2: MIS CONEXIONES Y CONTACTOS ───────────────────────── */}
+      {activeTab === 'connections' && (
+        <div className="space-y-8">
+          {/* 1. Solicitudes Recibidas */}
+          <div className="space-y-3">
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
+              Solicitudes de Conexión Recibidas ({connections.incoming.length})
+            </h2>
+            {connections.incoming.length === 0 ? (
+              <p className="text-sm text-ink-tertiary italic">No tienes solicitudes pendientes por responder.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {connections.incoming.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-5 rounded-2xl border shadow-xs space-y-3"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div className="flex items-start gap-3">
+                      {req.peer_picture_url ? (
+                        <img src={req.peer_picture_url} alt="" className="w-12 h-12 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 font-bold flex items-center justify-center">
+                          {req.peer_name?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-ink">{req.peer_name}</h4>
+                        <p className="text-xs text-ink-secondary">{req.peer_program}</p>
+                        {req.message && (
+                          <p className="text-xs text-ink-tertiary bg-muted p-2 rounded-lg mt-2 italic">
+                            "{req.message}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                      <button
+                        onClick={() => handleRespondConnection(req.id, 'ACCEPT')}
+                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Aceptar Conexión
+                      </button>
+                      <button
+                        onClick={() => handleRespondConnection(req.id, 'REJECT')}
+                        className="px-3 py-1.5 border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Mis Contactos Conectados */}
+          <div className="space-y-3 pt-6 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-brand-600" />
+              Contactos en tu Red ({connections.accepted.length})
+            </h2>
+            {connections.accepted.length === 0 ? (
+              <p className="text-sm text-ink-tertiary italic">
+                Aún no tienes egresados conectados. Visita el Directorio y envía solicitudes para expandir tu red profesional.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {connections.accepted.map((c) => (
+                  <div
+                    key={c.id}
+                    className="p-5 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div className="flex items-start gap-3">
+                      {c.peer_picture_url ? (
+                        <img src={c.peer_picture_url} alt="" className="w-12 h-12 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 font-bold flex items-center justify-center">
+                          {c.peer_name?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-ink truncate">{c.peer_name}</h4>
+                        <p className="text-xs text-ink-secondary truncate">{c.peer_program}</p>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-1">
+                          <CheckCircle2 className="w-3 h-3" /> Conectados
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                      <button
+                        onClick={() => handleOpenPublicProfile(c.peer_id)}
+                        className="flex-1 py-1.5 border rounded-xl text-xs font-semibold hover:bg-muted"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      >
+                        Ver Perfil
+                      </button>
+                      <button
+                        onClick={() => navigate('/messages')}
+                        className="flex-1 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Enviar Mensaje
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Solicitudes Enviadas Pendientes */}
+          <div className="space-y-3 pt-6 border-t" style={{ borderColor: 'var(--border-color)' }}>
+            <h2 className="text-base font-bold text-ink flex items-center gap-2">
+              <Send className="w-5 h-5 text-brand-600" />
+              Solicitudes Enviadas Pendientes ({connections.sent.length})
+            </h2>
+            {connections.sent.length === 0 ? (
+              <p className="text-sm text-ink-tertiary italic">No tienes solicitudes pendientes de respuesta.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {connections.sent.map((s) => (
+                  <div
+                    key={s.id}
+                    className="p-4 rounded-xl border shadow-xs flex items-center justify-between"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    <div>
+                      <h4 className="text-xs font-bold text-ink">{s.peer_name}</h4>
+                      <p className="text-[11px] text-ink-secondary">{s.peer_program}</p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                      En espera de aprobación
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: MIS MENTORÍAS ─────────────────────────────────────── */}
+      {activeTab === 'mentorships' && (
         <div className="space-y-8">
           {/* Solicitudes Recibidas (Como mentor) */}
           <div className="space-y-3">
@@ -491,6 +786,285 @@ export default function AlumniDirectoryPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: PERFIL PÚBLICO & PORTAFOLIO DE PROYECTOS ─────────── */}
+      {selectedProfileUserId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
+          <div 
+            className="w-full max-w-3xl my-8 rounded-3xl border shadow-2xl p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            {loadingProfile || !publicProfile ? (
+              <div className="py-20 text-center text-sm text-ink-tertiary">
+                Cargando perfil público y portafolio...
+              </div>
+            ) : (
+              <>
+                {/* Header del Perfil */}
+                <div className="flex items-start justify-between gap-4 pb-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                  <div className="flex items-start gap-4">
+                    {publicProfile.profile_picture_url ? (
+                      <img
+                        src={publicProfile.profile_picture_url}
+                        alt=""
+                        className="w-20 h-20 rounded-2xl object-cover border-2 shadow-sm"
+                        style={{ borderColor: 'var(--border-color)' }}
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-brand-100 text-brand-700 font-bold text-2xl flex items-center justify-center">
+                        {publicProfile.first_name?.[0]}
+                        {publicProfile.last_name?.[0]}
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-ink">
+                          {publicProfile.first_name} {publicProfile.last_name}
+                        </h2>
+                        <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" /> Egresado UPC Verificado
+                        </span>
+                      </div>
+                      <p className="text-sm text-brand-600 font-semibold mt-0.5">
+                        {publicProfile.program_name} • Promoción {publicProfile.graduation_year}
+                      </p>
+                      {publicProfile.profile_summary && (
+                        <p className="text-xs text-ink-secondary mt-2 max-w-xl">
+                          {publicProfile.profile_summary}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSelectedProfileUserId(null);
+                      setPublicProfile(null);
+                    }}
+                    className="p-1.5 rounded-xl border text-ink-tertiary hover:text-ink"
+                    style={{ borderColor: 'var(--border-color)' }}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Portafolio de Proyectos Destacados */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                      <FolderGit2 className="w-4 h-4 text-brand-600" />
+                      Proyectos y Portafolio Profesional ({publicProfile.projects?.length || 0})
+                    </h3>
+                  </div>
+
+                  {(!publicProfile.projects || publicProfile.projects.length === 0) ? (
+                    <div className="p-6 rounded-2xl border text-center text-xs text-ink-tertiary" style={{ borderColor: 'var(--border-color)' }}>
+                      El egresado aún no ha registrado proyectos públicos en su portafolio.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {publicProfile.projects.map((proj: any) => (
+                        <div
+                          key={proj.id}
+                          className="p-4 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3"
+                          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+                        >
+                          <div>
+                            <h4 className="text-sm font-bold text-ink">{proj.title}</h4>
+                            <p className="text-xs text-ink-secondary mt-1 line-clamp-3">{proj.description}</p>
+                            {proj.technologies && proj.technologies.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2.5">
+                                {proj.technologies.map((t: string, idx: number) => (
+                                  <span key={idx} className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                            {proj.repository_url && (
+                              <a
+                                href={proj.repository_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-1 px-2.5 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-muted"
+                                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                              >
+                                <GithubIcon className="w-3 h-3" /> Repositorio
+                              </a>
+                            )}
+                            {proj.project_url && (
+                              <a
+                                href={proj.project_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-1 px-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Demo en Vivo
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Habilidades & Competencias */}
+                {publicProfile.skills && publicProfile.skills.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Habilidades Técnicas & Blandas</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {publicProfile.skills.map((s: string, idx: number) => (
+                        <span key={idx} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Experiencia Laboral */}
+                {publicProfile.experiences && publicProfile.experiences.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-brand-600" /> Experiencia Laboral
+                    </h3>
+                    <div className="space-y-2">
+                      {publicProfile.experiences.map((exp: any) => (
+                        <div key={exp.id} className="p-3 rounded-xl border text-xs" style={{ borderColor: 'var(--border-color)' }}>
+                          <p className="font-bold text-ink">{exp.position} en {exp.company_name}</p>
+                          <p className="text-[11px] text-ink-secondary">{exp.start_date} - {exp.end_date || 'Actualmente'}</p>
+                          {exp.description && <p className="text-xs text-ink-secondary mt-1">{exp.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Botones de Acción / Estado de Conexión en Modal */}
+                <div className="pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: 'var(--border-color)' }}>
+                  <div>
+                    {publicProfile.connection_status === 'SELF' ? (
+                      <span className="text-xs text-ink-tertiary italic">Este es tu perfil institucional</span>
+                    ) : publicProfile.connection_status === 'ACCEPTED' ? (
+                      <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> ¡Están conectados en la red!
+                      </span>
+                    ) : publicProfile.connection_status === 'PENDING' ? (
+                      <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                        <Clock className="w-4 h-4" /> Solicitud de conexión pendiente
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink-secondary">
+                        Conecta para compartir oportunidades y comunicarte directamente.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {publicProfile.connection_status === 'ACCEPTED' ? (
+                      <button
+                        onClick={() => {
+                          setSelectedProfileUserId(null);
+                          navigate('/messages');
+                        }}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Enviar Mensaje Directo</span>
+                      </button>
+                    ) : publicProfile.connection_status === 'PENDING' ? (
+                      <button
+                        disabled
+                        className="w-full sm:w-auto px-5 py-2.5 bg-muted text-ink-tertiary rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-not-allowed"
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>Solicitud Enviada</span>
+                      </button>
+                    ) : publicProfile.connection_status !== 'SELF' && isGraduate ? (
+                      <button
+                        onClick={() => {
+                          setConnectModalUser(publicProfile);
+                        }}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        <span>Conectar & Chatear</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ENVIAR SOLICITUD DE CONEXIÓN / AMISTAD ───────────── */}
+      {connectModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div 
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div>
+                <h3 className="text-base font-bold text-ink">Conectar con Egresado</h3>
+                <p className="text-xs text-ink-secondary">
+                  {connectModalUser.first_name} {connectModalUser.last_name} ({connectModalUser.program_name})
+                </p>
+              </div>
+              <button 
+                onClick={() => setConnectModalUser(null)}
+                className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-ink-secondary">
+              Al conectar, ambos podrán ver sus portafolios de proyectos y conversar en tiempo real mediante <strong>Mensajería Directa</strong>.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-ink mb-1">
+                Mensaje o Nota de Saludo (Opcional)
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Hola! Me gustaría conectar contigo para compartir oportunidades y experiencias profesionales..."
+                value={connectNote}
+                onChange={(e) => setConnectNote(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                style={{ borderColor: 'var(--border-color)' }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConnectModalUser(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl border"
+                style={{ borderColor: 'var(--border-color)' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={sendingConnect}
+                onClick={() => handleSendConnection(connectModalUser.user_id, connectNote)}
+                className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{sendingConnect ? 'Enviando...' : 'Enviar Solicitud'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -662,4 +1236,3 @@ export default function AlumniDirectoryPage() {
     </div>
   );
 }
-

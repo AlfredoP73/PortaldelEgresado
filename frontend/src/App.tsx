@@ -36,6 +36,7 @@ import ExecutiveAnalyticsDashboard from './features/dashboard/pages/ExecutiveAna
 import AlumniDirectoryPage from './features/graduates/pages/AlumniDirectoryPage';
 import EventsPage from './features/events/pages/EventsPage';
 import MessagesPage from './features/messages/pages/MessagesPage';
+import GraduateProjects from './features/graduate/pages/GraduateProjects';
 
 const HomeRedirect = () => {
   const rawUser = localStorage.getItem('user');
@@ -145,6 +146,14 @@ export default function App() {
             />
           </Route>
 
+          {/* Red de Egresados y Directorio (Egresados, Empresas y Admin) */}
+          <Route element={<ProtectedRoute allowedRoles={['GRADUATE', 'ADMIN', 'COMPANY']} />}>
+            <Route
+              path="/directory"
+              element={<Layout><AlumniDirectoryPage /></Layout>}
+            />
+          </Route>
+
           {/* Privadas — Módulo 1 (Egresados) */}
           <Route element={<ProtectedRoute allowedRoles={['GRADUATE', 'ADMIN']} />}>
             <Route
@@ -154,6 +163,10 @@ export default function App() {
             <Route
               path="/profile"
               element={<Layout><GraduateProfile /></Layout>}
+            />
+            <Route
+              path="/projects"
+              element={<Layout><GraduateProjects /></Layout>}
             />
             <Route
               path="/experience"
@@ -178,10 +191,6 @@ export default function App() {
             <Route
               path="/surveys"
               element={<Layout><GraduateSurveys /></Layout>}
-            />
-            <Route
-              path="/directory"
-              element={<Layout><AlumniDirectoryPage /></Layout>}
             />
           </Route>
 

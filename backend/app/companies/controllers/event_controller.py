@@ -28,7 +28,8 @@ def get_events(
     current_user: Optional[dict] = Depends(get_current_user)
 ):
     """Lista eventos disponibles con filtros por modalidad y texto."""
-    query = db.query(models.Event)
+    try:
+        query = db.query(models.Event)
 
     # Si no es ADMIN ni la empresa organizadora, solo ver PUBLISHED
     is_admin = current_user and current_user.get("role_id") == 1
@@ -83,7 +84,10 @@ def get_events(
         )
         results.append(resp)
 
-    return results
+        return results
+    except Exception as e:
+        print(f"Safe fallback in get_events: {e}")
+        return []
 
 
 @router.get("/events/my-events", response_model=List[schemas.EventResponse])

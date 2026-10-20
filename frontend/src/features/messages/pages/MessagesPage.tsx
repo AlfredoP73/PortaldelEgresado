@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, Send, User, Search, RefreshCw, 
-  Briefcase, GraduationCap, Clock, CheckCheck 
+  Briefcase, GraduationCap, Clock, CheckCheck, Users 
 } from 'lucide-react';
 import { getConversations, getConversation, sendConversationMessage } from '../../../api';
 import toast from 'react-hot-toast';
@@ -167,6 +167,7 @@ export default function MessagesPage() {
               filteredConversations.map((c) => {
                 const isActive = c.id === activeConvId;
                 const isMentorship = c.context_type === 'MENTORSHIP';
+                const isNetworking = c.context_type === 'NETWORKING';
                 return (
                   <button
                     key={c.id}
@@ -180,20 +181,20 @@ export default function MessagesPage() {
                     )}
                     <div 
                       className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs ${
-                        isMentorship ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'
+                        isMentorship ? 'bg-purple-100 text-purple-700' : isNetworking ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
                       }`}
                     >
-                      {isMentorship ? <GraduationCap className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />}
+                      {isMentorship ? <GraduationCap className="w-5 h-5" /> : isNetworking ? <Users className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md text-[10px]"
                           style={{
-                            backgroundColor: isMentorship ? 'rgba(147, 51, 234, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: isMentorship ? '#9333ea' : '#10b981'
+                            backgroundColor: isMentorship ? 'rgba(147, 51, 234, 0.1)' : isNetworking ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: isMentorship ? '#9333ea' : isNetworking ? '#2563eb' : '#10b981'
                           }}
                         >
-                          {isMentorship ? 'Mentoría' : 'Postulación'} #{c.context_id || c.id}
+                          {isMentorship ? 'Mentoría' : isNetworking ? 'Red / Contacto' : 'Postulación'} #{c.context_id || c.id}
                         </span>
                         {c.unread_count > 0 && (
                           <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -236,11 +237,11 @@ export default function MessagesPage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
-                    {activeConv?.context_type === 'MENTORSHIP' ? <GraduationCap className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />}
+                    {activeConv?.context_type === 'MENTORSHIP' ? <GraduationCap className="w-5 h-5" /> : activeConv?.context_type === 'NETWORKING' ? <Users className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-ink">
-                      {activeConv?.context_type === 'MENTORSHIP' ? 'Mentoría Universitaria' : 'Proceso de Selección'}
+                      {activeConv?.context_type === 'MENTORSHIP' ? 'Mentoría Universitaria' : activeConv?.context_type === 'NETWORKING' ? 'Red de Contactos Egresados' : 'Proceso de Selección Empresa'}
                     </h3>
                     <p className="text-xs text-ink-secondary">
                       Contexto #{activeConv?.context_id || activeConvId} • Canal Oficial UPC

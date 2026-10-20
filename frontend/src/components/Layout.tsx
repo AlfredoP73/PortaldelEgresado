@@ -25,7 +25,8 @@ import {
   BarChart3,
   Calendar,
   MessageSquare,
-  X
+  X,
+  FolderGit2
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
@@ -156,6 +157,13 @@ const getNavItems = (role: string) => {
       section: 'Módulo Egresado',
     },
     {
+      name: 'Proyectos & Portafolio',
+      path: '/projects',
+      icon: FolderGit2,
+      roles: ['GRADUATE'],
+      section: 'Módulo Egresado',
+    },
+    {
       name: 'Historial Académico',
       path: '/education',
       icon: GraduationCap,
@@ -196,7 +204,7 @@ const getNavItems = (role: string) => {
       name: 'Directorio Egresados',
       path: '/directory',
       icon: Users,
-      roles: ['GRADUATE', 'ADMIN'],
+      roles: ['GRADUATE', 'ADMIN', 'COMPANY'],
       section: 'Comunidad & Red',
     },
     {
@@ -234,6 +242,7 @@ export default function Layout({ children }: LayoutProps) {
     '/job-offers': 'Ofertas Laborales',
     '/kanban': 'Gestión de Candidatos',
     '/profile': 'Mi Perfil Profesional',
+    '/projects': 'Portafolio de Proyectos & Trabajo Profesional',
     '/jobs': 'Explorar Ofertas Laborales',
     '/directory': 'Directorio de Egresados & Mentorías',
     '/events': 'Eventos, Ferias y Convocatorias',

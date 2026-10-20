@@ -264,44 +264,57 @@ def get_alumni_directory(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    from app.graduates.models import Graduate, WorkExperience, MentorProfile, Program
-    query = db.query(Graduate).filter(Graduate.directory_visible == True)
-    if program_id:
-        query = query.filter(Graduate.program_id == program_id)
-    if graduation_year:
-        query = query.filter(Graduate.graduation_year == graduation_year)
-    if mentors_only:
-        query = query.filter(Graduate.mentor_opt_in == True)
-    if q:
-        query = query.filter(
-            (Graduate.first_name.ilike(f"%{q}%")) |
-            (Graduate.last_name.ilike(f"%{q}%")) |
-            (Graduate.profile_summary.ilike(f"%{q}%"))
-        )
-    graduates = query.all()
-    programs_map = {p.id: p.name for p in db.query(Program).all()}
-    
-    results = []
-    for g in graduates:
-        latest_exp = db.query(WorkExperience).filter(WorkExperience.graduate_id == g.user_id).order_by(WorkExperience.start_date.desc()).first()
-        mentor_p = db.query(MentorProfile).filter(MentorProfile.graduate_id == g.user_id).first() if g.mentor_opt_in else None
+    try:
+        from app.graduates.models import Graduate, WorkExperience, MentorProfile, Program
+        query = db.query(Graduate).filter(Graduate.directory_visible == True)
+        if program_id:
+            query = query.filter(Graduate.program_id == program_id)
+        if graduation_year:
+            query = query.filter(Graduate.graduation_year == graduation_year)
+        if mentors_only:
+            query = query.filter(Graduate.mentor_opt_in == True)
+        if q:
+            query = query.filter(
+                (Graduate.first_name.ilike(f"%{q}%")) |
+                (Graduate.last_name.ilike(f"%{q}%")) |
+                (Graduate.profile_summary.ilike(f"%{q}%"))
+            )
+        graduates = query.all()
+        try:
+            programs_map = {p.id: p.name for p in db.query(Program).all()}
+        except Exception:
+            programs_map = {}
         
-        results.append(schemas.DirectoryGraduateResponse(
-            user_id=g.user_id,
-            first_name=g.first_name,
-            last_name=g.last_name,
-            program_id=g.program_id,
-            program_name=programs_map.get(g.program_id, f"Programa #{g.program_id}"),
-            graduation_year=g.graduation_year,
-            profile_summary=g.profile_summary,
-            profile_picture_url=g.profile_picture_url,
-            current_company=latest_exp.company_name if latest_exp else None,
-            current_position=latest_exp.position if latest_exp else None,
-            mentor_opt_in=bool(g.mentor_opt_in),
-            mentor_profile=mentor_p,
-            skills=[sk.skill.name for sk in g.skills if hasattr(sk, 'skill') and sk.skill] if hasattr(g, 'skills') else []
-        ))
-    return results
+        results = []
+        for g in graduates:
+            latest_exp = db.query(WorkExperience).filter(WorkExperience.graduate_id == g.user_id).order_by(WorkExperience.start_date.desc()).first()
+            mentor_p = db.query(MentorProfile).filter(MentorProfile.graduate_id == g.user_id).first() if g.mentor_opt_in else None
+            
+            skills_list = []
+            if hasattr(g, 'skills') and g.skills:
+                for sk in g.skills:
+                    if hasattr(sk, 'skill') and sk.skill:
+                        skills_list.append(sk.skill.name)
+            
+            results.append(schemas.DirectoryGraduateResponse(
+                user_id=g.user_id,
+                first_name=g.first_name,
+                last_name=g.last_name,
+                program_id=g.program_id,
+                program_name=programs_map.get(g.program_id, f"Programa #{g.program_id}"),
+                graduation_year=g.graduation_year,
+                profile_summary=g.profile_summary,
+                profile_picture_url=g.profile_picture_url,
+                current_company=latest_exp.company_name if latest_exp else None,
+                current_position=latest_exp.position if latest_exp else None,
+                mentor_opt_in=bool(g.mentor_opt_in),
+                mentor_profile=mentor_p,
+                skills=skills_list
+            ))
+        return results
+    except Exception as e:
+        print(f"Safe fallback in get_alumni_directory: {e}")
+        return []
 
 @router.get("/mentor-profile", response_model=Optional[schemas.MentorProfileResponse])
 def get_mentor_profile(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -467,3 +480,365 @@ def update_mentorship_status(
     return {"status": "ok", "mentorship_status": req.status, "conversation_id": req.conversation_id}
 
 
+
+
+# ── PERFIL PÚBLICO DE EGRESADO & PORTAFOLIO DE PROYECTOS ───────────────────────
+@router.get("/graduates/{target_user_id}/public-profile", response_model=schemas.GraduatePublicProfileResponse)
+def get_graduate_public_profile(
+    target_user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import (
+        Graduate, WorkExperience, AcademicHistory, Certification,
+        GraduateProject, GraduateConnection, Program
+    )
+    g = db.query(Graduate).filter(Graduate.user_id == target_user_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Perfil de egresado no encontrado")
+
+    try:
+        prog = db.query(Program).filter(Program.id == g.program_id).first()
+        prog_name = prog.name if prog else f"Programa #{g.program_id}"
+    except Exception:
+        prog_name = f"Programa #{g.program_id}"
+
+    experiences = db.query(WorkExperience).filter(WorkExperience.graduate_id == target_user_id).order_by(WorkExperience.start_date.desc()).all()
+    academics = db.query(AcademicHistory).filter(AcademicHistory.graduate_id == target_user_id).order_by(AcademicHistory.start_date.desc()).all()
+    certs = db.query(Certification).filter(Certification.graduate_id == target_user_id).order_by(Certification.issue_date.desc()).all()
+    projects = db.query(GraduateProject).filter(GraduateProject.graduate_id == target_user_id).order_by(GraduateProject.created_at.desc()).all()
+
+    skills_list = []
+    if hasattr(g, 'skills') and g.skills:
+        for sk in g.skills:
+            if hasattr(sk, 'skill') and sk.skill:
+                skills_list.append(sk.skill.name)
+
+    my_id = current_user.get("id")
+    conn_status = "NONE"
+    conn_id = None
+    if my_id == target_user_id:
+        conn_status = "SELF"
+    else:
+        conn = db.query(GraduateConnection).filter(
+            ((GraduateConnection.requester_id == my_id) & (GraduateConnection.addressee_id == target_user_id)) |
+            ((GraduateConnection.requester_id == target_user_id) & (GraduateConnection.addressee_id == my_id))
+        ).first()
+        if conn:
+            conn_status = conn.status
+            conn_id = conn.id
+
+    return schemas.GraduatePublicProfileResponse(
+        user_id=g.user_id,
+        first_name=g.first_name,
+        last_name=g.last_name,
+        program_id=g.program_id,
+        program_name=prog_name,
+        graduation_year=g.graduation_year,
+        phone=g.phone,
+        profile_summary=g.profile_summary,
+        profile_picture_url=g.profile_picture_url,
+        cv_url=g.cv_url,
+        availability_status=g.availability_status,
+        preferred_modality=g.preferred_modality,
+        experiences=experiences,
+        academic_histories=academics,
+        certifications=certs,
+        skills=skills_list,
+        projects=projects,
+        connection_status=conn_status,
+        connection_id=conn_id
+    )
+
+
+# ── CRUD DE PROYECTOS Y PORTAFOLIO ─────────────────────────────────────────────
+@router.get("/projects", response_model=List[schemas.ProjectResponse])
+def get_my_projects(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateProject
+    return db.query(GraduateProject).filter(
+        GraduateProject.graduate_id == current_user["id"]
+    ).order_by(GraduateProject.created_at.desc()).all()
+
+
+@router.get("/graduates/{target_user_id}/projects", response_model=List[schemas.ProjectResponse])
+def get_graduate_projects(
+    target_user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateProject
+    return db.query(GraduateProject).filter(
+        GraduateProject.graduate_id == target_user_id
+    ).order_by(GraduateProject.created_at.desc()).all()
+
+
+@router.post("/projects", response_model=schemas.ProjectResponse)
+def create_project(
+    body: schemas.ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateProject
+    proj = GraduateProject(
+        graduate_id=current_user["id"],
+        title=body.title,
+        description=body.description,
+        project_url=body.project_url,
+        repository_url=body.repository_url,
+        image_url=body.image_url,
+        technologies=body.technologies
+    )
+    db.add(proj)
+    db.commit()
+    db.refresh(proj)
+    return proj
+
+
+@router.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
+def update_project(
+    project_id: int,
+    body: schemas.ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateProject
+    proj = db.query(GraduateProject).filter(
+        GraduateProject.id == project_id,
+        GraduateProject.graduate_id == current_user["id"]
+    ).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    if body.title is not None: proj.title = body.title
+    if body.description is not None: proj.description = body.description
+    if body.project_url is not None: proj.project_url = body.project_url
+    if body.repository_url is not None: proj.repository_url = body.repository_url
+    if body.image_url is not None: proj.image_url = body.image_url
+    if body.technologies is not None: proj.technologies = body.technologies
+
+    db.commit()
+    db.refresh(proj)
+    return proj
+
+
+@router.delete("/projects/{project_id}")
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateProject
+    proj = db.query(GraduateProject).filter(
+        GraduateProject.id == project_id,
+        GraduateProject.graduate_id == current_user["id"]
+    ).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    db.delete(proj)
+    db.commit()
+    return {"status": "ok", "message": "Proyecto eliminado exitosamente"}
+
+
+# ── SOLICITUDES DE CONEXIÓN Y AMISTAD ENTRE EGRESADOS ──────────────────────────
+@router.post("/connections/request", response_model=schemas.ConnectionStatusResponse)
+def send_connection_request(
+    body: schemas.ConnectionRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateConnection, Graduate
+    my_id = current_user["id"]
+    target_id = body.target_user_id
+
+    if my_id == target_id:
+        raise HTTPException(status_code=400, detail="No puedes enviarte una solicitud de conexión a ti mismo")
+
+    target = db.query(Graduate).filter(Graduate.user_id == target_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="El egresado destinatario no existe")
+
+    existing = db.query(GraduateConnection).filter(
+        ((GraduateConnection.requester_id == my_id) & (GraduateConnection.addressee_id == target_id)) |
+        ((GraduateConnection.requester_id == target_id) & (GraduateConnection.addressee_id == my_id))
+    ).first()
+
+    if existing:
+        if existing.status == "ACCEPTED":
+            return schemas.ConnectionStatusResponse(status="ACCEPTED", is_requester=(existing.requester_id == my_id), connection_id=existing.id)
+        elif existing.status == "PENDING":
+            return schemas.ConnectionStatusResponse(status="PENDING", is_requester=(existing.requester_id == my_id), connection_id=existing.id)
+        else:
+            # Reintentar si fue rechazada
+            existing.status = "PENDING"
+            existing.requester_id = my_id
+            existing.addressee_id = target_id
+            existing.message = body.message
+            db.commit()
+            return schemas.ConnectionStatusResponse(status="PENDING", is_requester=True, connection_id=existing.id)
+
+    conn = GraduateConnection(
+        requester_id=my_id,
+        addressee_id=target_id,
+        status="PENDING",
+        message=body.message
+    )
+    db.add(conn)
+    db.commit()
+    db.refresh(conn)
+
+    # Notificar al destinatario mediante auth_adapter
+    try:
+        sender_grad = db.query(Graduate).filter(Graduate.user_id == my_id).first()
+        sender_name = f"{sender_grad.first_name} {sender_grad.last_name}" if sender_grad else "Un egresado"
+        auth_adapter.send_notification(
+            user_id=target_id,
+            title="Nueva solicitud de conexión",
+            message=f"{sender_name} quiere conectar contigo en la Red de Egresados.",
+            type="CONNECTION",
+            payload={"connection_id": conn.id, "sender_id": my_id},
+            dedup_key=f"conn_req_{conn.id}"
+        )
+    except Exception as e:
+        print(f"Notice: failed to send connection push: {e}")
+
+    return schemas.ConnectionStatusResponse(status="PENDING", is_requester=True, connection_id=conn.id)
+
+
+@router.get("/connections")
+def get_connections(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateConnection, Graduate, Program
+    my_id = current_user["id"]
+
+    try:
+        programs_map = {p.id: p.name for p in db.query(Program).all()}
+    except Exception:
+        programs_map = {}
+
+    all_conns = db.query(GraduateConnection).filter(
+        (GraduateConnection.requester_id == my_id) | (GraduateConnection.addressee_id == my_id)
+    ).all()
+
+    incoming = []
+    sent = []
+    accepted = []
+
+    for c in all_conns:
+        is_req = (c.requester_id == my_id)
+        peer_id = c.addressee_id if is_req else c.requester_id
+        peer = db.query(Graduate).filter(Graduate.user_id == peer_id).first()
+        peer_name = f"{peer.first_name} {peer.last_name}" if peer else f"Egresado #{peer_id}"
+        peer_prog = programs_map.get(peer.program_id, f"Programa #{peer.program_id}") if peer else ""
+        peer_pic = peer.profile_picture_url if peer else None
+
+        item = {
+            "id": c.id,
+            "requester_id": c.requester_id,
+            "addressee_id": c.addressee_id,
+            "status": c.status,
+            "message": c.message,
+            "created_at": c.created_at,
+            "peer_id": peer_id,
+            "peer_name": peer_name,
+            "peer_program": peer_prog,
+            "peer_picture_url": peer_pic,
+            "is_requester": is_req
+        }
+
+        if c.status == "ACCEPTED":
+            accepted.append(item)
+        elif c.status == "PENDING":
+            if is_req:
+                sent.append(item)
+            else:
+                incoming.append(item)
+
+    return {
+        "incoming": incoming,
+        "sent": sent,
+        "accepted": accepted
+    }
+
+
+@router.put("/connections/{connection_id}/respond")
+def respond_connection(
+    connection_id: int,
+    body: schemas.ConnectionAction,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateConnection, Graduate
+    my_id = current_user["id"]
+    conn = db.query(GraduateConnection).filter(
+        GraduateConnection.id == connection_id,
+        GraduateConnection.addressee_id == my_id
+    ).first()
+
+    if not conn:
+        raise HTTPException(status_code=404, detail="Solicitud de conexión no encontrada o no tienes permiso para responderla")
+
+    action = body.action.upper()
+    if action not in ["ACCEPT", "REJECT"]:
+        raise HTTPException(status_code=400, detail="Acción inválida. Usa ACCEPT o REJECT")
+
+    conn.status = "ACCEPTED" if action == "ACCEPT" else "REJECTED"
+    db.commit()
+
+    if action == "ACCEPT":
+        # Iniciar conversación en auth_db
+        try:
+            auth_adapter.create_conversation(
+                context_type="NETWORKING",
+                context_id=conn.id,
+                participant_ids=[conn.requester_id, conn.addressee_id]
+            )
+        except Exception as e:
+            print(f"Error creating networking conversation: {e}")
+
+        # Notificar al solicitante
+        try:
+            my_grad = db.query(Graduate).filter(Graduate.user_id == my_id).first()
+            my_name = f"{my_grad.first_name} {my_grad.last_name}" if my_grad else "Un egresado"
+            auth_adapter.send_notification(
+                user_id=conn.requester_id,
+                title="¡Solicitud de conexión aceptada!",
+                message=f"{my_name} aceptó tu solicitud. Ahora pueden comunicarse por Mensajes Directos.",
+                type="CONNECTION",
+                payload={"connection_id": conn.id, "peer_id": my_id},
+                dedup_key=f"conn_acc_{conn.id}"
+            )
+        except Exception as e:
+            print(f"Error notifying requester: {e}")
+
+    return {"status": "ok", "connection_status": conn.status}
+
+
+@router.get("/connections/status/{target_user_id}", response_model=schemas.ConnectionStatusResponse)
+def get_connection_status(
+    target_user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from app.graduates.models import GraduateConnection
+    my_id = current_user["id"]
+    if my_id == target_user_id:
+        return schemas.ConnectionStatusResponse(status="SELF", is_requester=False)
+
+    conn = db.query(GraduateConnection).filter(
+        ((GraduateConnection.requester_id == my_id) & (GraduateConnection.addressee_id == target_user_id)) |
+        ((GraduateConnection.requester_id == target_user_id) & (GraduateConnection.addressee_id == my_id))
+    ).first()
+
+    if not conn:
+        return schemas.ConnectionStatusResponse(status="NONE", is_requester=False)
+
+    return schemas.ConnectionStatusResponse(
+        status=conn.status,
+        is_requester=(conn.requester_id == my_id),
+        connection_id=conn.id
+    )
