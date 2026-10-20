@@ -393,6 +393,7 @@ def export_event_ics(
     dt_start = ev.starts_at.strftime("%Y%m%dT%H%M%SZ")
     dt_end = ev.ends_at.strftime("%Y%m%dT%H%M%SZ")
     dt_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    desc_escaped = (ev.description or "").replace("\r\n", "\\n").replace("\n", "\\n")
 
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
@@ -405,7 +406,7 @@ DTSTAMP:{dt_now}
 DTSTART:{dt_start}
 DTEND:{dt_end}
 SUMMARY:{ev.title}
-DESCRIPTION:{ev.description.replace(chr(10), '\\n')}
+DESCRIPTION:{desc_escaped}
 LOCATION:{ev.location_or_url or 'Virtual'}
 ORGANIZER;CN="{ev.organizer_name}":MAILTO:noreply@unicesar.edu.co
 STATUS:CONFIRMED
