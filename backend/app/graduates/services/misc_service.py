@@ -17,7 +17,8 @@ def get_jobs(skip: int, limit: int, q: Optional[str], salary_min: Optional[int],
     try:
         return companies_adapter.get_jobs(params)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+        print(f"Warning: companies_adapter.get_jobs failed (Companies service starting/down): {e}")
+        return []
 
 def apply_for_job(application: schemas.ApplicationCreate, current_user: dict, db: Session):
     try:
@@ -40,10 +41,8 @@ def get_my_applications(current_user: dict, db: Session):
     try:
         return companies_adapter.get_my_applications(current_user['id'])
     except Exception as e:
-        print(f"ERROR in get_my_applications: {str(e)}", flush=True)
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error conectando con Companies: {str(e)}")
+        print(f"Warning: companies_adapter.get_my_applications failed (Companies service starting/down): {e}")
+        return []
 
 def get_surveys(db: Session):
     return db.query(models.Survey).filter(models.Survey.is_active == True).all()
@@ -116,10 +115,14 @@ def get_job_affinity_breakdown(job_offer_id: int, current_user: dict, db: Sessio
     grad = db.query(models.Graduate).filter(models.Graduate.user_id == grad_id).first()
     all_skills = {s.id: s.name for s in db.query(models.Skill).all()}
 
-    jobs = companies_adapter.get_jobs({"skip": 0, "limit": 200})
-    job = next((j for j in (jobs if isinstance(jobs, list) else []) if j.get("id") == job_offer_id), None)
+    try:
+        jobs = companies_adapter.get_jobs({"skip": 0, "limit": 200})
+        job = next((j for j in (jobs if isinstance(jobs, list) else []) if j.get("id") == job_offer_id), None)
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_jobs failed in affinity breakdown: {e}")
+        job = None
     if not job:
-        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+        raise HTTPException(status_code=404, detail="Vacante no encontrada o temporalmente no disponible")
 
     grad_skill_map = {}
     total_exp_years = 0.0
@@ -229,13 +232,18 @@ def get_companies_directory(db: Session):
     try:
         return companies_adapter.get_companies_directory()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error obteniendo directorio de empresas: {str(e)}")
+        print(f"Warning: companies_adapter.get_companies_directory failed: {e}")
+        return []
 
 def get_interview_prep(job_offer_id: int, current_user: dict, db: Session):
-    jobs = companies_adapter.get_jobs({"skip": 0, "limit": 200})
-    job = next((j for j in (jobs if isinstance(jobs, list) else []) if j.get("id") == job_offer_id), None)
+    try:
+        jobs = companies_adapter.get_jobs({"skip": 0, "limit": 200})
+        job = next((j for j in (jobs if isinstance(jobs, list) else []) if j.get("id") == job_offer_id), None)
+    except Exception as e:
+        print(f"Warning: companies_adapter.get_jobs failed in interview prep: {e}")
+        job = None
     if not job:
-        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+        raise HTTPException(status_code=404, detail="Vacante no encontrada o temporalmente no disponible")
 
     all_skills = {s.id: s.name for s in db.query(models.Skill).all()}
     job_skills = [all_skills.get(sk.get("skill_id"), f"Habilidad #{sk.get('skill_id')}") for sk in (job.get("skills") or [])]

@@ -29,11 +29,10 @@ const handleGlobalError = (error: any) => {
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
-  } else if (!error.response || error.response.status >= 500) {
-    if (window.location.pathname !== '/mantenimiento') {
-      window.location.href = '/mantenimiento';
-    }
   }
+  // En arquitectura de microservicios, la indisponibilidad temporal de un servicio
+  // (ej. Empresas) no debe expulsar al usuario ni bloquear módulos operativos (ej. Egresados).
+  // Los componentes individuales gestionan fallbacks seguros sin redirigir agresivamente.
   return Promise.reject(error);
 };
 
@@ -240,4 +239,4 @@ export const getEventIcsUrl = (eventId: number) =>
 export const getExecutiveAnalytics = (params?: any) =>
   dashboardApi.get('/dashboard/admin/analytics', { params });
 
-export default api;
+export default api;
