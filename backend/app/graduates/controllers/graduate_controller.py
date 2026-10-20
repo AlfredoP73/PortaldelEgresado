@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+﻿from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -707,6 +707,88 @@ def send_connection_request(
 
     return schemas.ConnectionStatusResponse(status="PENDING", is_requester=True, connection_id=conn.id)
 
+
+@router.get("/network/suggestions")
+def get_network_suggestions(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Retorna egresados similares al perfil del usuario actual (excluye al propio usuario y ya-conectados)."""
+    from app.graduates.models import Graduate, GraduateSkill, Skill, GraduateConnection
+    from sqlalchemy import or_
+
+    my_id = current_user["id"]
+
+    # Obtener perfil propio
+    me = db.query(Graduate).filter(Graduate.user_id == my_id).first()
+
+    # Obtener IDs de ya-conectados
+    connected_ids = set()
+    conns = db.query(GraduateConnection).filter(
+        or_(
+            GraduateConnection.requester_id == my_id,
+            GraduateConnection.addressee_id == my_id
+        )
+    ).all()
+    for c in conns:
+        connected_ids.add(c.requester_id)
+        connected_ids.add(c.addressee_id)
+    connected_ids.discard(my_id)
+
+    # Obtener mis skills
+    my_skill_ids = set()
+    if me:
+        my_skills = db.query(GraduateSkill).filter(GraduateSkill.graduate_id == me.user_id).all()
+        my_skill_ids = {s.skill_id for s in my_skills}
+
+    # Query: egresados visibles, excluyendo yo y ya-conectados
+    candidates = db.query(Graduate).filter(
+        Graduate.user_id != my_id,
+        or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None))
+    ).limit(100).all()
+
+    suggestions = []
+    for grad in candidates:
+        if grad.user_id in connected_ids:
+            continue
+
+        # Score de afinidad simple
+        score = 0
+        if me and grad.program_id and me.program_id and grad.program_id == me.program_id:
+            score += 40
+        their_skills = db.query(GraduateSkill).filter(GraduateSkill.graduate_id == grad.user_id).all()
+        their_skill_ids = {s.skill_id for s in their_skills}
+        common = len(my_skill_ids & their_skill_ids)
+        score += min(common * 10, 40)
+        if grad.profile_picture_url:
+            score += 10
+        if grad.profile_summary:
+            score += 5
+
+        # Obtener nombres de skills
+        skill_names = []
+        for sk in their_skills[:5]:
+            skill = db.query(Skill).filter(Skill.id == sk.skill_id).first()
+            if skill:
+                skill_names.append(skill.name)
+
+        # Connection status
+        conn_status = "NONE"
+        for c in conns:
+            if c.requester_id == grad.user_id or c.addressee_id == grad.user_id:
+                conn_status = c.status
+                break
+
+        suggestions.append({
+            "user_id": grad.user_id,
+            "full_name": f"{grad.first_name} {grad.last_name}".strip() or "Egresado",
+            "profile_picture_url": grad.profile_picture_url,
+            "headline": grad.profile_summary,
+            "skills": skill_names,
+            "affinity_score": score,
+            "connection_status": conn_status,
+            "graduation_year": grad.graduation_year,
+        })
+
+    suggestions.sort(key=lambda x: x["affinity_score"], reverse=True)
+    return suggestions[:20]
 
 @router.get("/connections")
 def get_connections(

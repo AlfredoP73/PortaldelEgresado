@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+﻿from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -126,6 +126,8 @@ def ensure_graduates_schema():
                         CONSTRAINT uq_graduate_connection UNIQUE(requester_id, addressee_id)
                     );
                 """))
+                conn.execute(text("ALTER TABLE graduate_projects ADD COLUMN IF NOT EXISTS resource_type VARCHAR(50);"))
+                conn.execute(text("ALTER TABLE graduate_projects ADD COLUMN IF NOT EXISTS resource_url VARCHAR(500);"))
                 print("Graduates schema check completed successfully.")
         except Exception as e:
             print(f"Schema check warning in graduates: {e}")

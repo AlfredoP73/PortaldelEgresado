@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 
 // En producción (desplegado), VITE_*_URL no está definida → usar rutas relativas
 // que Nginx redirige al backend gateway. En desarrollo, usar puertos directos.
@@ -271,5 +271,15 @@ export const getEventIcsUrl = (eventId: number) =>
 // ── Analítica BI y Executive Dashboard (Fase 7) ──────────────────────────────
 export const getExecutiveAnalytics = (params?: any) =>
   dashboardApi.get('/dashboard/admin/analytics', { params });
+
+// ── Network de Egresados (Fase 8) ────────────────────────────────────────────
+export const getNetworkSuggestions = () =>
+  graduatesApi.get('/network/suggestions');
+
+export const getGraduateEducation = (userId: number) =>
+  graduatesApi.get(`/graduates/${userId}/education`);
+
+export const getGraduateExperience = (userId: number) =>
+  graduatesApi.get(`/graduates/${userId}/experience`);
 
 export default api;

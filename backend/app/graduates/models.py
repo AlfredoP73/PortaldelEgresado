@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, Boolean, DateTime, JSON
+﻿from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, Boolean, DateTime, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -169,6 +169,8 @@ class GraduateProject(Base):
     repository_url = Column(String(500), nullable=True)
     image_url = Column(String(500), nullable=True)
     technologies = Column(String(300), nullable=True)
+    resource_type = Column(String(50), nullable=True)   # e.g. "github", "behance", "youtube", "drive", "web", "paper", "other"
+    resource_url = Column(String(500), nullable=True)    # URL del recurso
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

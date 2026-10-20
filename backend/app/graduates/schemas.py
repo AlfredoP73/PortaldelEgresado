@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, HttpUrl
+﻿from pydantic import BaseModel, EmailStr, HttpUrl
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -332,7 +332,7 @@ class SurveyResponse(SurveyResponseCreate):
         from_attributes = True
 
 
-# ── Proyectos y Portafolio ───────────────────────────────────────────────
+# ─── Proyectos y Portafolio ──────────────────────────────────────────────────
 class ProjectBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -340,6 +340,8 @@ class ProjectBase(BaseModel):
     repository_url: Optional[str] = None
     image_url: Optional[str] = None
     technologies: Optional[str] = None
+    resource_type: Optional[str] = None   # github, behance, youtube, drive, web, paper, repo, other
+    resource_url: Optional[str] = None    # URL principal del recurso
 
 class ProjectCreate(ProjectBase):
     pass
@@ -351,6 +353,8 @@ class ProjectUpdate(BaseModel):
     repository_url: Optional[str] = None
     image_url: Optional[str] = None
     technologies: Optional[str] = None
+    resource_type: Optional[str] = None
+    resource_url: Optional[str] = None
 
 class ProjectResponse(ProjectBase):
     id: int
@@ -360,8 +364,7 @@ class ProjectResponse(ProjectBase):
     class Config:
         from_attributes = True
 
-
-# ── Conexiones y Solicitudes de Amistad ────────────────────────────────────
+# â”€â”€ Conexiones y Solicitudes de Amistad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ConnectionRequestCreate(BaseModel):
     target_user_id: int
     message: Optional[str] = None
@@ -390,7 +393,7 @@ class ConnectionStatusResponse(BaseModel):
     connection_id: Optional[int] = None
 
 
-# ── Perfil Público Completo de Egresado ───────────────────────────────────
+# â”€â”€ Perfil PÃºblico Completo de Egresado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class GraduatePublicProfileResponse(BaseModel):
     user_id: int
     first_name: str

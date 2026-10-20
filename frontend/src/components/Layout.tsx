@@ -1,4 +1,4 @@
-import React, { type ReactNode, useState, useEffect } from 'react';
+﻿import React, { type ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -201,8 +201,8 @@ const getNavItems = (role: string) => {
 
     // Módulo Comunidad, Red y Eventos
     {
-      name: 'Directorio Egresados',
-      path: '/directory',
+      name: 'Mi Red / Network',
+      path: '/network',
       icon: Users,
       roles: ['GRADUATE', 'ADMIN', 'COMPANY'],
       section: 'Comunidad & Red',
@@ -245,6 +245,7 @@ export default function Layout({ children }: LayoutProps) {
     '/projects': 'Portafolio de Proyectos & Trabajo Profesional',
     '/jobs': 'Explorar Ofertas Laborales',
     '/directory': 'Directorio de Egresados & Mentorías',
+    '/network': 'Mi Red Profesional & Network',
     '/events': 'Eventos, Ferias y Convocatorias',
     '/messages': 'Mensajería Directa y Red de Contactos',
   };

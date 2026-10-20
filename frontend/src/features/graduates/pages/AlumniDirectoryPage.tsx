@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Search, GraduationCap, Briefcase, Award, 
   Sparkles, CheckCircle2, XCircle, MessageSquare, 
   Send, UserCheck, ShieldCheck, ChevronRight, Eye,
   ExternalLink, FolderGit2, UserPlus, Clock,
-  Check, X, ArrowRight
+  Check, X, ArrowRight, Network, Percent
 } from 'lucide-react';
 import { 
   getAlumniDirectory, getMentorships, requestMentorship, 
   updateMentorshipStatus, getMentorProfile, saveMentorProfile,
   getGraduatePublicProfile, getConnections, sendConnectionRequest,
-  respondConnection, getConnectionStatus
+  respondConnection, getConnectionStatus, getNetworkSuggestions
 } from '../../../api';
 import toast from 'react-hot-toast';
 
@@ -21,10 +21,24 @@ const GithubIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   </svg>
 );
 
+// Resource type icons and labels
+const resourceTypeInfo: Record<string, { emoji: string; label: string }> = {
+  github: { emoji: 'ðŸ™', label: 'GitHub / GitLab' },
+  behance: { emoji: 'ðŸŽ¨', label: 'Behance / Dribbble' },
+  youtube: { emoji: 'ðŸŽ¬', label: 'YouTube / Vimeo' },
+  drive: { emoji: 'ðŸ“„', label: 'Google Drive / OneDrive' },
+  web: { emoji: 'ðŸŒ', label: 'Sitio Web / Demo' },
+  paper: { emoji: 'ðŸ“', label: 'ArtÃ­culo / Paper' },
+  institutional: { emoji: 'ðŸ›ï¸', label: 'Repositorio Institucional' },
+  other: { emoji: 'ðŸ”—', label: 'Enlace Externo' },
+};
+
 export default function AlumniDirectoryPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'directory' | 'connections' | 'mentorships'>('directory');
+  const [activeTab, setActiveTab] = useState<'network' | 'directory' | 'connections' | 'mentorships'>('network');
   const [graduates, setGraduates] = useState<any[]>([]);
+  const [networkSuggestions, setNetworkSuggestions] = useState<any[]>([]);
+  const [loadingNetwork, setLoadingNetwork] = useState(true);
   const [mentorships, setMentorships] = useState<any[]>([]);
   const [connections, setConnections] = useState<{ incoming: any[]; sent: any[]; accepted: any[] }>({
     incoming: [],
@@ -38,23 +52,23 @@ export default function AlumniDirectoryPage() {
   const [mentorsOnly, setMentorsOnly] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>('');
 
-  // Modal Perfil Público & Proyectos
+  // Modal Perfil PÃºblico & Proyectos
   const [selectedProfileUserId, setSelectedProfileUserId] = useState<number | null>(null);
   const [publicProfile, setPublicProfile] = useState<any | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  // Modal Enviar Solicitud Conexión
+  // Modal Enviar Solicitud ConexiÃ³n
   const [connectModalUser, setConnectModalUser] = useState<any | null>(null);
   const [connectNote, setConnectNote] = useState('');
   const [sendingConnect, setSendingConnect] = useState(false);
 
-  // Modal Mentoría
+  // Modal MentorÃ­a
   const [requestModalMentor, setRequestModalMentor] = useState<any | null>(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [requestGoal, setRequestGoal] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
 
-  // Modal Configuración Mentor
+  // Modal ConfiguraciÃ³n Mentor
   const [mentorConfigOpen, setMentorConfigOpen] = useState(false);
   const [mentorHeadline, setMentorHeadline] = useState('');
   const [mentorBio, setMentorBio] = useState('');
@@ -78,6 +92,18 @@ export default function AlumniDirectoryPage() {
       toast.error('Error al cargar directorio');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNetworkSuggestions = async () => {
+    try {
+      setLoadingNetwork(true);
+      const res = await getNetworkSuggestions();
+      setNetworkSuggestions(res.data || []);
+    } catch (e) {
+      // silent - may fail if not graduate
+    } finally {
+      setLoadingNetwork(false);
     }
   };
 
@@ -117,20 +143,25 @@ export default function AlumniDirectoryPage() {
   };
 
   useEffect(() => {
-    fetchDirectory();
-  }, [mentorsOnly, selectedYear]);
+    if (activeTab === 'directory') {
+      fetchDirectory();
+    }
+  }, [activeTab, mentorsOnly, selectedYear]);
 
   useEffect(() => {
     if (activeTab === 'connections') {
       fetchConnectionsData();
     } else if (activeTab === 'mentorships') {
       fetchMentorships();
+    } else if (activeTab === 'network') {
+      fetchNetworkSuggestions();
     }
   }, [activeTab]);
 
   useEffect(() => {
     fetchMyMentorProfile();
     fetchConnectionsData();
+    fetchNetworkSuggestions();
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -145,7 +176,7 @@ export default function AlumniDirectoryPage() {
       const res = await getGraduatePublicProfile(userId);
       setPublicProfile(res.data);
     } catch (e: any) {
-      toast.error('No se pudo cargar el perfil público');
+      toast.error('No se pudo cargar el perfil pÃºblico');
       setSelectedProfileUserId(null);
     } finally {
       setLoadingProfile(false);
@@ -159,10 +190,11 @@ export default function AlumniDirectoryPage() {
         target_user_id: targetUserId,
         message: message?.trim() || undefined
       });
-      toast.success('¡Solicitud de conexión enviada con éxito!');
+      toast.success('Â¡Solicitud de conexiÃ³n enviada con Ã©xito!');
       setConnectModalUser(null);
       setConnectNote('');
       fetchConnectionsData();
+      fetchNetworkSuggestions();
       if (publicProfile && publicProfile.user_id === targetUserId) {
         setPublicProfile({
           ...publicProfile,
@@ -170,8 +202,12 @@ export default function AlumniDirectoryPage() {
           connection_id: res.data.connection_id
         });
       }
+      // Update suggestion status
+      setNetworkSuggestions(prev => prev.map(s => 
+        s.user_id === targetUserId ? { ...s, connection_status: 'PENDING' } : s
+      ));
     } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'Error al enviar solicitud de conexión');
+      toast.error(e.response?.data?.detail || 'Error al enviar solicitud de conexiÃ³n');
     } finally {
       setSendingConnect(false);
     }
@@ -180,7 +216,7 @@ export default function AlumniDirectoryPage() {
   const handleRespondConnection = async (connectionId: number, action: 'ACCEPT' | 'REJECT') => {
     try {
       await respondConnection(connectionId, action);
-      toast.success(action === 'ACCEPT' ? '¡Conexión aceptada! Ahora pueden enviarse mensajes directos.' : 'Solicitud rechazada');
+      toast.success(action === 'ACCEPT' ? 'Â¡ConexiÃ³n aceptada! Ahora pueden enviarse mensajes directos.' : 'Solicitud rechazada');
       fetchConnectionsData();
       if (publicProfile && publicProfile.connection_id === connectionId) {
         setPublicProfile({
@@ -189,7 +225,7 @@ export default function AlumniDirectoryPage() {
         });
       }
     } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'Error al responder a la conexión');
+      toast.error(e.response?.data?.detail || 'Error al responder a la conexiÃ³n');
     }
   };
 
@@ -197,7 +233,7 @@ export default function AlumniDirectoryPage() {
     e.preventDefault();
     if (!requestModalMentor) return;
     if (!requestMessage.trim()) {
-      toast.error('Por favor escribe un mensaje de presentación');
+      toast.error('Por favor escribe un mensaje de presentaciÃ³n');
       return;
     }
 
@@ -208,7 +244,7 @@ export default function AlumniDirectoryPage() {
         message: requestMessage.trim(),
         goal: requestGoal.trim() || undefined
       });
-      toast.success('¡Solicitud de mentoría enviada exitosamente!');
+      toast.success('Â¡Solicitud de mentorÃ­a enviada exitosamente!');
       setRequestModalMentor(null);
       setRequestMessage('');
       setRequestGoal('');
@@ -223,7 +259,7 @@ export default function AlumniDirectoryPage() {
   const handleUpdateStatus = async (id: number, status: string) => {
     try {
       await updateMentorshipStatus(id, status);
-      toast.success(status === 'ACCEPTED' ? 'Mentoría aceptada. ¡Conversación creada!' : 'Solicitud actualizada');
+      toast.success(status === 'ACCEPTED' ? 'MentorÃ­a aceptada. Â¡ConversaciÃ³n creada!' : 'Solicitud actualizada');
       fetchMentorships();
     } catch (e: any) {
       toast.error(e.response?.data?.detail || 'Error al actualizar');
@@ -242,7 +278,7 @@ export default function AlumniDirectoryPage() {
         max_mentees: 3,
         is_active: true
       });
-      toast.success('¡Perfil de mentor guardado y activo en el directorio!');
+      toast.success('Â¡Perfil de mentor guardado y activo en el directorio!');
       setMentorConfigOpen(false);
       fetchDirectory();
     } catch (e: any) {
@@ -262,10 +298,10 @@ export default function AlumniDirectoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-ink flex items-center gap-2">
             <Users className="w-7 h-7 text-brand-600" />
-            Red de Egresados y Contactos UPC
+            Mi Red Profesional
           </h1>
           <p className="text-sm text-ink-secondary mt-1">
-            Explora perfiles públicos, portafolios de proyectos de egresados, forja conexiones y encuentra mentores.
+            Conecta con egresados afines a tu perfil, forja conexiones y encuentra mentores.
           </p>
         </div>
         {isGraduate && (
@@ -290,10 +326,24 @@ export default function AlumniDirectoryPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="flex border-b overflow-x-auto" style={{ borderColor: 'var(--border-color)' }}>
+        {isGraduate && (
+          <button
+            onClick={() => setActiveTab('network')}
+            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeTab === 'network'
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-ink-secondary hover:text-ink'
+            }`}
+          >
+            <Network className="w-4 h-4" />
+            Sugerencias de Red
+          </button>
+        )}
+
         <button
           onClick={() => setActiveTab('directory')}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all whitespace-nowrap ${
             activeTab === 'directory'
               ? 'border-brand-600 text-brand-600'
               : 'border-transparent text-ink-secondary hover:text-ink'
@@ -306,7 +356,7 @@ export default function AlumniDirectoryPage() {
         {isGraduate && (
           <button
             onClick={() => setActiveTab('connections')}
-            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
+            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative whitespace-nowrap ${
               activeTab === 'connections'
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-ink-secondary hover:text-ink'
@@ -325,14 +375,14 @@ export default function AlumniDirectoryPage() {
         {isGraduate && (
           <button
             onClick={() => setActiveTab('mentorships')}
-            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative ${
+            className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all relative whitespace-nowrap ${
               activeTab === 'mentorships'
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-ink-secondary hover:text-ink'
             }`}
           >
             <GraduationCap className="w-4 h-4" />
-            Mentorías UPC
+            MentorÃ­as UPC
             {receivedRequests.filter((r) => r.status === 'PENDING').length > 0 && (
               <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                 {receivedRequests.filter((r) => r.status === 'PENDING').length}
@@ -342,7 +392,137 @@ export default function AlumniDirectoryPage() {
         )}
       </div>
 
-      {/* ── TAB 1: DIRECTORIO DE EGRESADOS ─────────────────────────── */}
+      {/* â”€â”€ TAB: SUGERENCIAS DE RED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {activeTab === 'network' && (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-ink-secondary">
+              Egresados afines a tu perfil profesional, ordenados por similitud de carrera y habilidades.
+            </p>
+            <button
+              onClick={fetchNetworkSuggestions}
+              className="text-xs text-brand-600 hover:underline flex items-center gap-1"
+            >
+              Actualizar sugerencias
+            </button>
+          </div>
+
+          {loadingNetwork ? (
+            <div className="py-16 text-center text-sm text-ink-tertiary">
+              Calculando perfiles afines...
+            </div>
+          ) : networkSuggestions.length === 0 ? (
+            <div className="py-16 text-center text-sm text-ink-tertiary">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p className="font-semibold text-ink">No hay sugerencias disponibles</p>
+              <p className="text-xs mt-1">Completa tu perfil con habilidades y programa acadÃ©mico para recibir sugerencias.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {networkSuggestions.map((s) => {
+                const initials = s.full_name?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() || '?';
+                const affinityPct = Math.min(Math.round((s.affinity_score / 95) * 100), 100);
+                return (
+                  <div
+                    key={s.user_id}
+                    className="rounded-2xl border p-4 shadow-xs flex flex-col gap-3 transition-all hover:shadow-md"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                  >
+                    {/* Avatar + Info */}
+                    <div className="flex items-start gap-3">
+                      {s.profile_picture_url ? (
+                        <img
+                          src={s.profile_picture_url}
+                          alt={s.full_name}
+                          className="w-12 h-12 rounded-full object-cover flex-shrink-0 border"
+                          style={{ borderColor: 'var(--border-color)' }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold flex-shrink-0">
+                          {initials}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-ink truncate">{s.full_name}</p>
+                        {s.headline && (
+                          <p className="text-xs text-ink-secondary line-clamp-2 mt-0.5">{s.headline}</p>
+                        )}
+                        {s.graduation_year && (
+                          <p className="text-[10px] text-ink-tertiary mt-0.5">PromociÃ³n {s.graduation_year}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Skills badges */}
+                    {s.skills && s.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {s.skills.slice(0, 3).map((sk: string, i: number) => (
+                          <span
+                            key={i}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary"
+                          >
+                            {sk}
+                          </span>
+                        ))}
+                        {s.skills.length > 3 && (
+                          <span className="text-[10px] text-ink-tertiary px-1 py-0.5">+{s.skills.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Affinity badge */}
+                    {s.affinity_score > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-brand-500"
+                            style={{ width: `${affinityPct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-brand-600">{affinityPct}% afÃ­n</span>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                      <button
+                        onClick={() => handleOpenPublicProfile(s.user_id)}
+                        className="flex-1 py-1.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 hover:bg-muted transition-all"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      >
+                        <Eye className="w-3 h-3 text-brand-600" />
+                        Ver perfil
+                      </button>
+
+                      {s.connection_status === 'NONE' ? (
+                        <button
+                          onClick={() => setConnectModalUser({ user_id: s.user_id, full_name: s.full_name, first_name: s.full_name?.split(' ')[0], last_name: s.full_name?.split(' ').slice(1).join(' '), program_name: '' })}
+                          className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center gap-1 transition-all shadow-xs"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          Conectar
+                        </button>
+                      ) : s.connection_status === 'PENDING' ? (
+                        <span className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-muted text-ink-tertiary flex items-center justify-center gap-1 text-center">
+                          <Clock className="w-3 h-3" />
+                          Pendiente
+                        </span>
+                      ) : s.connection_status === 'ACCEPTED' ? (
+                        <span className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 flex items-center justify-center gap-1 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Conectado
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* â”€â”€ TAB 1: DIRECTORIO DE EGRESADOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === 'directory' && (
         <>
           {/* Filtros superiores */}
@@ -369,10 +549,10 @@ export default function AlumniDirectoryPage() {
                 className="px-3 py-2.5 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
-                <option value="">Año de Graduación: Todos</option>
+                <option value="">AÃ±o de GraduaciÃ³n: Todos</option>
                 {Array.from({ length: 15 }, (_, i) => 2026 - i).map((y) => (
                   <option key={y} value={y}>
-                    Promoción {y}
+                    PromociÃ³n {y}
                   </option>
                 ))}
               </select>
@@ -401,7 +581,7 @@ export default function AlumniDirectoryPage() {
             <div className="py-16 text-center text-sm text-ink-tertiary">
               <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
               <p className="font-semibold text-ink">No se encontraron egresados con los filtros seleccionados</p>
-              <p className="text-xs mt-1">Intenta con otros términos o elimina el filtro de año.</p>
+              <p className="text-xs mt-1">Intenta con otros tÃ©rminos o elimina el filtro de aÃ±o.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -444,7 +624,7 @@ export default function AlumniDirectoryPage() {
                           </h3>
                           <p className="text-xs text-ink-secondary flex items-center gap-1 mt-0.5">
                             <GraduationCap className="w-3.5 h-3.5 text-brand-600 flex-shrink-0" />
-                            <span className="truncate">{g.program_name} • {g.graduation_year}</span>
+                            <span className="truncate">{g.program_name} â€¢ {g.graduation_year}</span>
                           </p>
                           {(g.current_position || g.current_company) && (
                             <p className="text-xs text-ink-secondary flex items-center gap-1 mt-1 font-medium">
@@ -503,7 +683,7 @@ export default function AlumniDirectoryPage() {
                         <button
                           onClick={() => setConnectModalUser(g)}
                           className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center gap-1 transition-all shadow-xs"
-                          title="Enviar solicitud de conexión"
+                          title="Enviar solicitud de conexiÃ³n"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
                           <span>Conectar</span>
@@ -514,7 +694,7 @@ export default function AlumniDirectoryPage() {
                         <button
                           onClick={() => setRequestModalMentor(g)}
                           className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all shadow-xs"
-                          title="Solicitar mentoría"
+                          title="Solicitar mentorÃ­a"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                         </button>
@@ -528,14 +708,14 @@ export default function AlumniDirectoryPage() {
         </>
       )}
 
-      {/* ── TAB 2: MIS CONEXIONES Y CONTACTOS ───────────────────────── */}
+      {/* â”€â”€ TAB 2: MIS CONEXIONES Y CONTACTOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === 'connections' && (
         <div className="space-y-8">
           {/* 1. Solicitudes Recibidas */}
           <div className="space-y-3">
             <h2 className="text-base font-bold text-ink flex items-center gap-2">
               <Clock className="w-5 h-5 text-amber-500" />
-              Solicitudes de Conexión Recibidas ({connections.incoming.length})
+              Solicitudes de ConexiÃ³n Recibidas ({connections.incoming.length})
             </h2>
             {connections.incoming.length === 0 ? (
               <p className="text-sm text-ink-tertiary italic">No tienes solicitudes pendientes por responder.</p>
@@ -571,7 +751,7 @@ export default function AlumniDirectoryPage() {
                         onClick={() => handleRespondConnection(req.id, 'ACCEPT')}
                         className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-xs"
                       >
-                        <Check className="w-3.5 h-3.5" /> Aceptar Conexión
+                        <Check className="w-3.5 h-3.5" /> Aceptar ConexiÃ³n
                       </button>
                       <button
                         onClick={() => handleRespondConnection(req.id, 'REJECT')}
@@ -594,7 +774,7 @@ export default function AlumniDirectoryPage() {
             </h2>
             {connections.accepted.length === 0 ? (
               <p className="text-sm text-ink-tertiary italic">
-                Aún no tienes egresados conectados. Visita el Directorio y envía solicitudes para expandir tu red profesional.
+                AÃºn no tienes egresados conectados. Visita el Directorio y envÃ­a solicitudes para expandir tu red profesional.
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -663,7 +843,7 @@ export default function AlumniDirectoryPage() {
                       <p className="text-[11px] text-ink-secondary">{s.peer_program}</p>
                     </div>
                     <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                      En espera de aprobación
+                      En espera de aprobaciÃ³n
                     </span>
                   </div>
                 ))}
@@ -673,7 +853,7 @@ export default function AlumniDirectoryPage() {
         </div>
       )}
 
-      {/* ── TAB 3: MIS MENTORÍAS ─────────────────────────────────────── */}
+      {/* â”€â”€ TAB 3: MIS MENTORÃAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === 'mentorships' && (
         <div className="space-y-8">
           {/* Solicitudes Recibidas (Como mentor) */}
@@ -683,7 +863,7 @@ export default function AlumniDirectoryPage() {
               Solicitudes Recibidas como Mentor ({receivedRequests.length})
             </h2>
             {receivedRequests.length === 0 ? (
-              <p className="text-sm text-ink-tertiary italic">No has recibido solicitudes de mentoría por el momento.</p>
+              <p className="text-sm text-ink-tertiary italic">No has recibido solicitudes de mentorÃ­a por el momento.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {receivedRequests.map((r) => (
@@ -717,7 +897,7 @@ export default function AlumniDirectoryPage() {
                           onClick={() => handleUpdateStatus(r.id, 'ACCEPTED')}
                           className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Aceptar Mentoría
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Aceptar MentorÃ­a
                         </button>
                         <button
                           onClick={() => handleUpdateStatus(r.id, 'REJECTED')}
@@ -747,7 +927,7 @@ export default function AlumniDirectoryPage() {
               Solicitudes que Has Enviado ({sentRequests.length})
             </h2>
             {sentRequests.length === 0 ? (
-              <p className="text-sm text-ink-tertiary italic">No has enviado solicitudes de mentoría aún.</p>
+              <p className="text-sm text-ink-tertiary italic">No has enviado solicitudes de mentorÃ­a aÃºn.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sentRequests.map((r) => (
@@ -779,7 +959,7 @@ export default function AlumniDirectoryPage() {
                         onClick={() => navigate('/messages')}
                         className="w-full py-1.5 bg-brand-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5"
                       >
-                        <MessageSquare className="w-3.5 h-3.5" /> Abrir Conversación con tu Mentor
+                        <MessageSquare className="w-3.5 h-3.5" /> Abrir ConversaciÃ³n con tu Mentor
                       </button>
                     )}
                   </div>
@@ -790,7 +970,7 @@ export default function AlumniDirectoryPage() {
         </div>
       )}
 
-      {/* ── MODAL: PERFIL PÚBLICO & PORTAFOLIO DE PROYECTOS ─────────── */}
+      {/* â”€â”€ MODAL: PERFIL PÃšBLICO & PORTAFOLIO DE PROYECTOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {selectedProfileUserId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
           <div 
@@ -799,7 +979,7 @@ export default function AlumniDirectoryPage() {
           >
             {loadingProfile || !publicProfile ? (
               <div className="py-20 text-center text-sm text-ink-tertiary">
-                Cargando perfil público y portafolio...
+                Cargando perfil pÃºblico y portafolio...
               </div>
             ) : (
               <>
@@ -829,7 +1009,7 @@ export default function AlumniDirectoryPage() {
                         </span>
                       </div>
                       <p className="text-sm text-brand-600 font-semibold mt-0.5">
-                        {publicProfile.program_name} • Promoción {publicProfile.graduation_year}
+                        {publicProfile.program_name} â€¢ PromociÃ³n {publicProfile.graduation_year}
                       </p>
                       {publicProfile.profile_summary && (
                         <p className="text-xs text-ink-secondary mt-2 max-w-xl">
@@ -862,55 +1042,68 @@ export default function AlumniDirectoryPage() {
 
                   {(!publicProfile.projects || publicProfile.projects.length === 0) ? (
                     <div className="p-6 rounded-2xl border text-center text-xs text-ink-tertiary" style={{ borderColor: 'var(--border-color)' }}>
-                      El egresado aún no ha registrado proyectos públicos en su portafolio.
+                      El egresado aÃºn no ha registrado proyectos pÃºblicos en su portafolio.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {publicProfile.projects.map((proj: any) => (
-                        <div
-                          key={proj.id}
-                          className="p-4 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3"
-                          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
-                        >
-                          <div>
-                            <h4 className="text-sm font-bold text-ink">{proj.title}</h4>
-                            <p className="text-xs text-ink-secondary mt-1 line-clamp-3">{proj.description}</p>
-                            {proj.technologies && proj.technologies.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2.5">
-                                {proj.technologies.map((t: string, idx: number) => (
-                                  <span key={idx} className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary">
-                                    {t}
-                                  </span>
-                                ))}
+                      {publicProfile.projects.map((proj: any) => {
+                        const resInfo = proj.resource_type ? resourceTypeInfo[proj.resource_type] : null;
+                        return (
+                          <div
+                            key={proj.id}
+                            className="p-4 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3"
+                            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+                          >
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                {resInfo && (
+                                  <span className="text-base" title={resInfo.label}>{resInfo.emoji}</span>
+                                )}
+                                <h4 className="text-sm font-bold text-ink">{proj.title}</h4>
                               </div>
-                            )}
-                          </div>
+                              {resInfo && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary mb-2 inline-block">
+                                  {resInfo.label}
+                                </span>
+                              )}
+                              <p className="text-xs text-ink-secondary mt-1 line-clamp-3">{proj.description}</p>
+                              {proj.technologies && proj.technologies.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2.5">
+                                  {(typeof proj.technologies === 'string' ? proj.technologies.split(',') : proj.technologies).map((t: string, idx: number) => (
+                                    <span key={idx} className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-ink-secondary">
+                                      {t.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                          <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                            {proj.repository_url && (
-                              <a
-                                href={proj.repository_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex-1 py-1 px-2.5 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-muted"
-                                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                              >
-                                <GithubIcon className="w-3 h-3" /> Repositorio
-                              </a>
-                            )}
-                            {proj.project_url && (
-                              <a
-                                href={proj.project_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex-1 py-1 px-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs"
-                              >
-                                <ExternalLink className="w-3 h-3" /> Demo en Vivo
-                              </a>
-                            )}
+                            <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                              {(proj.resource_url || proj.project_url) && (
+                                <a
+                                  href={proj.resource_url || proj.project_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 py-1 px-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> {resInfo ? resInfo.label : 'Ver recurso'}
+                                </a>
+                              )}
+                              {proj.repository_url && (
+                                <a
+                                  href={proj.repository_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 py-1 px-2.5 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-1 hover:bg-muted"
+                                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                                >
+                                  <GithubIcon className="w-3 h-3" /> Repositorio
+                                </a>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -918,12 +1111,30 @@ export default function AlumniDirectoryPage() {
                 {/* Habilidades & Competencias */}
                 {publicProfile.skills && publicProfile.skills.length > 0 && (
                   <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Habilidades Técnicas & Blandas</h3>
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider">Habilidades TÃ©cnicas & Blandas</h3>
                     <div className="flex flex-wrap gap-1.5">
                       {publicProfile.skills.map((s: string, idx: number) => (
                         <span key={idx} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300">
                           {s}
                         </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Educacion Academica */}
+                {publicProfile.academic_histories && publicProfile.academic_histories.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
+                      <GraduationCap className="w-3.5 h-3.5 text-brand-600" /> Educacion Academica
+                    </h3>
+                    <div className="space-y-2">
+                      {publicProfile.academic_histories.map((edu: any) => (
+                        <div key={edu.id} className="p-3 rounded-xl border text-xs" style={{ borderColor: 'var(--border-color)' }}>
+                          <p className="font-bold text-ink">{edu.degree}</p>
+                          <p className="text-[11px] text-ink-secondary">{edu.institution}</p>
+                          <p className="text-[11px] text-ink-tertiary">{edu.start_date} - {edu.end_date || 'Actualmente'}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -947,18 +1158,18 @@ export default function AlumniDirectoryPage() {
                   </div>
                 )}
 
-                {/* Botones de Acción / Estado de Conexión en Modal */}
+                {/* Botones de AcciÃ³n / Estado de ConexiÃ³n en Modal */}
                 <div className="pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: 'var(--border-color)' }}>
                   <div>
                     {publicProfile.connection_status === 'SELF' ? (
                       <span className="text-xs text-ink-tertiary italic">Este es tu perfil institucional</span>
                     ) : publicProfile.connection_status === 'ACCEPTED' ? (
                       <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> ¡Están conectados en la red!
+                        <CheckCircle2 className="w-4 h-4" /> Â¡EstÃ¡n conectados en la red!
                       </span>
                     ) : publicProfile.connection_status === 'PENDING' ? (
                       <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
-                        <Clock className="w-4 h-4" /> Solicitud de conexión pendiente
+                        <Clock className="w-4 h-4" /> Solicitud de conexiÃ³n pendiente
                       </span>
                     ) : (
                       <span className="text-xs text-ink-secondary">
@@ -1006,7 +1217,7 @@ export default function AlumniDirectoryPage() {
         </div>
       )}
 
-      {/* ── MODAL: ENVIAR SOLICITUD DE CONEXIÓN / AMISTAD ───────────── */}
+      {/* â”€â”€ MODAL: ENVIAR SOLICITUD DE CONEXIÃ“N / AMISTAD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {connectModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div 
@@ -1017,19 +1228,19 @@ export default function AlumniDirectoryPage() {
               <div>
                 <h3 className="text-base font-bold text-ink">Conectar con Egresado</h3>
                 <p className="text-xs text-ink-secondary">
-                  {connectModalUser.first_name} {connectModalUser.last_name} ({connectModalUser.program_name})
+                  {connectModalUser.first_name || connectModalUser.full_name} {connectModalUser.last_name || ''} {connectModalUser.program_name ? `(${connectModalUser.program_name})` : ''}
                 </p>
               </div>
               <button 
                 onClick={() => setConnectModalUser(null)}
                 className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
             <p className="text-xs text-ink-secondary">
-              Al conectar, ambos podrán ver sus portafolios de proyectos y conversar en tiempo real mediante <strong>Mensajería Directa</strong>.
+              Al conectar, ambos podrÃ¡n ver sus portafolios de proyectos y conversar en tiempo real mediante <strong>MensajerÃ­a Directa</strong>.
             </p>
 
             <div>
@@ -1038,7 +1249,7 @@ export default function AlumniDirectoryPage() {
               </label>
               <textarea
                 rows={3}
-                placeholder="Hola! Me gustaría conectar contigo para compartir oportunidades y experiencias profesionales..."
+                placeholder="Hola! Me gustarÃ­a conectar contigo para compartir oportunidades y experiencias profesionales..."
                 value={connectNote}
                 onChange={(e) => setConnectNote(e.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1069,7 +1280,7 @@ export default function AlumniDirectoryPage() {
         </div>
       )}
 
-      {/* Modal: Solicitar Mentoría */}
+      {/* Modal: Solicitar MentorÃ­a */}
       {requestModalMentor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div 
@@ -1078,7 +1289,7 @@ export default function AlumniDirectoryPage() {
           >
             <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
               <div>
-                <h3 className="text-lg font-bold text-ink">Solicitar Mentoría</h3>
+                <h3 className="text-lg font-bold text-ink">Solicitar MentorÃ­a</h3>
                 <p className="text-xs text-ink-secondary">
                   A {requestModalMentor.first_name} {requestModalMentor.last_name} ({requestModalMentor.program_name})
                 </p>
@@ -1087,18 +1298,18 @@ export default function AlumniDirectoryPage() {
                 onClick={() => setRequestModalMentor(null)}
                 className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
             <form onSubmit={handleSendMentorshipRequest} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-ink mb-1">
-                  Objetivo o Meta de la Mentoría (Opcional)
+                  Objetivo o Meta de la MentorÃ­a (Opcional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Orientación para conseguir mi primer empleo como desarrollador"
+                  placeholder="Ej: OrientaciÃ³n para conseguir mi primer empleo como desarrollador"
                   value={requestGoal}
                   onChange={(e) => setRequestGoal(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1108,12 +1319,12 @@ export default function AlumniDirectoryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-ink mb-1">
-                  Mensaje de Presentación *
+                  Mensaje de PresentaciÃ³n *
                 </label>
                 <textarea
                   rows={4}
                   required
-                  placeholder="Cuéntale al mentor sobre ti, tu trayectoria académica y por qué te gustaría recibir su guía..."
+                  placeholder="CuÃ©ntale al mentor sobre ti, tu trayectoria acadÃ©mica y por quÃ© te gustarÃ­a recibir su guÃ­a..."
                   value={requestMessage}
                   onChange={(e) => setRequestMessage(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1158,14 +1369,14 @@ export default function AlumniDirectoryPage() {
                   Tu Perfil de Mentor UPC
                 </h3>
                 <p className="text-xs text-ink-secondary">
-                  Comparte tu experiencia laboral y guía a egresados recién graduados.
+                  Comparte tu experiencia laboral y guÃ­a a egresados reciÃ©n graduados.
                 </p>
               </div>
               <button 
                 onClick={() => setMentorConfigOpen(false)}
                 className="p-1 rounded-lg text-ink-tertiary hover:text-ink"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -1176,7 +1387,7 @@ export default function AlumniDirectoryPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Senior Software Engineer | Especialista en inserción tecnológica"
+                  placeholder="Ej: Senior Software Engineer | Especialista en inserciÃ³n tecnolÃ³gica"
                   value={mentorHeadline}
                   onChange={(e) => setMentorHeadline(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1186,11 +1397,11 @@ export default function AlumniDirectoryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-ink mb-1">
-                  Áreas de Experiencia (separadas por coma)
+                  Ãreas de Experiencia (separadas por coma)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Desarrollo Web, Entrevistas Técnicas, Liderazgo, Sector Salud"
+                  placeholder="Ej: Desarrollo Web, Entrevistas TÃ©cnicas, Liderazgo, Sector Salud"
                   value={mentorAreas}
                   onChange={(e) => setMentorAreas(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1200,11 +1411,11 @@ export default function AlumniDirectoryPage() {
 
               <div>
                 <label className="block text-xs font-bold text-ink mb-1">
-                  Breve Biografía para Mentees
+                  Breve BiografÃ­a para Mentees
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Comparte cómo puedes apoyar a tus compañeros egresados..."
+                  placeholder="Comparte cÃ³mo puedes apoyar a tus compaÃ±eros egresados..."
                   value={mentorBio}
                   onChange={(e) => setMentorBio(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border bg-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
