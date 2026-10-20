@@ -189,6 +189,9 @@ class ConversationResponse(BaseModel):
     participants: List[int] = []
     unread_count: int = 0
     last_message: Optional[MessageResponse] = None
+    title: Optional[str] = None
+    participant_names: List[str] = []
+    participant_emails: List[str] = []
     class Config:
         from_attributes = True
 

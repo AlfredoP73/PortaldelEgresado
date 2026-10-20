@@ -326,6 +326,34 @@ def get_user_conversations(
             else:
                 unread_count = msg_query.count()
                 
+            # Nombres y correos de los otros participantes
+            other_pids = [pid for pid in all_parts if pid != user.id]
+            other_users = db.query(User).filter(User.id.in_(other_pids)).all() if other_pids else []
+            part_emails = [u.email for u in other_users]
+            part_names = []
+            for u in other_users:
+                name = None
+                try:
+                    from app.graduates.models import Graduate
+                    grad = db.query(Graduate).filter(Graduate.user_id == u.id).first()
+                    if grad and (grad.first_name or grad.last_name):
+                        name = f"{grad.first_name or ''} {grad.last_name or ''}".strip()
+                except Exception:
+                    pass
+                if not name:
+                    try:
+                        from app.companies.models import Company
+                        comp = db.query(Company).filter(Company.user_id == u.id).first()
+                        if comp and comp.company_name:
+                            name = comp.company_name
+                    except Exception:
+                        pass
+                if not name:
+                    name = u.email.split('@')[0] if u.email else f"Usuario #{u.id}"
+                part_names.append(name)
+                
+            conv_title = ", ".join(part_names) if part_names else ("Tu espacio personal" if all_parts == [user.id] else "Conversación")
+
             results.append(schemas.ConversationResponse(
                 id=c.id,
                 context_type=c.context_type,
@@ -333,7 +361,10 @@ def get_user_conversations(
                 created_at=c.created_at,
                 participants=all_parts,
                 unread_count=unread_count,
-                last_message=last_msg_resp
+                last_message=last_msg_resp,
+                title=conv_title,
+                participant_names=part_names,
+                participant_emails=part_emails
             ))
             
         return results
@@ -379,8 +410,34 @@ def get_conversation_detail(
         } for m in msgs
     ]
     
+    other_parts = [cp.user_id for cp in db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id == conversation_id, ConversationParticipant.user_id != user.id).all()]
+    other_users = db.query(User).filter(User.id.in_(other_parts)).all() if other_parts else []
+    part_names = []
+    for u in other_users:
+        name = None
+        try:
+            from app.graduates.models import Graduate
+            grad = db.query(Graduate).filter(Graduate.user_id == u.id).first()
+            if grad and (grad.first_name or grad.last_name):
+                name = f"{grad.first_name or ''} {grad.last_name or ''}".strip()
+        except Exception:
+            pass
+        if not name:
+            try:
+                from app.companies.models import Company
+                comp = db.query(Company).filter(Company.user_id == u.id).first()
+                if comp and comp.company_name:
+                    name = comp.company_name
+            except Exception:
+                pass
+        if not name:
+            name = u.email.split('@')[0] if u.email else f"Usuario #{u.id}"
+        part_names.append(name)
+    conv_title = ", ".join(part_names) if part_names else "Conversación"
+
     return {
         "id": conv.id,
+        "title": conv_title,
         "context_type": conv.context_type,
         "context_id": conv.context_id,
         "created_at": conv.created_at,
@@ -479,6 +536,24 @@ def create_or_get_conversation(
                 created_at=existing.created_at,
                 participants=parts
             )
+
+    # Si es directo o de networking sin context_id, buscar si ya existe entre los mismos participantes
+    target_pids = set(body.participant_ids)
+    target_pids.add(user.id)
+    if body.context_type in ["DIRECT", "NETWORKING"] and not body.context_id:
+        user_cids = [r[0] for r in db.query(ConversationParticipant.conversation_id).filter(ConversationParticipant.user_id == user.id).all()]
+        for cid in user_cids:
+            c_parts = set([r[0] for r in db.query(ConversationParticipant.user_id).filter(ConversationParticipant.conversation_id == cid).all()])
+            if c_parts == target_pids:
+                existing = db.query(Conversation).filter(Conversation.id == cid).first()
+                if existing:
+                    return schemas.ConversationResponse(
+                        id=existing.id,
+                        context_type=existing.context_type,
+                        context_id=existing.context_id,
+                        created_at=existing.created_at,
+                        participants=list(target_pids)
+                    )
             
     new_conv = Conversation(
         context_type=body.context_type,

@@ -33,6 +33,7 @@ from app.auth.controllers.privacy_controller import router as privacy_router
 
 app.include_router(router)
 app.include_router(internal_router)
+app.include_router(internal_router, prefix=/api/auth)  # Alias for ALB /api/auth* compatibility
 app.include_router(privacy_router)
 
 @app.on_event("startup")

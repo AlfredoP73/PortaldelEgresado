@@ -23,6 +23,9 @@ interface Conversation {
   participants: number[];
   unread_count: number;
   last_message: Message | null;
+  title?: string;
+  participant_names?: string[];
+  participant_emails?: string[];
 }
 
 export default function MessagesPage() {
@@ -188,19 +191,24 @@ export default function MessagesPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md text-[10px]"
-                          style={{
-                            backgroundColor: isMentorship ? 'rgba(147, 51, 234, 0.1)' : isNetworking ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: isMentorship ? '#9333ea' : isNetworking ? '#2563eb' : '#10b981'
-                          }}
-                        >
-                          {isMentorship ? 'Mentoría' : isNetworking ? 'Red / Contacto' : 'Postulación'} #{c.context_id || c.id}
+                        <span className="text-xs font-bold text-ink truncate max-w-[140px]">
+                          {c.title || (isMentorship ? 'Mentoría' : isNetworking ? 'Contacto Egresado' : 'Postulación')}
                         </span>
-                        {c.unread_count > 0 && (
-                          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                            {c.unread_count}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md text-[9px]"
+                            style={{
+                              backgroundColor: isMentorship ? 'rgba(147, 51, 234, 0.1)' : isNetworking ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                              color: isMentorship ? '#9333ea' : isNetworking ? '#2563eb' : '#10b981'
+                            }}
+                          >
+                            {isMentorship ? 'Mentoría' : isNetworking ? 'Contacto' : 'Vacante'}
                           </span>
-                        )}
+                          {c.unread_count > 0 && (
+                            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                              {c.unread_count}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-ink-secondary truncate">
                         {c.last_message ? (
@@ -241,10 +249,10 @@ export default function MessagesPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-ink">
-                      {activeConv?.context_type === 'MENTORSHIP' ? 'Mentoría Universitaria' : activeConv?.context_type === 'NETWORKING' ? 'Red de Contactos Egresados' : 'Proceso de Selección Empresa'}
+                      {activeConv?.title || (activeConv?.context_type === 'MENTORSHIP' ? 'Mentoría Universitaria' : activeConv?.context_type === 'NETWORKING' ? 'Red de Contactos Egresados' : 'Proceso de Selección Empresa')}
                     </h3>
                     <p className="text-xs text-ink-secondary">
-                      Contexto #{activeConv?.context_id || activeConvId} • Canal Oficial UPC
+                      {activeConv?.context_type === 'MENTORSHIP' ? 'Canal de Mentoría' : activeConv?.context_type === 'NETWORKING' ? 'Red Profesional de Egresados' : 'Proceso de Selección'} • Chat Directo UPC
                     </p>
                   </div>
                 </div>

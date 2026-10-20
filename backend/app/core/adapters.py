@@ -371,9 +371,15 @@ class HttpAuthAdapter(AuthServicePort):
             "payload": payload,
             "dedup_key": dedup_key
         }
-        resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=5.0)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = httpx.post(f"{self.base_url}/api/auth/internal/notifications", json=body, timeout=5.0)
+            if resp.status_code == 404:
+                resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=5.0)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"Safe fallback in send_notification: {e}")
+            return {"status": "error", "detail": str(e)}
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def create_conversation(self, context_type: str, participant_ids: list, context_id: int = None) -> dict:
@@ -382,6 +388,12 @@ class HttpAuthAdapter(AuthServicePort):
             "context_id": context_id,
             "participant_ids": participant_ids
         }
-        resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=5.0)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = httpx.post(f"{self.base_url}/api/auth/internal/conversations", json=body, timeout=5.0)
+            if resp.status_code == 404:
+                resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=5.0)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"Safe fallback in create_conversation: {e}")
+            return {"status": "error", "detail": str(e)}

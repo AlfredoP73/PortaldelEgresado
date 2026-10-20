@@ -265,8 +265,9 @@ def get_alumni_directory(
     current_user: dict = Depends(get_current_user)
 ):
     try:
+        from sqlalchemy import or_
         from app.graduates.models import Graduate, WorkExperience, MentorProfile, Program
-        query = db.query(Graduate).filter(Graduate.directory_visible == True)
+        query = db.query(Graduate).filter(or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)))
         if program_id:
             query = query.filter(Graduate.program_id == program_id)
         if graduation_year:

@@ -58,6 +58,7 @@ def ensure_graduates_schema():
                 conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS alert_min_score INTEGER DEFAULT 75;"))
                 conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS mentor_opt_in BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS directory_visible BOOLEAN DEFAULT TRUE;"))
+                conn.execute(text("UPDATE graduates SET directory_visible = TRUE WHERE directory_visible IS NULL;"))
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS saved_jobs (
                         id SERIAL PRIMARY KEY,
