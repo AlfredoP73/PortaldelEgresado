@@ -41,6 +41,7 @@ class JobOfferSkill(Base):
     """Habilidades requeridas por una vacante (espejo de graduate_skills)."""
 
     __tablename__ = "job_offer_skills"
+    __table_args__ = {'extend_existing': True}
 
     # Sin ForeignKey(): la restricción ya existe en la BD (migration_matchmaking.sql).
     # Declararla aquí rompería el flush porque job_offers/skills no están en este metadata.
