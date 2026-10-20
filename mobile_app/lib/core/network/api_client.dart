@@ -7,12 +7,12 @@ class ApiClient {
   // ENDPOINTS IMPLANTADOS AUTOMÁTICAMENTE POR EL DESPLIEGUE (deploy.ps1 / deploy_s3.ps1)
   // ===========================================================================
   static const String activeArchitecture = 'ARCH2_ECS_MICROSERVICES';
-  static const String deployedHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
-  static const String authServiceHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
-  static const String graduatesServiceHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
-  static const String companiesServiceHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
-  static const String matchmakingServiceHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
-  static const String dashboardServiceHost = 'http://alb-portal-api-1830564235.us-east-1.elb.amazonaws.com';
+  static const String deployedHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
+  static const String authServiceHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
+  static const String graduatesServiceHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
+  static const String companiesServiceHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
+  static const String matchmakingServiceHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
+  static const String dashboardServiceHost = 'http://alb-portal-api-1650308115.us-east-1.elb.amazonaws.com';
   // ===========================================================================
 
   static String _normalizeHost(String raw) {
