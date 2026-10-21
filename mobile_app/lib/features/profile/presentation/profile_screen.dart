@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
+import '../../main/presentation/main_layout_screen.dart';
 import 'tabs/personal_data_tab.dart';
 import 'tabs/experience_tab.dart';
 import 'tabs/academic_tab.dart';
@@ -80,9 +81,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _programName = progName;
             _graduationYear = data['graduation_year']?.toString();
             _profilePictureUrl = data['profile_picture_url']?.toString();
-            _availabilityStatus = data['availability_status']?.toString() ?? 'OPEN_TO_WORK';
+            final rawAvail = (data['availability_status']?.toString() ?? 'OPEN_TO_WORK').toUpperCase();
+            _availabilityStatus = rawAvail.contains('WORK')
+                ? 'OPEN_TO_WORK'
+                : rawAvail.contains('OFFER')
+                    ? 'OPEN_TO_OFFERS'
+                    : (rawAvail.contains('CLOSE') || rawAvail.contains('EMPLOYED'))
+                        ? 'EMPLOYED_CLOSED'
+                        : 'OPEN_TO_WORK';
             _completeness = progress.clamp(0.0, 1.0);
           });
+          MainLayoutScreen.refreshUserProfile(context);
         }
       }
     } catch (_) {}
@@ -102,6 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await ApiClient.instance.post('/modulo1/profile/picture', data: formData);
       await _loadProfileHeader();
       if (mounted) {
+        MainLayoutScreen.refreshUserProfile(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('¡Foto de perfil institucional actualizada!'),
@@ -328,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         border: Border.all(color: context.borderColor),
                       ),
                       child: TabBar(
-                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 2),
                         dividerColor: Colors.transparent,
                         indicatorSize: TabBarIndicatorSize.tab,
                         indicator: BoxDecoration(
@@ -339,14 +349,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         unselectedLabelColor: context.secondaryText,
                         labelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
                         unselectedLabelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
                         tabs: const [
-                          Tab(text: 'Datos'),
-                          Tab(text: 'Experiencia'),
-                          Tab(text: 'Academia'),
-                          Tab(text: 'Proyectos'),
-                          Tab(text: 'Seguimiento'),
+                          Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Datos'))),
+                          Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Experiencia'))),
+                          Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Academia'))),
+                          Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Proyectos'))),
+                          Tab(child: FittedBox(fit: BoxFit.scaleDown, child: Text('Seguimiento'))),
                         ],
                       ),
                     ),

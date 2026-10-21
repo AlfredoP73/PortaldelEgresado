@@ -56,22 +56,23 @@ aws ec2 create-route --route-table-id $RtPub --destination-cidr-block 0.0.0.0/0 
 aws ec2 associate-route-table --subnet-id $SubPubA --route-table-id $RtPub | Out-Null
 aws ec2 associate-route-table --subnet-id $SubPubB --route-table-id $RtPub | Out-Null
 
-Write-Host "Creando 2 NAT Gateways (Uno por AZ para salida segura a internet)..." -ForegroundColor Yellow
-$NatEipAllocA = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
-$NatEipAllocB = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
+Write-Host "Creando 1 NAT Gateway (Salida segura compartida Multi-AZ)..." -ForegroundColor Yellow
+$NatEipAlloc = aws ec2 allocate-address --domain vpc --query "AllocationId" --output text
+if (-not $NatEipAlloc) { Write-Host "  [ERROR CRITICO] No se pudo asignar Elastic IP. Verifica cuotas en Learner Lab." -ForegroundColor Red; exit 1 }
 
-$NatGwIdA = aws ec2 create-nat-gateway --subnet-id $SubPubA --allocation-id $NatEipAllocA --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=portal_nat_gw_a}]" --query "NatGateway.NatGatewayId" --output text
-$NatGwIdB = aws ec2 create-nat-gateway --subnet-id $SubPubB --allocation-id $NatEipAllocB --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=portal_nat_gw_b}]" --query "NatGateway.NatGatewayId" --output text
+$NatGwId = aws ec2 create-nat-gateway --subnet-id $SubPubA --allocation-id $NatEipAlloc --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=portal_nat_gw}]" --query "NatGateway.NatGatewayId" --output text
+if (-not $NatGwId) { Write-Host "  [ERROR CRITICO] No se pudo crear el NAT Gateway. Verifica el Learner Lab." -ForegroundColor Red; exit 1 }
 
-aws ec2 wait nat-gateway-available --nat-gateway-ids $NatGwIdA $NatGwIdB
+Write-Host "  Esperando que el NAT Gateway este disponible ($NatGwId)..." -ForegroundColor DarkGray
+aws ec2 wait nat-gateway-available --nat-gateway-ids $NatGwId
 
 $RtPrivA = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_priv_a}]" --query "RouteTable.RouteTableId" --output text
-aws ec2 create-route --route-table-id $RtPrivA --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwIdA | Out-Null
+aws ec2 create-route --route-table-id $RtPrivA --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwId | Out-Null
 aws ec2 associate-route-table --subnet-id $SubAppA --route-table-id $RtPrivA | Out-Null
 aws ec2 associate-route-table --subnet-id $SubDbA --route-table-id $RtPrivA | Out-Null
 
 $RtPrivB = aws ec2 create-route-table --vpc-id $VpcId --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=portal_rt_priv_b}]" --query "RouteTable.RouteTableId" --output text
-aws ec2 create-route --route-table-id $RtPrivB --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwIdB | Out-Null
+aws ec2 create-route --route-table-id $RtPrivB --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NatGwId | Out-Null
 aws ec2 associate-route-table --subnet-id $SubAppB --route-table-id $RtPrivB | Out-Null
 aws ec2 associate-route-table --subnet-id $SubDbB --route-table-id $RtPrivB | Out-Null
 

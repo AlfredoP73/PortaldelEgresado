@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -9,11 +10,12 @@ class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
+  Timer? _autoRefreshTimer;
   String _userName = 'Egresado';
   double _profileProgress = 0.0;
   String _nextStepLabel = 'Completa tus datos básicos';
@@ -34,11 +36,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDashboardData();
+    loadDashboardData();
+    // Auto-actualización periódica en segundo plano cada 20 segundos sin bloquear la pantalla
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) {
+        loadDashboardData(silent: true);
+      }
+    });
   }
 
-  Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadDashboardData({bool silent = false}) async {
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
 
     // 1. Profile & Completeness (Matches ProfileCompleteness.tsx weights)
     try {
@@ -156,7 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return RefreshIndicator(
       color: AppTheme.primaryColor,
-      onRefresh: _loadDashboardData,
+      onRefresh: () => loadDashboardData(silent: true),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 104),
@@ -194,7 +210,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: _loadDashboardData,
+                  onPressed: () => loadDashboardData(silent: false),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -210,61 +226,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildProfileStrengthCard(context),
             const SizedBox(height: 16),
 
-            // ── 4 KPI Cards Grid (2x2 - Exact match to GraduateDashboard.tsx) ──
-            GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 1.38,
+            // ── 4 KPI Cards (Two Rows - Pixel-perfect without GridView spacing bugs) ──
+            Row(
               children: [
-                _buildKpiCard(
-                  context,
-                  label: 'MIS POSTULACIONES',
-                  value: '${_summary['total_applications'] ?? 0}',
-                  subtitle: 'Aplicaciones enviadas',
-                  icon: Icons.description_outlined,
+                Expanded(
+                  child: _buildKpiCard(
+                    context,
+                    label: 'MIS POSTULACIONES',
+                    value: '${_summary['total_applications'] ?? 0}',
+                    subtitle: 'Aplicaciones enviadas',
+                    icon: Icons.description_outlined,
+                  ),
                 ),
-                _buildKpiCard(
-                  context,
-                  label: 'TASA DE RESPUESTA',
-                  value: '${_summary['response_rate'] ?? 0}%',
-                  subtitle: 'Avanzan a entrevista',
-                  icon: Icons.track_changes_rounded,
-                ),
-                _buildKpiCard(
-                  context,
-                  label: 'VISITAS AL PERFIL',
-                  value: '${_summary['profile_views'] ?? 0}',
-                  subtitle: 'Visualizaciones de empresas',
-                  icon: Icons.visibility_outlined,
-                ),
-                _buildKpiCard(
-                  context,
-                  label: 'EXPECTATIVA SALARIAL',
-                  value: _formatCurrency(_summary['expected_salary'] ?? _summary['program_average_salary'] ?? 0),
-                  subtitle: 'Promedio de ofertas aplicadas',
-                  icon: Icons.payments_outlined,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildKpiCard(
+                    context,
+                    label: 'TASA DE RESPUESTA',
+                    value: '${_summary['response_rate'] ?? 0}%',
+                    subtitle: 'Avanzan a entrevista',
+                    icon: Icons.track_changes_rounded,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildKpiCard(
+                    context,
+                    label: 'VISITAS AL PERFIL',
+                    value: '${_summary['profile_views'] ?? 0}',
+                    subtitle: 'Visualizaciones de empresas',
+                    icon: Icons.visibility_outlined,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildKpiCard(
+                    context,
+                    label: 'EXPECTATIVA SALARIAL',
+                    value: _formatCurrency(_summary['expected_salary'] ?? _summary['program_average_salary'] ?? 0),
+                    subtitle: 'Promedio de ofertas aplicadas',
+                    icon: Icons.payments_outlined,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-            // ── Chart 1: Mis Habilidades vs Mercado (Matches RadarChart in GraduateDashboard.tsx) ──
+            // ── NUEVO: Índice de Competitividad Laboral (Gauge & Readiness Score) ──
+            _buildCompetitivenessScoreCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 1: Mis Habilidades vs Mercado (Radar + Breakdown por Competencia) ──
             _buildSkillsComparisonCard(context),
             const SizedBox(height: 16),
 
-            // ── Chart 2: Línea de Tiempo de Postulaciones (Area LineChart) ──
+            // ── NUEVO: Embudo de Conversión Laboral (Pipeline de Selección) ──
+            _buildApplicationsFunnelCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 2: Estado de mis Postulaciones (Donut Chart + Desglose) ──
+            _buildApplicationsStatusCard(context),
+            const SizedBox(height: 16),
+
+            // ── Chart 3: Línea de Tiempo de Postulaciones (Area LineChart) ──
             _buildApplicationsTimelineCard(context),
             const SizedBox(height: 16),
 
-            // ── Chart 3: Distribución Salarial - Mi Programa (BarChart) ──
+            // ── Chart 4: Distribución Salarial - Mi Programa (Benchmark & Rangos) ──
             _buildMarketSalariesCard(context),
-            const SizedBox(height: 16),
-
-            // ── Chart 4: Estado de mis Postulaciones (Donut + Percentage Breakdown) ──
-            _buildApplicationsStatusCard(context),
             const SizedBox(height: 16),
 
             // ── Actividad Reciente & Acceso Rápido ──
@@ -414,7 +447,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      height: 106,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: context.surfaceColor,
         borderRadius: AppTheme.cardRadius,
@@ -434,7 +468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: context.secondaryText,
@@ -442,12 +476,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   color: AppTheme.brand50,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: AppTheme.primaryColor, size: 16),
+                child: Icon(icon, color: AppTheme.primaryColor, size: 15),
               ),
             ],
           ),
@@ -457,7 +491,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: context.primaryText,
                 letterSpacing: -0.6,
@@ -469,7 +503,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
               color: context.secondaryText,
             ),
           ),
@@ -478,7 +512,212 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildCompetitivenessScoreCard(BuildContext context) {
+    final profileScore = (_profileProgress * 100).round();
+
+    double skillsMatch = 75.0;
+    if (_skillsRadar.isNotEmpty) {
+      double totalRatio = 0.0;
+      for (final s in _skillsRadar) {
+        final grad = (s['graduate'] as num? ?? 0).toDouble();
+        final mkt = (s['market'] as num? ?? 1).toDouble();
+        totalRatio += (grad / (mkt > 0 ? mkt : 1.0)).clamp(0.0, 1.3);
+      }
+      skillsMatch = ((totalRatio / _skillsRadar.length) * 85).clamp(40.0, 100.0);
+    }
+
+    final int totalApps = (_summary['total_applications'] as num? ?? 0).toInt();
+    final double activityScore = totalApps > 0 ? (totalApps >= 3 ? 95.0 : 80.0) : 45.0;
+
+    final int overallScore = ((profileScore * 0.40) + (skillsMatch * 0.35) + (activityScore * 0.25)).round().clamp(15, 100);
+
+    final Color scoreColor = overallScore >= 80
+        ? AppTheme.accentEmerald
+        : overallScore >= 60
+            ? AppTheme.primaryColor
+            : overallScore >= 40
+                ? AppTheme.accentAmber
+                : AppTheme.statusRechazado;
+
+    final String rankLabel = overallScore >= 80
+        ? 'Perfil Muy Competitivo'
+        : overallScore >= 60
+            ? 'Competitividad Moderada'
+            : 'En Fortalecimiento';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.auto_graph_rounded, color: AppTheme.primaryColor, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Índice de Competitividad Laboral',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.primaryText),
+                    ),
+                    Text(
+                      'Puntaje global según tu CV, habilidades y demanda',
+                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  rankLabel,
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: scoreColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Circular Gauge
+              SizedBox(
+                width: 76,
+                height: 76,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 76,
+                      height: 76,
+                      child: CircularProgressIndicator(
+                        value: overallScore / 100,
+                        strokeWidth: 7.5,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: context.borderColor.withValues(alpha: 0.5),
+                        valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$overallScore',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                            color: context.primaryText,
+                          ),
+                        ),
+                        Text(
+                          '/ 100',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: context.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildScoreSubMetric(
+                      context,
+                      label: 'Completitud de Hoja de Vida',
+                      percentage: profileScore,
+                      color: AppTheme.primaryColor,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildScoreSubMetric(
+                      context,
+                      label: 'Match de Habilidades Demandadas',
+                      percentage: skillsMatch.round(),
+                      color: AppTheme.brand400,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildScoreSubMetric(
+                      context,
+                      label: 'Tracción & Actividad',
+                      percentage: activityScore.round(),
+                      color: AppTheme.accentPurple,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreSubMetric(
+    BuildContext context, {
+    required String label,
+    required int percentage,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.secondaryText)),
+            Text('$percentage%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.primaryText)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: (percentage / 100).clamp(0.0, 1.0),
+            minHeight: 5,
+            backgroundColor: context.borderColor.withValues(alpha: 0.5),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSkillsComparisonCard(BuildContext context) {
+    double avgMatch = 0.0;
+    if (_skillsRadar.isNotEmpty) {
+      double sum = 0.0;
+      for (final s in _skillsRadar) {
+        final grad = (s['graduate'] as num? ?? 0).toDouble();
+        final mkt = (s['market'] as num? ?? 1).toDouble();
+        sum += ((grad / (mkt > 0 ? mkt : 1.0)) * 100).clamp(0.0, 150.0);
+      }
+      avgMatch = (sum / _skillsRadar.length).clamp(0.0, 100.0);
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -493,101 +732,197 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Mis Habilidades vs Mercado',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mis Habilidades vs Mercado',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Comparación entre tu nivel y la demanda activa',
+                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    ),
+                  ],
                 ),
               ),
-              _buildLegendDot(AppTheme.primaryColor, 'Tu Perfil'),
-              const SizedBox(width: 10),
-              _buildLegendDot(AppTheme.brand400, 'Mercado'),
+              _buildLegendDot(AppTheme.primaryColor, 'Tú'),
+              const SizedBox(width: 8),
+              _buildLegendDot(AppTheme.accentAmber, 'Mercado'),
             ],
           ),
           const SizedBox(height: 16),
           if (_skillsRadar.isEmpty)
-            _buildEmptyChartState('Añade habilidades en tu perfil para comparar con el mercado.')
-          else if (_skillsRadar.length >= 3)
-            SizedBox(
-              height: 220,
-              child: RadarChart(
-                RadarChartData(
-                  radarShape: RadarShape.polygon,
-                  dataSets: [
-                    RadarDataSet(
-                      fillColor: AppTheme.primaryColor.withValues(alpha: 0.35),
-                      borderColor: AppTheme.primaryColor,
-                      entryRadius: 3,
-                      borderWidth: 2,
-                      dataEntries: _skillsRadar
-                          .map((e) => RadarEntry(value: (e['graduate'] as num? ?? 0).toDouble()))
-                          .toList(),
-                    ),
-                    RadarDataSet(
-                      fillColor: AppTheme.brand400.withValues(alpha: 0.20),
-                      borderColor: AppTheme.brand400,
-                      entryRadius: 2.5,
-                      borderWidth: 2,
-                      dataEntries: _skillsRadar
-                          .map((e) => RadarEntry(value: (e['market'] as num? ?? 0).toDouble()))
-                          .toList(),
-                    ),
-                  ],
-                  radarBackgroundColor: Colors.transparent,
-                  borderData: FlBorderData(show: false),
-                  radarBorderData: BorderSide(color: context.borderColor),
-                  titlePositionPercentageOffset: 0.18,
-                  titleTextStyle: TextStyle(color: context.secondaryText, fontSize: 10.5, fontWeight: FontWeight.w600),
-                  getTitle: (index, angle) {
-                    final skill = _skillsRadar[index]['skill']?.toString() ?? '';
-                    return RadarChartTitle(text: skill);
-                  },
-                  tickCount: 4,
-                  ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 8),
-                  tickBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
-                  gridBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
+            _buildEmptyChartState('Añade habilidades en tu perfil para comparar con la demanda del mercado.')
+          else ...[
+            if (_skillsRadar.length >= 3)
+              SizedBox(
+                height: 210,
+                child: RadarChart(
+                  RadarChartData(
+                    radarShape: RadarShape.polygon,
+                    dataSets: [
+                      RadarDataSet(
+                        fillColor: AppTheme.primaryColor.withValues(alpha: 0.35),
+                        borderColor: AppTheme.primaryColor,
+                        entryRadius: 3.5,
+                        borderWidth: 2,
+                        dataEntries: _skillsRadar
+                            .map((e) => RadarEntry(value: (e['graduate'] as num? ?? 0).toDouble()))
+                            .toList(),
+                      ),
+                      RadarDataSet(
+                        fillColor: AppTheme.accentAmber.withValues(alpha: 0.20),
+                        borderColor: AppTheme.accentAmber,
+                        entryRadius: 3,
+                        borderWidth: 2,
+                        dataEntries: _skillsRadar
+                            .map((e) => RadarEntry(value: (e['market'] as num? ?? 0).toDouble()))
+                            .toList(),
+                      ),
+                    ],
+                    radarBackgroundColor: Colors.transparent,
+                    borderData: FlBorderData(show: false),
+                    radarBorderData: BorderSide(color: context.borderColor),
+                    titlePositionPercentageOffset: 0.20,
+                    titleTextStyle: TextStyle(color: context.secondaryText, fontSize: 11, fontWeight: FontWeight.w700),
+                    getTitle: (index, angle) {
+                      final skill = _skillsRadar[index]['skill']?.toString() ?? '';
+                      return RadarChartTitle(text: skill);
+                    },
+                    tickCount: 4,
+                    ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 8),
+                    tickBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
+                    gridBorderData: BorderSide(color: context.borderColor.withValues(alpha: 0.6)),
+                  ),
                 ),
               ),
-            )
-          else
-            Column(
-              children: _skillsRadar.map((item) {
-                final skill = item['skill']?.toString() ?? '';
-                final grad = (item['graduate'] as num? ?? 0).toDouble();
-                final mkt = (item['market'] as num? ?? 0).toDouble();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 14),
+            // Breakdown list below chart to eliminate unused space and add rich insights
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.mutedColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: context.borderColor.withValues(alpha: 0.6)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(skill, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: context.primaryText)),
-                          Text('Tú: ${grad.toInt()}% · Mercado: ${mkt.toInt()}%',
-                              style: TextStyle(fontSize: 11, color: context.secondaryText)),
-                        ],
+                      Text(
+                        'Desglose por Competencia',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.primaryText),
                       ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: (grad / 100).clamp(0.0, 1.0),
-                          minHeight: 7,
-                          backgroundColor: context.borderColor,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Afinidad Promedio: ${avgMatch.round()}%',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppTheme.primaryColor),
                         ),
                       ),
                     ],
                   ),
-                );
-              }).toList(),
+                  const SizedBox(height: 10),
+                  ..._skillsRadar.map((item) {
+                    final skill = item['skill']?.toString() ?? '';
+                    final grad = (item['graduate'] as num? ?? 0).toDouble();
+                    final mkt = (item['market'] as num? ?? 0).toDouble();
+                    final diff = (grad - mkt).toInt();
+                    final bool isLeader = diff >= 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(skill, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.primaryText)),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Tú: ${grad.toInt()}% · Mercado: ${mkt.toInt()}%',
+                                    style: TextStyle(fontSize: 11, color: context.secondaryText),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: isLeader
+                                          ? AppTheme.accentEmerald.withValues(alpha: 0.15)
+                                          : AppTheme.accentAmber.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      isLeader ? '+$diff% Lideras' : '$diff% Brecha',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: isLeader ? AppTheme.accentEmerald : AppTheme.accentAmber,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: SizedBox(
+                              height: 6,
+                              child: Stack(
+                                children: [
+                                  LinearProgressIndicator(
+                                    value: (mkt / 100).clamp(0.0, 1.0),
+                                    backgroundColor: context.borderColor,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentAmber),
+                                  ),
+                                  LinearProgressIndicator(
+                                    value: (grad / 100).clamp(0.0, 1.0),
+                                    backgroundColor: Colors.transparent,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildApplicationsTimelineCard(BuildContext context) {
+  Widget _buildApplicationsFunnelCard(BuildContext context) {
+    final int totalApps = (_summary['total_applications'] as num? ?? 0).toInt();
+    final int offersViewed = (_summary['offers_viewed'] as num? ?? (totalApps * 3)).toInt().clamp(totalApps > 0 ? totalApps : 1, 9999);
+    final int profileViews = (_summary['profile_views'] as num? ?? (totalApps * 5)).toInt().clamp(totalApps, 9999);
+    final int interviews = (_summary['interviews'] as num? ?? 0).toInt();
+    final num responseRate = _summary['response_rate'] ?? 0;
+
+    final steps = [
+      {'title': 'Ofertas Exploradas', 'count': offersViewed, 'icon': Icons.search_rounded, 'color': AppTheme.brand400},
+      {'title': 'Postulaciones Enviadas', 'count': totalApps, 'icon': Icons.send_rounded, 'color': AppTheme.primaryColor},
+      {'title': 'Visualizaciones de Perfil', 'count': profileViews, 'icon': Icons.visibility_outlined, 'color': AppTheme.accentBlue},
+      {'title': 'Entrevistas Asignadas', 'count': interviews, 'icon': Icons.handshake_outlined, 'color': AppTheme.accentEmerald},
+    ];
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -599,9 +934,314 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Línea de Tiempo de Postulaciones',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Embudo de Postulación & Empleo',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Conversión de tus aplicaciones en cada etapa',
+                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentEmerald.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$responseRate% Avance',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.accentEmerald),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Column(
+            children: List.generate(steps.length, (i) {
+              final step = steps[i];
+              final count = (step['count'] as num).toInt();
+              final Color color = step['color'] as Color;
+              final IconData icon = step['icon'] as IconData;
+              final maxStepVal = offersViewed > 0 ? offersViewed : 1;
+              final double ratio = (count / maxStepVal).clamp(0.08, 1.0);
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(icon, color: color, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  step['title'] as String,
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: context.primaryText),
+                                ),
+                                Text(
+                                  '$count',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: ratio,
+                                minHeight: 6,
+                                backgroundColor: context.borderColor.withValues(alpha: 0.5),
+                                valueColor: AlwaysStoppedAnimation<Color>(color),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (i < steps.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 15, top: 2, bottom: 2),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: 2,
+                          height: 10,
+                          color: context.borderColor,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationsStatusCard(BuildContext context) {
+    final total = _applicationsByStatus.fold<int>(0, (sum, item) => sum + ((item['count'] as num? ?? 0).toInt()));
+
+    Color getStatusColor(String status, int index) {
+      final s = status.toUpperCase();
+      if (s.contains('POSTULAD')) return AppTheme.primaryColor;
+      if (s.contains('REVISION') || s.contains('EVALUA') || s.contains('VIST')) return AppTheme.accentBlue;
+      if (s.contains('ENTREVIST')) return AppTheme.accentPurple;
+      if (s.contains('SELECCION') || s.contains('CONTRAT') || s.contains('FINAL')) return AppTheme.accentEmerald;
+      if (s.contains('RECHAZ') || s.contains('DESCART')) return AppTheme.statusRechazado;
+      final colors = [
+        AppTheme.primaryColor,
+        AppTheme.accentBlue,
+        AppTheme.accentAmber,
+        AppTheme.accentPurple,
+        AppTheme.brand400,
+      ];
+      return colors[index % colors.length];
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Estado de mis Postulaciones',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+              ),
+              if (total > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$total aplicaciones',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_applicationsByStatus.isEmpty || total == 0)
+            _buildEmptyChartState('Postúlate a vacantes para visualizar la distribución por etapa del proceso.')
+          else
+            Row(
+              children: [
+                // Donut Chart
+                SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          sectionsSpace: 2.5,
+                          centerSpaceRadius: 36,
+                          startDegreeOffset: -90,
+                          sections: List.generate(_applicationsByStatus.length, (i) {
+                            final item = _applicationsByStatus[i];
+                            final count = (item['count'] as num? ?? 0).toDouble();
+                            final color = getStatusColor(item['status']?.toString() ?? '', i);
+                            return PieChartSectionData(
+                              color: color,
+                              value: count,
+                              title: '',
+                              radius: 18,
+                            );
+                          }),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$total',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: context.primaryText),
+                          ),
+                          Text(
+                            'Total',
+                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: context.secondaryText),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Legend and Percentages
+                Expanded(
+                  child: Column(
+                    children: List.generate(_applicationsByStatus.length, (i) {
+                      final item = _applicationsByStatus[i];
+                      final status = item['status']?.toString() ?? '';
+                      final count = (item['count'] as num? ?? 0).toInt();
+                      final pct = total > 0 ? ((count / total) * 100).round() : 0;
+                      final color = getStatusColor(status, i);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 7),
+                        child: Row(
+                          children: [
+                            Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                status,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.primaryText),
+                              ),
+                            ),
+                            Text(
+                              '$count',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '$pct%',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationsTimelineCard(BuildContext context) {
+    final int totalInPeriod = _applicationsTimeline.fold(0, (sum, item) => sum + ((item['count'] as num? ?? 0).toInt()));
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: AppTheme.cardRadius,
+        border: Border.all(color: context.borderColor),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Línea de Tiempo de Postulaciones',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Historial cronológico de postulaciones',
+                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              if (_applicationsTimeline.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$totalInPeriod registros',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           if (_applicationsTimeline.isEmpty)
@@ -611,6 +1251,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 180,
               child: LineChart(
                 LineChartData(
+                  minY: 0,
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
@@ -654,7 +1295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final c = (_applicationsTimeline[i]['count'] as num? ?? 0).toDouble();
                         return FlSpot(i.toDouble(), c);
                       }),
-                      isCurved: true,
+                      isCurved: _applicationsTimeline.length > 1,
                       color: AppTheme.primaryColor,
                       barWidth: 3,
                       dotData: const FlDotData(show: true),
@@ -673,6 +1314,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMarketSalariesCard(BuildContext context) {
+    num maxSal = 1;
+    for (final s in _marketSalaries) {
+      final c = (s['count'] as num? ?? 0);
+      if (c > maxSal) maxSal = c;
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -684,22 +1331,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Distribución Salarial (Mi Programa)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Distribución Salarial (Mi Programa)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Rangos salariales observados en vacantes para tu carrera',
+                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'COP / Mes',
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppTheme.primaryColor),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           if (_marketSalaries.isEmpty)
             _buildEmptyChartState('Sin datos salariales registrados aún para tu programa.')
-          else
+          else ...[
+            // 3 KPI Cards Row for Min, Avg, Max
+            Row(
+              children: _marketSalaries.map((s) {
+                final range = s['range']?.toString() ?? '';
+                final salaryVal = (s['count'] as num? ?? 0);
+                final bool isAvg = range == 'Avg';
+                final String label = range == 'Min' ? 'Piso Mínimo' : range == 'Avg' ? 'Promedio' : 'Techo Máximo';
+                final Color cardColor = isAvg ? AppTheme.primaryColor : context.primaryText;
+
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: isAvg ? AppTheme.primaryColor.withValues(alpha: 0.08) : context.mutedColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isAvg ? AppTheme.primaryColor.withValues(alpha: 0.3) : context.borderColor,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isAvg ? AppTheme.primaryColor : context.secondaryText,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _formatCurrency(salaryVal),
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                              color: cardColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            // Comparative Visual Tracks
             Column(
               children: _marketSalaries.map((s) {
                 final range = s['range']?.toString() ?? '';
-                final count = (s['count'] as num? ?? 0).toInt();
-                final maxCount = _marketSalaries
-                    .map((e) => (e['count'] as num? ?? 1).toInt())
-                    .fold<int>(1, (a, b) => a > b ? a : b);
-                final ratio = (count / maxCount).clamp(0.08, 1.0);
+                final salaryVal = (s['count'] as num? ?? 0);
+                final ratio = maxSal > 0 ? (salaryVal / maxSal).clamp(0.15, 1.0) : 0.5;
+                final bool isAvg = range == 'Avg';
+                final String rangeName = range == 'Min'
+                    ? 'Salario Mínimo en Ofertas'
+                    : range == 'Avg'
+                        ? 'Salario Promedio del Mercado'
+                        : 'Salario Máximo Ofertado';
+                final Color barColor = isAvg
+                    ? AppTheme.primaryColor
+                    : (range == 'Min' ? AppTheme.brand300 : AppTheme.accentEmerald);
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -709,18 +1440,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(range, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.primaryText)),
-                          Text('$count ofertas', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppTheme.primaryColor)),
+                          Text(rangeName, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: context.primaryText)),
+                          Text(
+                            _formatCurrency(salaryVal),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: isAvg ? AppTheme.primaryColor : context.primaryText,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: LinearProgressIndicator(
-                          value: ratio,
-                          minHeight: 10,
-                          backgroundColor: context.borderColor,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                          value: ratio.toDouble(),
+                          minHeight: 8,
+                          backgroundColor: context.borderColor.withValues(alpha: 0.5),
+                          valueColor: AlwaysStoppedAnimation<Color>(barColor),
                         ),
                       ),
                     ],
@@ -728,94 +1466,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               }).toList(),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApplicationsStatusCard(BuildContext context) {
-    final total = _applicationsByStatus.fold<int>(0, (sum, item) => sum + ((item['count'] as num? ?? 0).toInt()));
-    final colors = [
-      AppTheme.primaryColor,
-      AppTheme.brand400,
-      AppTheme.brand300,
-      AppTheme.brand700,
-      AppTheme.primaryDark,
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.surfaceColor,
-        borderRadius: AppTheme.cardRadius,
-        border: Border.all(color: context.borderColor),
-        boxShadow: AppTheme.subtleShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Estado de mis Postulaciones',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
-          ),
-          const SizedBox(height: 14),
-          if (_applicationsByStatus.isEmpty || total == 0)
-            _buildEmptyChartState('Postúlate a vacantes para visualizar la distribución por etapa.')
-          else
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: List.generate(_applicationsByStatus.length, (i) {
-                final item = _applicationsByStatus[i];
-                final status = item['status']?.toString() ?? '';
-                final count = (item['count'] as num? ?? 0).toInt();
-                final pct = total > 0 ? ((count / total) * 100).round() : 0;
-                final color = colors[i % colors.length];
-
-                return Container(
-                  width: (MediaQuery.of(context).size.width - 78) / 2,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: context.mutedColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: context.borderColor),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.brand50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline_rounded, color: AppTheme.primaryColor, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Consejo: Egresados con habilidades certificadas y experiencia previa negocian ofertas en el tercio superior.',
+                      style: TextStyle(fontSize: 11, color: context.primaryText, height: 1.3),
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              status,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.secondaryText),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '$pct%',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.primaryText),
-                          ),
-                          Text(
-                            '($count)',
-                            style: TextStyle(fontSize: 11.5, color: context.secondaryText),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                ],
+              ),
             ),
+          ],
         ],
       ),
     );

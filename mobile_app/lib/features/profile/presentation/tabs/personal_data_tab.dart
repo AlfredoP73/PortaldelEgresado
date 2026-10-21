@@ -59,6 +59,38 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
     super.dispose();
   }
 
+  static String _normalizeAvailabilityStatus(dynamic raw) {
+    if (raw == null) return 'OPEN_TO_WORK';
+    final s = raw.toString().toUpperCase().trim();
+    if (s == 'OPEN_TO_WORK' || s == 'OPEN_TO_OFFERS' || s == 'EMPLOYED_CLOSED') {
+      return s;
+    }
+    if (s.contains('OPEN') && s.contains('WORK')) return 'OPEN_TO_WORK';
+    if (s.contains('OFFER')) return 'OPEN_TO_OFFERS';
+    if (s.contains('CLOSE') || s.contains('EMPLOYED')) return 'EMPLOYED_CLOSED';
+    return 'OPEN_TO_WORK';
+  }
+
+  static String _normalizeModality(dynamic raw) {
+    if (raw == null) return 'Cualquiera';
+    final s = raw.toString().trim();
+    const valid = ['Cualquiera', 'Remoto', 'Híbrido', 'Presencial'];
+    for (final v in valid) {
+      if (v.toLowerCase() == s.toLowerCase()) return v;
+    }
+    return 'Cualquiera';
+  }
+
+  static String _normalizeNotice(dynamic raw) {
+    if (raw == null) return 'Inmediata';
+    final s = raw.toString().trim();
+    const valid = ['Inmediata', '1 semana', '2 semanas', '1 mes'];
+    for (final v in valid) {
+      if (v.toLowerCase() == s.toLowerCase()) return v;
+    }
+    return 'Inmediata';
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
@@ -94,9 +126,9 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
         _gradYearCtrl.text = d['graduation_year']?.toString() ?? '2024';
         _bioCtrl.text = d['profile_summary']?.toString() ?? '';
         _cvUrl = d['cv_url']?.toString();
-        _availabilityStatus = d['availability_status']?.toString() ?? 'OPEN_TO_WORK';
-        _preferredModality = d['preferred_modality']?.toString() ?? 'Cualquiera';
-        _availabilityNotice = d['availability_notice']?.toString() ?? 'Inmediata';
+        _availabilityStatus = _normalizeAvailabilityStatus(d['availability_status']);
+        _preferredModality = _normalizeModality(d['preferred_modality']);
+        _availabilityNotice = _normalizeNotice(d['availability_notice']);
         _expectedSalaryCtrl.text = d['expected_salary'] != null ? d['expected_salary'].toString() : '';
         _jobAlertsEnabled = d['job_alerts_enabled'] != null ? (d['job_alerts_enabled'] == true) : true;
 
@@ -427,87 +459,104 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
         children: [
           // ── Card 1: Hoja de Vida (CV PDF) ──
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: context.surfaceColor,
               borderRadius: AppTheme.cardRadius,
               border: Border.all(color: context.borderColor),
               boxShadow: AppTheme.subtleShadow,
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppTheme.brand50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.picture_as_pdf_outlined, color: AppTheme.primaryColor, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hoja de Vida Institucional (PDF)',
-                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppTheme.brand50,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        (_cvUrl != null && _cvUrl!.isNotEmpty)
-                            ? 'Documento PDF cargado y visible para empresas'
-                            : 'Aún no has adjuntado tu CV en formato PDF',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: (_cvUrl != null && _cvUrl!.isNotEmpty) ? AppTheme.brand500 : context.secondaryText,
-                          fontWeight: FontWeight.w600,
+                      child: const Icon(Icons.picture_as_pdf_outlined, color: AppTheme.primaryColor, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hoja de Vida Institucional (PDF)',
+                            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            (_cvUrl != null && _cvUrl!.isNotEmpty)
+                                ? 'Documento PDF cargado y visible para empresas'
+                                : 'Aún no has adjuntado tu CV en formato PDF',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: (_cvUrl != null && _cvUrl!.isNotEmpty) ? AppTheme.brand500 : context.secondaryText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_cvUrl != null && _cvUrl!.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Ver PDF actual',
+                        onPressed: _openCvUrl,
+                        icon: const Icon(Icons.open_in_new_rounded, color: AppTheme.primaryColor, size: 20),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploadingCv ? null : _uploadCvPdf,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: _isUploadingCv
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Icon(Icons.upload_file_rounded, size: 16, color: Colors.white),
+                        label: Text(
+                          (_cvUrl != null && _cvUrl!.isNotEmpty) ? 'Actualizar PDF' : 'Subir PDF',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                if (_cvUrl != null && _cvUrl!.isNotEmpty)
-                  IconButton(
-                    tooltip: 'Ver PDF actual',
-                    onPressed: _openCvUrl,
-                    icon: const Icon(Icons.open_in_new_rounded, color: AppTheme.primaryColor, size: 20),
-                  ),
-                ElevatedButton.icon(
-                  onPressed: _isUploadingCv ? null : _uploadCvPdf,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  icon: _isUploadingCv
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.upload_file_rounded, size: 16),
-                  label: Text(
-                    (_cvUrl != null && _cvUrl!.isNotEmpty) ? 'Actualizar' : 'Subir PDF',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: _isParsingCv ? null : _parseCvPdf,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                  ),
-                  icon: _isParsingCv
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_fix_high_rounded, size: 16),
-                  label: const Text(
-                    'Escanear (Reglas)',
-                    style: TextStyle(fontSize: 12),
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isParsingCv ? null : _parseCvPdf,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: _isParsingCv
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 2),
+                              )
+                            : const Icon(Icons.auto_fix_high_rounded, size: 16),
+                        label: const Text(
+                          'Escanear (Reglas)',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -828,7 +877,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
                 const SizedBox(height: 16),
 
                 DropdownButtonFormField<String>(
-                  initialValue: _availabilityStatus,
+                  value: _normalizeAvailabilityStatus(_availabilityStatus),
                   isExpanded: true,
                   decoration: AppTheme.inputDecoration(
                     context,
@@ -850,7 +899,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _preferredModality,
+                        value: _normalizeModality(_preferredModality),
                         isExpanded: true,
                         decoration: AppTheme.inputDecoration(
                           context,
@@ -871,7 +920,7 @@ class _PersonalDataTabState extends State<PersonalDataTab> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _availabilityNotice,
+                        value: _normalizeNotice(_availabilityNotice),
                         isExpanded: true,
                         decoration: AppTheme.inputDecoration(
                           context,

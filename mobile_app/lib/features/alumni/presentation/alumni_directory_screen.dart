@@ -1,8 +1,44 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 import '../../messages/presentation/messages_screen.dart';
+
+// Definición de recursos universales
+class ResourceTypeInfo {
+  final String key;
+  final String label;
+  final String emoji;
+  final IconData icon;
+
+  const ResourceTypeInfo({
+    required this.key,
+    required this.label,
+    required this.emoji,
+    required this.icon,
+  });
+}
+
+const List<ResourceTypeInfo> _kResourceTypes = [
+  ResourceTypeInfo(key: 'github', label: 'GitHub / Código', emoji: '💻', icon: Icons.code_rounded),
+  ResourceTypeInfo(key: 'behance', label: 'Behance / Arte', emoji: '🎨', icon: Icons.palette_rounded),
+  ResourceTypeInfo(key: 'youtube', label: 'YouTube / Video', emoji: '🎬', icon: Icons.play_circle_fill_rounded),
+  ResourceTypeInfo(key: 'drive', label: 'Google Drive / Doc', emoji: '📄', icon: Icons.description_rounded),
+  ResourceTypeInfo(key: 'web', label: 'Sitio Web / Demo', emoji: '🌐', icon: Icons.language_rounded),
+  ResourceTypeInfo(key: 'paper', label: 'Artículo / Paper', emoji: '📑', icon: Icons.article_rounded),
+  ResourceTypeInfo(key: 'institutional', label: 'Repositorio UPC', emoji: '🏛️', icon: Icons.account_balance_rounded),
+  ResourceTypeInfo(key: 'other', label: 'Enlace Externo', emoji: '🔗', icon: Icons.link_rounded),
+];
+
+ResourceTypeInfo _getResourceInfo(String? type) {
+  if (type == null || type.isEmpty) return _kResourceTypes.first;
+  return _kResourceTypes.firstWhere(
+    (r) => r.key.toLowerCase() == type.toLowerCase(),
+    orElse: () => _kResourceTypes.last,
+  );
+}
 
 class AlumniDirectoryScreen extends StatefulWidget {
   const AlumniDirectoryScreen({super.key});
@@ -13,9 +49,14 @@ class AlumniDirectoryScreen extends StatefulWidget {
 
 class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoadingNetwork = true;
   bool _isLoadingDirectory = true;
   bool _isLoadingConnections = false;
 
+  String? _currentUserRole;
+  int? _currentUserId;
+
+  List<Map<String, dynamic>> _networkSuggestions = [];
   List<Map<String, dynamic>> _graduates = [];
   Map<String, dynamic> _connections = {
     'incoming': [],
@@ -30,20 +71,60 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _loadCurrentUser();
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (_tabController.index == 1) {
+      if (_tabController.index == 0 && _networkSuggestions.isEmpty) {
+        _fetchNetworkSuggestions();
+      } else if (_tabController.index == 1 && _graduates.isEmpty) {
+        _fetchDirectory();
+      } else if (_tabController.index == 2) {
         _fetchConnections();
       }
     });
+
+    _fetchNetworkSuggestions();
     _fetchDirectory();
     _fetchConnections();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString('user_data');
+      if (str != null) {
+        final u = jsonDecode(str);
+        if (u is Map) {
+          setState(() {
+            _currentUserRole = u['role_name']?.toString();
+            if (u['id'] != null) {
+              _currentUserId = u['id'] is int ? u['id'] as int : int.tryParse(u['id'].toString());
+            }
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchNetworkSuggestions() async {
+    setState(() => _isLoadingNetwork = true);
+    try {
+      final res = await ApiClient.instance.get('/modulo1/network/suggestions');
+      if (res.data is List) {
+        _networkSuggestions = List<Map<String, dynamic>>.from(
+          (res.data as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+        );
+      }
+    } catch (_) {
+      _networkSuggestions = [];
+    }
+    if (mounted) setState(() => _isLoadingNetwork = false);
   }
 
   Future<void> _fetchDirectory() async {
@@ -84,6 +165,16 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
   }
 
   Future<void> _sendConnectionRequest(int targetUserId, {String? note}) async {
+    if (_currentUserRole == 'COMPANY') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Las empresas pueden contactar candidatos mediante procesos de selección.'),
+          backgroundColor: AppTheme.primaryColor,
+        ),
+      );
+      return;
+    }
+
     try {
       await ApiClient.instance.post('/modulo1/connections/request', data: {
         'target_user_id': targetUserId,
@@ -98,7 +189,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
         );
       }
       _fetchConnections();
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al enviar la solicitud de conexión')),
@@ -176,9 +267,12 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
             final projects = List<Map<String, dynamic>>.from(data['projects'] ?? []);
             final skills = List<String>.from(data['skills'] ?? []);
             final experiences = List<Map<String, dynamic>>.from(data['experiences'] ?? []);
+            final academicHistories = List<Map<String, dynamic>>.from(data['academic_histories'] ?? []);
+
+            final isCompany = _currentUserRole == 'COMPANY';
 
             return DraggableScrollableSheet(
-              initialChildSize: 0.85,
+              initialChildSize: 0.88,
               maxChildSize: 0.95,
               minChildSize: 0.5,
               expand: false,
@@ -189,19 +283,19 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
+                      // Header con Foto y Datos Principales
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           CircleAvatar(
-                            radius: 32,
+                            radius: 34,
                             backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
                             backgroundImage: photo != null ? NetworkImage(photo) : null,
                             child: photo == null
                                 ? Text(
                                     fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U',
                                     style: const TextStyle(
-                                      fontSize: 22,
+                                      fontSize: 24,
                                       fontWeight: FontWeight.bold,
                                       color: AppTheme.primaryColor,
                                     ),
@@ -231,7 +325,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '$program • Promoción $year',
+                                  '$program ${year.isNotEmpty ? "• Promoción $year" : ""}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -252,8 +346,29 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                       ),
                       const SizedBox(height: 16),
 
-                      // Botón Conectar / Estado
-                      if (status == 'ACCEPTED')
+                      // Botón Conectar / Estado (Guard de Rol Empresa)
+                      if (isCompany)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.business_rounded, size: 16, color: AppTheme.primaryColor),
+                              SizedBox(width: 6),
+                              Text(
+                                'Vista de Empresa • Perfil Público Verificado',
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (status == 'ACCEPTED')
                         SizedBox(
                           width: double.infinity,
                           height: 44,
@@ -270,7 +385,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                               );
                             },
                             icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 18),
-                            label: const Text('Enviar Mensaje Directo', style: TextStyle(color: Colors.white)),
+                            label: const Text('Enviar Mensaje Directo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         )
                       else if (status == 'PENDING')
@@ -289,7 +404,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                               Icon(Icons.hourglass_top_rounded, size: 16, color: Colors.amber),
                               SizedBox(width: 6),
                               Text(
-                                'Solicitud de conexión enviada (Pendiente)',
+                                'Solicitud de conexión pendiente',
                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber),
                               ),
                             ],
@@ -315,10 +430,145 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
 
                       const SizedBox(height: 20),
 
-                      // Proyectos y Portafolio
-                      Text(
-                        'Portafolio de Proyectos (${projects.length})',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                      // 1. EDUCACIÓN ACADÉMICA (ESTILO LINKEDIN)
+                      if (academicHistories.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.school_rounded, size: 18, color: AppTheme.primaryColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Educación Académica (${academicHistories.length})',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ...academicHistories.map((edu) {
+                          final degree = edu['degree']?.toString() ?? 'Título profesional';
+                          final inst = edu['institution']?.toString() ?? 'Institución';
+                          final start = edu['start_date']?.toString() ?? '';
+                          final end = edu['end_date']?.toString() ?? 'Actualmente';
+                          final isCurrent = edu['is_current'] == true;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: context.surfaceColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: context.borderColor),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  degree,
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  inst,
+                                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppTheme.primaryColor),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isCurrent ? '$start - Actualmente' : '$start - $end',
+                                  style: TextStyle(fontSize: 11, color: context.secondaryText),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // 2. EXPERIENCIA LABORAL
+                      if (experiences.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.work_rounded, size: 18, color: AppTheme.primaryColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Experiencia Laboral (${experiences.length})',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ...experiences.map((exp) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: context.surfaceColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: context.borderColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${exp['position']} en ${exp['company_name']}',
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${exp['start_date']} - ${exp['end_date'] ?? 'Actualmente'}',
+                                style: TextStyle(fontSize: 11, color: context.secondaryText),
+                              ),
+                              if (exp['description'] != null && exp['description'].toString().isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  exp['description'].toString(),
+                                  style: TextStyle(fontSize: 11, color: context.secondaryText),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // 3. HABILIDADES
+                      if (skills.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.stars_rounded, size: 18, color: AppTheme.primaryColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Habilidades & Competencias',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: skills.map((s) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              s,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                            ),
+                          )).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // 4. PORTAFOLIO MULTIDISCIPLINARIO DE PROYECTOS
+                      Row(
+                        children: [
+                          const Icon(Icons.folder_special_rounded, size: 18, color: AppTheme.primaryColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Portafolio de Proyectos (${projects.length})',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
 
@@ -345,8 +595,12 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                           itemBuilder: (_, idx) {
                             final p = projects[idx];
                             final pTechs = List<String>.from(p['technologies'] ?? []);
-                            final repo = p['repository_url']?.toString() ?? '';
-                            final liveDemo = p['project_url']?.toString() ?? '';
+                            final rType = p['resource_type']?.toString();
+                            final rInfo = _getResourceInfo(rType);
+                            final resourceUrl = p['resource_url']?.toString() ??
+                                p['project_url']?.toString() ??
+                                p['repository_url']?.toString() ??
+                                '';
 
                             return Container(
                               padding: const EdgeInsets.all(12),
@@ -358,6 +612,29 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(rInfo.emoji, style: const TextStyle(fontSize: 11)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              rInfo.label,
+                                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
                                   Text(
                                     p['title']?.toString() ?? 'Proyecto',
                                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: context.primaryText),
@@ -387,25 +664,20 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                                       )).toList(),
                                     ),
                                   ],
-                                  if (repo.isNotEmpty || liveDemo.isNotEmpty) ...[
+                                  if (resourceUrl.isNotEmpty) ...[
                                     const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        if (repo.isNotEmpty)
-                                          TextButton.icon(
-                                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                                            onPressed: () => _openUrl(repo),
-                                            icon: const Icon(Icons.code_rounded, size: 14, color: AppTheme.primaryColor),
-                                            label: const Text('Repositorio', style: TextStyle(fontSize: 11)),
-                                          ),
-                                        if (liveDemo.isNotEmpty)
-                                          TextButton.icon(
-                                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                                            onPressed: () => _openUrl(liveDemo),
-                                            icon: const Icon(Icons.open_in_new_rounded, size: 14, color: AppTheme.brand500),
-                                            label: const Text('Demo', style: TextStyle(fontSize: 11)),
-                                          ),
-                                      ],
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primaryColor,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      onPressed: () => _openUrl(resourceUrl),
+                                      icon: Icon(rInfo.icon, size: 14, color: Colors.white),
+                                      label: Text(
+                                        'Ver ${rInfo.label.split(' ')[0]}',
+                                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -413,65 +685,6 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                             );
                           },
                         ),
-
-                      const SizedBox(height: 16),
-
-                      // Habilidades
-                      if (skills.isNotEmpty) ...[
-                        Text(
-                          'Habilidades y Competencias',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: skills.map((s) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              s,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
-                            ),
-                          )).toList(),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Experiencia Laboral
-                      if (experiences.isNotEmpty) ...[
-                        Text(
-                          'Experiencia Laboral',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
-                        ),
-                        const SizedBox(height: 8),
-                        ...experiences.map((exp) => Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: context.surfaceColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: context.borderColor),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${exp['position']} en ${exp['company_name']}',
-                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: context.primaryText),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${exp['start_date']} - ${exp['end_date'] ?? 'Actualmente'}',
-                                style: TextStyle(fontSize: 11, color: context.secondaryText),
-                              ),
-                            ],
-                          ),
-                        )),
-                      ],
                     ],
                   ),
                 );
@@ -490,7 +703,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
     return Scaffold(
       backgroundColor: context.bgColor,
       appBar: AppBar(
-        title: const Text('Red de Egresados & Contactos'),
+        title: const Text('Mi Red Profesional'),
         backgroundColor: context.surfaceColor,
         elevation: 0,
         bottom: TabBar(
@@ -498,12 +711,21 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
           labelColor: AppTheme.primaryColor,
           unselectedLabelColor: context.secondaryText,
           indicatorColor: AppTheme.primaryColor,
+          isScrollable: true,
           tabs: [
             Tab(
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.people_alt_rounded, size: 18),
+                  const Icon(Icons.hub_rounded, size: 17),
+                  const SizedBox(width: 6),
+                  Text('Red Afín (${_networkSuggestions.length})'),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                children: [
+                  const Icon(Icons.people_alt_rounded, size: 17),
                   const SizedBox(width: 6),
                   Text('Directorio (${_graduates.length})'),
                 ],
@@ -511,15 +733,14 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
             ),
             Tab(
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.how_to_reg_rounded, size: 18),
+                  const Icon(Icons.how_to_reg_rounded, size: 17),
                   const SizedBox(width: 6),
                   const Text('Mis Conexiones'),
                   if (incomingCount > 0) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
                         color: Colors.redAccent,
                         borderRadius: BorderRadius.circular(10),
@@ -539,10 +760,213 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
       body: TabBarView(
         controller: _tabController,
         children: [
-          // ── TAB 1: DIRECTORIO ──
+          // ── TAB 1: SUGERENCIAS DE RED (RED AFÍN) ──
           Column(
             children: [
-              // Barra de Búsqueda y Filtros
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: context.surfaceColor,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Egresados afines a tu carrera y habilidades.',
+                        style: TextStyle(fontSize: 12, color: context.secondaryText),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      onPressed: _fetchNetworkSuggestions,
+                      tooltip: 'Actualizar sugerencias',
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _isLoadingNetwork
+                    ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                    : _networkSuggestions.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.hub_outlined, size: 52, color: context.tertiaryText),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'No hay sugerencias de red por ahora',
+                                    style: TextStyle(color: context.secondaryText, fontWeight: FontWeight.w700, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Completa tu perfil académico y tus habilidades para encontrar egresados afines.',
+                                    style: TextStyle(color: context.tertiaryText, fontSize: 12),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(14),
+                            itemCount: _networkSuggestions.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (ctx, i) {
+                              final s = _networkSuggestions[i];
+                              final fullName = s['full_name']?.toString() ?? 'Egresado UPC';
+                              final headline = s['headline']?.toString() ?? s['program_name']?.toString() ?? 'Egresado UPC';
+                              final year = s['graduation_year']?.toString() ?? '';
+                              final photo = s['profile_picture_url']?.toString();
+                              final skills = List<String>.from(s['skills'] ?? []);
+                              final affinityNum = (s['affinity_score'] is num ? s['affinity_score'] as num : 0).toDouble();
+                              final affinityPct = (affinityNum / 95 * 100).round().clamp(1, 100);
+
+                              final isCompany = _currentUserRole == 'COMPANY';
+
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: context.surfaceColor,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: context.borderColor),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 26,
+                                          backgroundColor: AppTheme.brand500.withValues(alpha: 0.15),
+                                          backgroundImage: photo != null ? NetworkImage(photo) : null,
+                                          child: photo == null
+                                              ? Text(
+                                                  fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                                                )
+                                              : null,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      fullName,
+                                                      style: TextStyle(
+                                                        fontSize: 14.5,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: context.primaryText,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  const Icon(Icons.verified_rounded, size: 15, color: AppTheme.brand500),
+                                                ],
+                                              ),
+                                              Text(
+                                                headline,
+                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primaryColor),
+                                              ),
+                                              if (year.isNotEmpty)
+                                                Text(
+                                                  'Promoción $year',
+                                                  style: TextStyle(fontSize: 11, color: context.secondaryText),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+
+                                    // Barra de Afinidad (%)
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: LinearProgressIndicator(
+                                              value: affinityPct / 100.0,
+                                              backgroundColor: AppTheme.brand500.withValues(alpha: 0.12),
+                                              color: AppTheme.brand500,
+                                              minHeight: 6,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '$affinityPct% afín',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.brand500),
+                                        ),
+                                      ],
+                                    ),
+
+                                    if (skills.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 4,
+                                        runSpacing: 4,
+                                        children: skills.take(3).map((sk) => Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            sk,
+                                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppTheme.primaryColor),
+                                          ),
+                                        )).toList(),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    const Divider(height: 1),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            onPressed: () => _showPublicProfileModal(s['user_id'] as int),
+                                            icon: const Icon(Icons.visibility_outlined, size: 16),
+                                            label: const Text('Ver Perfil & Proyectos', style: TextStyle(fontSize: 11.5)),
+                                          ),
+                                        ),
+                                        if (!isCompany) ...[
+                                          const SizedBox(width: 8),
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppTheme.brand500,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            onPressed: () => _sendConnectionRequest(s['user_id'] as int),
+                                            icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 15),
+                                            label: const Text('Conectar', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
+
+          // ── TAB 2: DIRECTORIO GENERAL ──
+          Column(
+            children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 color: context.surfaceColor,
@@ -582,8 +1006,6 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                   ],
                 ),
               ),
-
-              // Lista de egresados
               Expanded(
                 child: _isLoadingDirectory
                     ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
@@ -618,6 +1040,8 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                               final photo = g['profile_picture_url']?.toString();
                               final skills = List<String>.from(g['skills'] ?? []);
 
+                              final isCompany = _currentUserRole == 'COMPANY';
+
                               return Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
@@ -637,10 +1061,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                                           child: photo == null
                                               ? Text(
                                                   name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: AppTheme.primaryColor,
-                                                  ),
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
                                                 )
                                               : null,
                                         ),
@@ -671,11 +1092,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                                                       ),
                                                       child: const Text(
                                                         'Mentor',
-                                                        style: TextStyle(
-                                                          fontSize: 9.5,
-                                                          color: Colors.purple,
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
+                                                        style: TextStyle(fontSize: 9.5, color: Colors.purple, fontWeight: FontWeight.bold),
                                                       ),
                                                     ),
                                                   ],
@@ -739,17 +1156,19 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                                             label: const Text('Ver Perfil & Proyectos', style: TextStyle(fontSize: 11.5)),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppTheme.brand500,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            visualDensity: VisualDensity.compact,
+                                        if (!isCompany) ...[
+                                          const SizedBox(width: 8),
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppTheme.brand500,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            onPressed: () => _sendConnectionRequest(g['user_id'] as int),
+                                            icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 15),
+                                            label: const Text('Conectar', style: TextStyle(color: Colors.white, fontSize: 11.5)),
                                           ),
-                                          onPressed: () => _sendConnectionRequest(g['user_id'] as int),
-                                          icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 15),
-                                          label: const Text('Conectar', style: TextStyle(color: Colors.white, fontSize: 11.5)),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   ],
@@ -761,7 +1180,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
             ],
           ),
 
-          // ── TAB 2: MIS CONEXIONES ──
+          // ── TAB 3: MIS CONEXIONES ──
           _isLoadingConnections
               ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
               : SingleChildScrollView(
@@ -866,7 +1285,7 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
                       const SizedBox(height: 8),
                       if ((_connections['accepted'] as List).isEmpty)
                         Text(
-                          'Aún no tienes contactos conectados. Conecta con egresados en el Directorio.',
+                          'Aún no tienes contactos conectados. Conecta con egresados en el Directorio o Red Afín.',
                           style: TextStyle(fontSize: 12, color: context.tertiaryText),
                         )
                       else
@@ -930,4 +1349,3 @@ class _AlumniDirectoryScreenState extends State<AlumniDirectoryScreen> with Sing
     );
   }
 }
-

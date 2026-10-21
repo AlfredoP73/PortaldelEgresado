@@ -3,6 +3,89 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/api_client.dart';
 
+class ResourceTypeInfo {
+  final String key;
+  final String label;
+  final String emoji;
+  final IconData icon;
+  final String urlHint;
+
+  const ResourceTypeInfo({
+    required this.key,
+    required this.label,
+    required this.emoji,
+    required this.icon,
+    required this.urlHint,
+  });
+}
+
+const List<ResourceTypeInfo> kResourceTypes = [
+  ResourceTypeInfo(
+    key: 'github',
+    label: 'GitHub / GitLab (Código)',
+    emoji: '💻',
+    icon: Icons.code_rounded,
+    urlHint: 'https://github.com/usuario/proyecto',
+  ),
+  ResourceTypeInfo(
+    key: 'behance',
+    label: 'Behance / Dribbble (Diseño / Arte)',
+    emoji: '🎨',
+    icon: Icons.palette_rounded,
+    urlHint: 'https://behance.net/gallery/...',
+  ),
+  ResourceTypeInfo(
+    key: 'youtube',
+    label: 'YouTube / Video Pitch',
+    emoji: '🎬',
+    icon: Icons.play_circle_fill_rounded,
+    urlHint: 'https://youtube.com/watch?v=...',
+  ),
+  ResourceTypeInfo(
+    key: 'drive',
+    label: 'Google Drive / Documento / PDF',
+    emoji: '📄',
+    icon: Icons.description_rounded,
+    urlHint: 'https://drive.google.com/file/...',
+  ),
+  ResourceTypeInfo(
+    key: 'web',
+    label: 'Sitio Web / Demo en Vivo',
+    emoji: '🌐',
+    icon: Icons.language_rounded,
+    urlHint: 'https://mi-proyecto.com',
+  ),
+  ResourceTypeInfo(
+    key: 'paper',
+    label: 'Artículo / Paper Académico',
+    emoji: '📑',
+    icon: Icons.article_rounded,
+    urlHint: 'https://scielo.org/... o https://doi.org/...',
+  ),
+  ResourceTypeInfo(
+    key: 'institutional',
+    label: 'Repositorio Institucional UPC',
+    emoji: '🏛️',
+    icon: Icons.account_balance_rounded,
+    urlHint: 'https://repositorioacademico.upc.edu.co/...',
+  ),
+  ResourceTypeInfo(
+    key: 'other',
+    label: 'Enlace Externo / Otro Recurso',
+    emoji: '🔗',
+    icon: Icons.link_rounded,
+    urlHint: 'https://...',
+  ),
+];
+
+ResourceTypeInfo getResourceInfo(String? type) {
+  if (type == null || type.isEmpty) return kResourceTypes.first;
+  return kResourceTypes.firstWhere(
+    (r) => r.key.toLowerCase() == type.toLowerCase(),
+    orElse: () => kResourceTypes.last,
+  );
+}
+
 class ProjectsTab extends StatefulWidget {
   const ProjectsTab({super.key});
 
@@ -30,7 +113,6 @@ class _ProjectsTabState extends State<ProjectsTab> {
         );
       }
     } catch (_) {
-      // Safe fallback
       _projects = [];
     }
     if (mounted) setState(() => _isLoading = false);
@@ -63,8 +145,17 @@ class _ProjectsTabState extends State<ProjectsTab> {
     final isEditing = project != null;
     final titleCtrl = TextEditingController(text: project?['title']?.toString() ?? '');
     final descCtrl = TextEditingController(text: project?['description']?.toString() ?? '');
-    final repoCtrl = TextEditingController(text: project?['repository_url']?.toString() ?? '');
-    final projUrlCtrl = TextEditingController(text: project?['project_url']?.toString() ?? '');
+
+    String initialUrl = project?['resource_url']?.toString() ??
+        project?['project_url']?.toString() ??
+        project?['repository_url']?.toString() ??
+        '';
+    final urlCtrl = TextEditingController(text: initialUrl);
+
+    String selectedType = project?['resource_type']?.toString() ??
+        (project?['repository_url'] != null && project!['repository_url'].toString().isNotEmpty
+            ? 'github'
+            : 'web');
 
     String initialTechs = '';
     if (project?['technologies'] is List) {
@@ -83,6 +174,8 @@ class _ProjectsTabState extends State<ProjectsTab> {
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
+            final activeTypeInfo = getResourceInfo(selectedType);
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -99,7 +192,7 @@ class _ProjectsTabState extends State<ProjectsTab> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          isEditing ? 'Editar Proyecto' : 'Agregar Proyecto al Portafolio',
+                          isEditing ? 'Editar Proyecto / Recurso' : 'Nuevo Proyecto Multidisciplinario',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -114,12 +207,63 @@ class _ProjectsTabState extends State<ProjectsTab> {
                     ),
                     const SizedBox(height: 12),
 
+                    // Tipo de Recurso (Universal)
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      decoration: InputDecoration(
+                        labelText: 'Tipo de Recurso o Trabajo *',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: Icon(activeTypeInfo.icon, color: AppTheme.primaryColor),
+                      ),
+                      items: kResourceTypes.map((r) {
+                        return DropdownMenuItem<String>(
+                          value: r.key,
+                          child: Row(
+                            children: [
+                              Text(r.emoji, style: const TextStyle(fontSize: 16)),
+                              const SizedBox(width: 8),
+                              Text(r.label, style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() => selectedType = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
                     // Título
                     TextField(
                       controller: titleCtrl,
                       decoration: InputDecoration(
-                        labelText: 'Título del Proyecto *',
-                        hintText: 'Ej: Sistema de Monitoreo IoT',
+                        labelText: 'Título del Proyecto o Trabajo *',
+                        hintText: 'Ej: Campaña Publicitaria, Análisis Financiero, App Móvil...',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Enlace al Recurso (Universal)
+                    TextField(
+                      controller: urlCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Enlace al Recurso / Trabajo *',
+                        hintText: activeTypeInfo.urlHint,
+                        prefixIcon: const Icon(Icons.link_rounded),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Herramientas / Tecnologías
+                    TextField(
+                      controller: techCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Herramientas, Metodologías o Tecnologías',
+                        hintText: 'Ej: Figma, SPSS, Python, Adobe Premiere, Normas APA...',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
@@ -130,43 +274,8 @@ class _ProjectsTabState extends State<ProjectsTab> {
                       controller: descCtrl,
                       maxLines: 3,
                       decoration: InputDecoration(
-                        labelText: 'Descripción / Resumen',
-                        hintText: 'Explica de qué trata el proyecto, tu rol y el impacto...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Tecnologías
-                    TextField(
-                      controller: techCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Tecnologías (separadas por coma)',
-                        hintText: 'Ej: Python, React, AWS, Docker, PostgreSQL',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Repositorio URL
-                    TextField(
-                      controller: repoCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'URL Repositorio (GitHub, GitLab)',
-                        hintText: 'https://github.com/usuario/repositorio',
-                        prefixIcon: const Icon(Icons.code_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Demo URL
-                    TextField(
-                      controller: projUrlCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'URL Demo / Despliegue en Vivo',
-                        hintText: 'https://mi-proyecto.com',
-                        prefixIcon: const Icon(Icons.link_rounded),
+                        labelText: 'Descripción / Resumen del Impacto',
+                        hintText: 'Explica el objetivo, metodología y resultados destacados...',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
@@ -185,9 +294,18 @@ class _ProjectsTabState extends State<ProjectsTab> {
                             ? null
                             : () async {
                                 final title = titleCtrl.text.trim();
+                                final url = urlCtrl.text.trim();
+
                                 if (title.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('Ingresa el título del proyecto')),
+                                  );
+                                  return;
+                                }
+
+                                if (url.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Ingresa el enlace del recurso o proyecto')),
                                   );
                                   return;
                                 }
@@ -197,14 +315,16 @@ class _ProjectsTabState extends State<ProjectsTab> {
                                   final techs = techCtrl.text
                                       .split(',')
                                       .map((t) => t.trim())
-                                      .filter((t) => t.isNotEmpty)
+                                      .where((t) => t.isNotEmpty)
                                       .toList();
 
                                   final payload = {
                                     'title': title,
                                     'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-                                    'repository_url': repoCtrl.text.trim().isEmpty ? null : repoCtrl.text.trim(),
-                                    'project_url': projUrlCtrl.text.trim().isEmpty ? null : projUrlCtrl.text.trim(),
+                                    'resource_type': selectedType,
+                                    'resource_url': url,
+                                    'project_url': url,
+                                    'repository_url': selectedType == 'github' ? url : null,
                                     'technologies': techs,
                                   };
 
@@ -267,7 +387,7 @@ class _ProjectsTabState extends State<ProjectsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner / Header
+          // Banner / Header Multidisciplinario
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -292,12 +412,12 @@ class _ProjectsTabState extends State<ProjectsTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Mi Portafolio de Proyectos',
+                        'Portafolio Profesional Multidisciplinario',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.primaryText),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Muestra tu trabajo a empresas reclutadoras y a la comunidad de egresados.',
+                        'Publica tus proyectos de cualquier carrera: diseño, código, artículos, videos, tesis o documentos.',
                         style: TextStyle(fontSize: 11.5, color: context.secondaryText),
                       ),
                     ],
@@ -320,7 +440,7 @@ class _ProjectsTabState extends State<ProjectsTab> {
               onPressed: () => _openAddOrEditModal(),
               icon: const Icon(Icons.add_rounded, color: AppTheme.primaryColor),
               label: const Text(
-                'Nuevo Proyecto',
+                'Nuevo Proyecto o Recurso',
                 style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
               ),
             ),
@@ -342,8 +462,9 @@ class _ProjectsTabState extends State<ProjectsTab> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Agrega tus repositorios, demos y desarrollos destacados.',
+                      'Agrega tus trabajos destacados para visibilidad ante empresas y la comunidad.',
                       style: TextStyle(fontSize: 12, color: context.tertiaryText),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -358,8 +479,13 @@ class _ProjectsTabState extends State<ProjectsTab> {
               itemBuilder: (ctx, i) {
                 final proj = _projects[i];
                 final techs = (proj['technologies'] as List? ?? []).map((t) => t.toString()).toList();
-                final repo = proj['repository_url']?.toString() ?? '';
-                final liveDemo = proj['project_url']?.toString() ?? '';
+                final resourceType = proj['resource_type']?.toString();
+                final resInfo = getResourceInfo(resourceType);
+
+                final finalUrl = proj['resource_url']?.toString() ??
+                    proj['project_url']?.toString() ??
+                    proj['repository_url']?.toString() ??
+                    '';
 
                 return Container(
                   padding: const EdgeInsets.all(16),
@@ -371,17 +497,30 @@ class _ProjectsTabState extends State<ProjectsTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Badge tipo recurso + Menú
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Text(
-                              proj['title']?.toString() ?? 'Proyecto sin título',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                                color: context.primaryText,
-                              ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(resInfo.emoji, style: const TextStyle(fontSize: 12)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  resInfo.label,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           PopupMenuButton<String>(
@@ -402,6 +541,17 @@ class _ProjectsTabState extends State<ProjectsTab> {
                             ],
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Título
+                      Text(
+                        proj['title']?.toString() ?? 'Proyecto sin título',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: context.primaryText,
+                        ),
                       ),
                       if (proj['description'] != null && proj['description'].toString().isNotEmpty) ...[
                         const SizedBox(height: 6),
@@ -434,34 +584,25 @@ class _ProjectsTabState extends State<ProjectsTab> {
                           }).toList(),
                         ),
                       ],
-                      if (repo.isNotEmpty || liveDemo.isNotEmpty) ...[
+                      if (finalUrl.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         const Divider(height: 1),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            if (repo.isNotEmpty)
-                              TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () => _openUrl(repo),
-                                icon: const Icon(Icons.code_rounded, size: 16, color: AppTheme.primaryColor),
-                                label: const Text('Repositorio', style: TextStyle(fontSize: 11.5)),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                visualDensity: VisualDensity.compact,
                               ),
-                            if (liveDemo.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () => _openUrl(liveDemo),
-                                icon: const Icon(Icons.open_in_new_rounded, size: 16, color: AppTheme.brand500),
-                                label: const Text('Demo en Vivo', style: TextStyle(fontSize: 11.5)),
+                              onPressed: () => _openUrl(finalUrl),
+                              icon: Icon(resInfo.icon, size: 15, color: Colors.white),
+                              label: Text(
+                                'Ver ${resInfo.label.split(' ')[0]}',
+                                style: const TextStyle(fontSize: 11.5, color: Colors.white, fontWeight: FontWeight.bold),
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ],
@@ -475,8 +616,3 @@ class _ProjectsTabState extends State<ProjectsTab> {
     );
   }
 }
-
-extension _IterableFilter<E> on Iterable<E> {
-  Iterable<E> filter(bool Function(E element) test) => where(test);
-}
-

@@ -1,10 +1,10 @@
-$ErrorActionPreference = "Continue"
+﻿$ErrorActionPreference = "Continue"
 
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host " Iniciando Destrucción Arquitectura 1 (2 EC2 ASG + 2 ALBs + RDS Multi-AZ) " -ForegroundColor Cyan -BackgroundColor DarkRed
+Write-Host " Iniciando DestrucciÃ³n Arquitectura 1 (2 EC2 ASG + 2 ALBs + RDS Multi-AZ) " -ForegroundColor Cyan -BackgroundColor DarkRed
 Write-Host "=======================================================" -ForegroundColor Cyan
 
-# 1. Configurar y Validar Autenticación
+# 1. Configurar y Validar AutenticaciÃ³n
 if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps1" }
 
 $oldErr = $ErrorActionPreference
@@ -15,14 +15,14 @@ $ErrorActionPreference = $oldErr
 
 if ($LASTEXITCODE -ne 0 -or $Ec2Test -match "voc-cancel-cred" -or $Ec2Test -match "UnauthorizedOperation") { 
     Write-Host "`n=======================================================" -ForegroundColor Red
-    Write-Host "[ERROR] Tu sesión de AWS Learner Lab ha expirado o está detenida." -ForegroundColor Red
+    Write-Host "[ERROR] Tu sesiÃ³n de AWS Learner Lab ha expirado o estÃ¡ detenida." -ForegroundColor Red
     Write-Host "=======================================================" -ForegroundColor Red
-    Write-Host "Causa: Las credenciales caducaron o se aplicó la política 'voc-cancel-cred'." -ForegroundColor DarkYellow
+    Write-Host "Causa: Las credenciales caducaron o se aplicÃ³ la polÃ­tica 'voc-cancel-cred'." -ForegroundColor DarkYellow
     Write-Host "`nPasos para continuar:" -ForegroundColor Yellow
     Write-Host "1. Ve a tu plataforma de AWS Academy / Learner Lab." -ForegroundColor White
-    Write-Host "2. Haz clic en 'Start Lab' y espera a que el círculo se ponga verde." -ForegroundColor White
+    Write-Host "2. Haz clic en 'Start Lab' y espera a que el cÃ­rculo se ponga verde." -ForegroundColor White
     Write-Host "3. Haz clic en 'AWS Details' -> 'AWS CLI' y copia las credenciales nuevas." -ForegroundColor White
-    Write-Host "4. Pégalas en el archivo aws/credentials.ps1 y vuelve a ejecutar este script." -ForegroundColor White
+    Write-Host "4. PÃ©galas en el archivo aws/credentials.ps1 y vuelve a ejecutar este script." -ForegroundColor White
     exit 1 
 }
 
@@ -30,13 +30,13 @@ $AccountId = (aws sts get-caller-identity --query Account --output text 2>$null)
 Write-Host "AWS Account ID: $AccountId" -ForegroundColor Cyan
 
 function Release-ElasticIPs {
-    Write-Host "`n[Redes] Buscando y liberando IPs Elásticas (evitar límite de 5 EIPs en Learner Lab)..." -ForegroundColor Yellow
+    Write-Host "`n[Redes] Buscando y liberando IPs ElÃ¡sticas (evitar lÃ­mite de 5 EIPs en Learner Lab)..." -ForegroundColor Yellow
     $retry = 0
     while ($retry -lt 8) {
         $AllIps = aws ec2 describe-addresses --query "Addresses[*].AllocationId" --output text 2>$null
         $allocatedList = @($AllIps -split '\s+' | Where-Object { $_ -match '^eipalloc-' })
         if ($allocatedList.Count -eq 0) {
-            Write-Host "  -> No hay IPs Elásticas asignadas en la cuenta." -ForegroundColor Green
+            Write-Host "  -> No hay IPs ElÃ¡sticas asignadas en la cuenta." -ForegroundColor Green
             break
         }
         $freedCount = 0
@@ -47,7 +47,7 @@ function Release-ElasticIPs {
             }
             aws ec2 release-address --allocation-id $IpAlloc 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "  -> IP Elástica liberada con éxito: $IpAlloc" -ForegroundColor Green
+                Write-Host "  -> IP ElÃ¡stica liberada con Ã©xito: $IpAlloc" -ForegroundColor Green
                 $freedCount++
             }
         }
@@ -71,7 +71,7 @@ foreach ($asg in $AsgList) {
     if ($asgExists -and $asgExists -ne "None" -and $asgExists.Trim() -ne "") {
         Write-Host "  -> Procesando Auto Scaling Group: $asg..." -ForegroundColor Cyan
 
-        # Recolectar instancias del ASG para terminarlas explícitamente
+        # Recolectar instancias del ASG para terminarlas explÃ­citamente
         $insts = aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $asg --query "AutoScalingGroups[0].Instances[*].InstanceId" --output text 2>$null
         foreach ($id in ($insts -split '\s+' | Where-Object { $_ -match '^i-' })) {
             if ($AsgInstances -notcontains $id) { $AsgInstances += $id }
@@ -85,16 +85,16 @@ foreach ($asg in $AsgList) {
             aws autoscaling detach-load-balancer-target-groups --auto-scaling-group-name $asg --target-group-arns $tgArnList 2>$null | Out-Null
         }
 
-        # Eliminar políticas de escalado del ASG (scale-out-cpu, scale-in-cpu, etc.)
+        # Eliminar polÃ­ticas de escalado del ASG (scale-out-cpu, scale-in-cpu, etc.)
         $policies = aws autoscaling describe-policies --auto-scaling-group-name $asg --query "ScalingPolicies[*].PolicyName" --output text 2>$null
         foreach ($pol in ($policies -split '\s+' | Where-Object { $_ -ne "" })) {
             aws autoscaling delete-policy --auto-scaling-group-name $asg --policy-name $pol 2>$null | Out-Null
         }
 
-        # Reducir capacidad a 0 y forzar eliminación del ASG
+        # Reducir capacidad a 0 y forzar eliminaciÃ³n del ASG
         aws autoscaling update-auto-scaling-group --auto-scaling-group-name $asg --min-size 0 --max-size 0 --desired-capacity 0 2>$null | Out-Null
         aws autoscaling delete-auto-scaling-group --auto-scaling-group-name $asg --force-delete 2>$null | Out-Null
-        Write-Host "  -> Eliminación solicitada para ASG: $asg" -ForegroundColor Green
+        Write-Host "  -> EliminaciÃ³n solicitada para ASG: $asg" -ForegroundColor Green
     }
 }
 
@@ -200,7 +200,7 @@ $waitAsg = 0
 while ($waitAsg -lt 15) {
     $remAsg = aws autoscaling describe-auto-scaling-groups --query "AutoScalingGroups[?contains(AutoScalingGroupName, 'portal')].AutoScalingGroupName" --output text 2>$null
     if (-not $remAsg -or $remAsg.Trim() -eq "") { break }
-    Write-Host "  -> Esperando finalización de eliminación de ASG ($($remAsg.Trim()))..." -ForegroundColor DarkYellow
+    Write-Host "  -> Esperando finalizaciÃ³n de eliminaciÃ³n de ASG ($($remAsg.Trim()))..." -ForegroundColor DarkYellow
     Start-Sleep -Seconds 4
     $waitAsg++
 }
@@ -241,32 +241,55 @@ if ($RdsStatus -and $RdsStatus -ne "None" -and $RdsStatus.Trim() -ne "") {
         if ($st.Trim() -ne "deleting") {
             aws rds delete-db-instance --db-instance-identifier portal-db-rds --skip-final-snapshot --delete-automated-backups 2>$null | Out-Null
         }
-        Write-Host "  -> Esperando eliminación de RDS portal-db-rds (estado: $($st.Trim()))..." -ForegroundColor DarkYellow
+        Write-Host "  -> Esperando eliminaciÃ³n de RDS portal-db-rds (estado: $($st.Trim()))..." -ForegroundColor DarkYellow
         Start-Sleep -Seconds 15
         $rdsWait++
     }
     Write-Host "  -> Instancia RDS eliminada con éxito." -ForegroundColor Green
-    aws rds delete-db-subnet-group --db-subnet-group-name portal-db-subnets 2>$null | Out-Null
-    Write-Host "  -> DB Subnet Group 'portal-db-subnets' eliminado." -ForegroundColor Green
+    Write-Host "  -> Eliminando DB Subnet Group portal-db-subnets..." -ForegroundColor Cyan
+    $retrySubGroup = 0
+    while ($retrySubGroup -lt 15) {
+        aws rds delete-db-subnet-group --db-subnet-group-name portal-db-subnets 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  -> DB Subnet Group portal-db-subnets eliminado." -ForegroundColor Green
+            break
+        }
+        $chkSubGrp = aws rds describe-db-subnet-groups --db-subnet-group-name portal-db-subnets --query "DBSubnetGroups[0].DBSubnetGroupName" --output text 2>$null
+        if (-not $chkSubGrp -or $chkSubGrp -eq "None" -or $chkSubGrp.Trim() -eq "") {
+            break
+        }
+        Start-Sleep -Seconds 5
+        $retrySubGroup++
+    }
 } else {
-    Write-Host "  -> No se encontró instancia RDS 'portal-db-rds' activa." -ForegroundColor Green
+    Write-Host "  -> No se encontrÃ³ instancia RDS 'portal-db-rds' activa." -ForegroundColor Green
 }
 
 # 7. Fase 6: Limpieza Profunda de Red Multi-AZ (VPC, 2 NAT Gateways, EIPs, ENIs, 3 Route Tables, 5 SGs, 6 Subredes, IGW)
 $Vpcs = aws ec2 describe-vpcs --filters "Name=tag:Name,Values=portal_vpc" --query "Vpcs[*].VpcId" --output text 2>$null
 $VpcArray = @($Vpcs -split '\s+' | Where-Object { $_ -match '^vpc-' })
 
+# Respaldo: agregar VPCs que contengan subredes portal_sub_*
+$SubVpcs = aws ec2 describe-subnets --filters "Name=tag:Name,Values=portal_sub_*" --query "Subnets[*].VpcId" --output text 2>$null
+foreach ($sv in ($SubVpcs -split '\s+' | Where-Object { $_ -match '^vpc-' })) {
+    if ($VpcArray -notcontains $sv) { $VpcArray += $sv }
+}
+
 foreach ($VpcId in $VpcArray) {
     Write-Host "`n[Fase 6: Red Multi-AZ] Limpiando recursos de red en VPC: $VpcId" -ForegroundColor Yellow
 
     # A. NAT Gateways (portal_nat_gw_a, portal_nat_gw_b)
-    $NatGws = aws ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$VpcId" "Name=state,Values=available,pending,failed" --query "NatGateways[*].NatGatewayId" --output text 2>$null
+    $NatGws = aws ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$VpcId" "Name=state,Values=available,pending,failed,deleting" --query "NatGateways[*].NatGatewayId" --output text 2>$null
     $NatArray = @($NatGws -split '\s+' | Where-Object { $_ -match '^nat-' })
     if ($NatArray.Count -gt 0) {
         Write-Host "  -> Eliminando $($NatArray.Count) NAT Gateway(s): $($NatArray -join ', ')..." -ForegroundColor Cyan
-        foreach ($nat in $NatArray) { aws ec2 delete-nat-gateway --nat-gateway-id $nat 2>$null | Out-Null }
+        foreach ($nat in $NatArray) { 
+            aws ec2 delete-nat-gateway --nat-gateway-id $nat 2>$null | Out-Null 
+        }
         Write-Host "  -> Esperando a que los NAT Gateways pasen al estado 'deleted' en AWS..." -ForegroundColor Yellow
-        foreach ($nat in $NatArray) { aws ec2 wait nat-gateway-deleted --nat-gateway-ids $nat 2>$null }
+        foreach ($nat in $NatArray) { 
+            aws ec2 wait nat-gateway-deleted --nat-gateway-ids $nat 2>$null 
+        }
         Write-Host "  -> NAT Gateways eliminados." -ForegroundColor Green
     }
 }
@@ -281,36 +304,20 @@ foreach ($VpcId in $VpcArray) {
         aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $vpce 2>$null | Out-Null
     }
 
-    # C. Drenaje de Interfaces de Red (ENIs)
-    Write-Host "`n[ENIs] Verificando liberación de interfaces de red en la VPC $VpcId..." -ForegroundColor Yellow
-    $eniTimeout = 24 # Hasta 4 minutos
-    while ($eniTimeout -gt 0) {
-        $enisRaw = aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VpcId" --query "NetworkInterfaces[*].[NetworkInterfaceId,Status]" --output text 2>$null
-        $eniLines = @($enisRaw -split "`n" | Where-Object { $_ -match '^eni-' })
-        if ($eniLines.Count -eq 0) {
-            Write-Host "  -> Todas las interfaces de red (ENIs) han sido liberadas." -ForegroundColor Green
-            break
-        }
-        foreach ($line in $eniLines) {
-            $parts = $line.Trim() -split '\s+'
-            $eId = $parts[0]
-            $eStat = $parts[1]
-            if ($eStat -eq "available") {
-                aws ec2 delete-network-interface --network-interface-id $eId 2>$null | Out-Null
-            }
-        }
-        Write-Host "  -> Quedan $($eniLines.Count) interfaz(ces) liberándose en AWS. Esperando 10s..." -ForegroundColor DarkYellow
-        Start-Sleep -Seconds 10
-        $eniTimeout--
-    }
-
-    # D. Desasociar y eliminar Route Tables personalizadas ANTES de borrar Subredes e IGW
-    Write-Host "  -> Desasociando y eliminando Route Tables (portal_rt_pub, portal_rt_priv_a, portal_rt_priv_b)..." -ForegroundColor Cyan
+    # C. Limpieza y Desasociado de Route Tables (ELIMINAR RUTAS 0.0.0.0/0 HACIA IGW Y NAT)
+    Write-Host "  -> Eliminando rutas hacia IGW y NAT en todas las Route Tables de la VPC $VpcId..." -ForegroundColor Cyan
     $AllRouteTables = aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VpcId" --query "RouteTables[*].RouteTableId" --output text 2>$null
+    $AllRtArray = @($AllRouteTables -split '\s+' | Where-Object { $_ -match '^rtb-' })
     $MainRouteTables = aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VpcId" "Name=association.main,Values=true" --query "RouteTables[*].RouteTableId" --output text 2>$null
     $MainRtArray = @($MainRouteTables -split '\s+' | Where-Object { $_ -match '^rtb-' })
-    $AllRtArray = @($AllRouteTables -split '\s+' | Where-Object { $_ -match '^rtb-' })
 
+    # 1. Eliminar rutas 0.0.0.0/0 y ::/0 en TODAS las tablas de ruta (incluso la principal)
+    foreach ($rt in $AllRtArray) {
+        aws ec2 delete-route --route-table-id $rt --destination-cidr-block 0.0.0.0/0 2>$null | Out-Null
+        aws ec2 delete-route --route-table-id $rt --destination-ipv6-cidr-block ::/0 2>$null | Out-Null
+    }
+
+    # 2. Desasociar todas las subredes de tablas de ruta personalizadas y eliminarlas
     foreach ($rt in $AllRtArray) {
         if ($MainRtArray -notcontains $rt) {
             $rtAssocs = aws ec2 describe-route-tables --route-table-ids $rt --query "RouteTables[0].Associations[*].RouteTableAssociationId" --output text 2>$null
@@ -321,8 +328,63 @@ foreach ($VpcId in $VpcArray) {
         }
     }
 
-    # E. Romper Dependencias Circulares en los 5 Security Groups (sg_alb_ext, sg_front, sg_alb_int, sg_back, sg_data) y eliminarlos
-    Write-Host "  -> Revocando reglas entre Security Groups (3 capas) y eliminándolos..." -ForegroundColor Cyan
+    # D. Desasociar y Eliminar Internet Gateways (portal_igw)
+    Write-Host "  -> Desasociando y eliminando Internet Gateways adjuntos a la VPC $VpcId..." -ForegroundColor Cyan
+    $IgwIds = aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VpcId" --query "InternetGateways[*].InternetGatewayId" --output text 2>$null
+    $IgwArray = @($IgwIds -split '\s+' | Where-Object { $_ -match '^igw-' })
+    foreach ($igw in $IgwArray) {
+        Write-Host "     Desasociando Internet Gateway: $igw..." -ForegroundColor Cyan
+        $detachRetry = 0
+        while ($detachRetry -lt 15) {
+            aws ec2 detach-internet-gateway --vpc-id $VpcId --internet-gateway-id $igw 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { 
+                Write-Host "     Internet Gateway $igw desasociado." -ForegroundColor Green
+                break 
+            }
+            Start-Sleep -Seconds 4
+            $detachRetry++
+        }
+        Write-Host "     Eliminando Internet Gateway: $igw..." -ForegroundColor Cyan
+        $delIgwRetry = 0
+        while ($delIgwRetry -lt 10) {
+            aws ec2 delete-internet-gateway --internet-gateway-id $igw 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { 
+                Write-Host "  -> Internet Gateway $igw eliminado con éxito." -ForegroundColor Green
+                break 
+            }
+            Start-Sleep -Seconds 4
+            $delIgwRetry++
+        }
+    }
+
+    # E. Drenaje y Forzado de Interfaces de Red (ENIs de ASG, ALBs, RDS y NAT Gateways)
+    Write-Host "`n[ENIs] Drenando y eliminando interfaces de red en la VPC $VpcId..." -ForegroundColor Yellow
+    $eniTimeout = 30 # Hasta 5 minutos
+    while ($eniTimeout -gt 0) {
+        $enisRaw = aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VpcId" --query "NetworkInterfaces[*].[NetworkInterfaceId,Status,Attachment.AttachmentId]" --output text 2>$null
+        $eniLines = @($enisRaw -split "`n" | Where-Object { $_ -match '^eni-' })
+        if ($eniLines.Count -eq 0) {
+            Write-Host "  -> Todas las interfaces de red (ENIs) han sido liberadas." -ForegroundColor Green
+            break
+        }
+        foreach ($line in $eniLines) {
+            $parts = $line.Trim() -split '\s+'
+            $eId = $parts[0]
+            $eStat = $parts[1]
+            $attId = if ($parts.Length -gt 2) { $parts[2] } else { $null }
+            if ($eStat -eq "available") {
+                aws ec2 delete-network-interface --network-interface-id $eId 2>$null | Out-Null
+            } elseif ($attId -and $attId -match '^eni-attach-') {
+                aws ec2 detach-network-interface --attachment-id $attId --force 2>$null | Out-Null
+            }
+        }
+        Write-Host "  -> Quedan $($eniLines.Count) interfaz(ces) activa(s). Esperando 10s a que AWS las libere..." -ForegroundColor DarkYellow
+        Start-Sleep -Seconds 10
+        $eniTimeout--
+    }
+
+    # F. Romper Dependencias Circulares en los 5 Security Groups (sg_alb_ext, sg_front, sg_alb_int, sg_back, sg_data) y eliminarlos
+    Write-Host "  -> Revocando reglas entre Security Groups y eliminándolos..." -ForegroundColor Cyan
     $SgIds = aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VpcId" --query "SecurityGroups[?GroupName!='default'].GroupId" --output text 2>$null
     if ($SgIds -and $SgIds -ne "None" -and $SgIds.Trim() -ne "") {
         foreach ($sg in ($SgIds -split '\s+' | Where-Object { $_ -match '^sg-' })) {
@@ -340,7 +402,7 @@ foreach ($VpcId in $VpcArray) {
         }
 
         $retrySg = 0
-        while ($retrySg -lt 10) {
+        while ($retrySg -lt 12) {
             $remainingSgs = aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VpcId" --query "SecurityGroups[?GroupName!='default'].GroupId" --output text 2>$null
             $remSgArray = @($remainingSgs -split '\s+' | Where-Object { $_ -match '^sg-' })
             if ($remSgArray.Count -eq 0) {
@@ -355,10 +417,10 @@ foreach ($VpcId in $VpcArray) {
         }
     }
 
-    # F. Eliminar las 6 Subredes (portal_sub_front_a/b, portal_sub_back_a/b, portal_sub_data_a/b)
+    # G. Eliminar las 6 Subredes Multi-AZ
     Write-Host "  -> Eliminando las 6 Subredes Multi-AZ..." -ForegroundColor Cyan
     $retrySub = 0
-    while ($retrySub -lt 10) {
+    while ($retrySub -lt 25) { # Hasta 2 minutos
         $remainingSubs = aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VpcId" --query "Subnets[*].SubnetId" --output text 2>$null
         $subArray = @($remainingSubs -split '\s+' | Where-Object { $_ -match '^subnet-' })
         if ($subArray.Count -eq 0) {
@@ -366,32 +428,20 @@ foreach ($VpcId in $VpcArray) {
             break
         }
         foreach ($sub in $subArray) {
+            $subAssocs = aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$sub" --query "RouteTables[*].Associations[?SubnetId=='$sub'].RouteTableAssociationId" --output text 2>$null
+            foreach ($assoc in ($subAssocs -split '\s+' | Where-Object { $_ -match '^rtbassoc-' })) {
+                aws ec2 disassociate-route-table --association-id $assoc 2>$null | Out-Null
+            }
             aws ec2 delete-subnet --subnet-id $sub 2>$null | Out-Null
         }
-        Start-Sleep -Seconds 4
+        Start-Sleep -Seconds 5
         $retrySub++
-    }
-
-    # G. Desasociar y eliminar Internet Gateway (portal_igw)
-    $IgwIds = aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VpcId" --query "InternetGateways[*].InternetGatewayId" --output text 2>$null
-    if ($IgwIds -and $IgwIds -ne "None" -and $IgwIds.Trim() -ne "") {
-        foreach ($igw in ($IgwIds -split '\s+' | Where-Object { $_ -match '^igw-' })) {
-            Write-Host "  -> Desasociando y eliminando Internet Gateway: $igw..." -ForegroundColor Cyan
-            $retryIgw = 0
-            while ($retryIgw -lt 6) {
-                aws ec2 detach-internet-gateway --vpc-id $VpcId --internet-gateway-id $igw 2>$null | Out-Null
-                aws ec2 delete-internet-gateway --internet-gateway-id $igw 2>$null | Out-Null
-                if ($LASTEXITCODE -eq 0) { break }
-                Start-Sleep -Seconds 4
-                $retryIgw++
-            }
-        }
     }
 
     # H. Eliminar VPC (portal_vpc)
     Write-Host "  -> Eliminando VPC: $VpcId..." -ForegroundColor Cyan
     $retryVpc = 0
-    while ($retryVpc -lt 10) {
+    while ($retryVpc -lt 12) {
         aws ec2 delete-vpc --vpc-id $VpcId 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  -> VPC $VpcId eliminada completamente." -ForegroundColor Green
@@ -402,12 +452,34 @@ foreach ($VpcId in $VpcArray) {
     }
 }
 
-# Limpiar cualquier Internet Gateway huérfano con tag portal_igw
-$OrphanIgws = aws ec2 describe-internet-gateways --filters "Name=tag:Name,Values=portal_igw" --query "InternetGateways[*].InternetGatewayId" --output text 2>$null
-foreach ($oIgw in ($OrphanIgws -split '\s+' | Where-Object { $_ -match '^igw-' })) {
-    aws ec2 delete-internet-gateway --internet-gateway-id $oIgw 2>$null | Out-Null
+# Barrido adicional: eliminar cualquier subred huérfana con tag portal_sub_*
+$orphanSubs = aws ec2 describe-subnets --filters "Name=tag:Name,Values=portal_sub_*" --query "Subnets[*].SubnetId" --output text 2>$null
+$orphanSubArray = @($orphanSubs -split '\s+' | Where-Object { $_ -match '^subnet-' })
+if ($orphanSubArray.Count -gt 0) {
+    Write-Host "  -> Eliminando subredes huérfanas con tag portal_sub_* ($($orphanSubArray.Count))..." -ForegroundColor Cyan
+    foreach ($osub in $orphanSubArray) {
+        $subAssocs = aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$osub" --query "RouteTables[*].Associations[?SubnetId=='$osub'].RouteTableAssociationId" --output text 2>$null
+        foreach ($assoc in ($subAssocs -split '\s+' | Where-Object { $_ -match '^rtbassoc-' })) {
+            aws ec2 disassociate-route-table --association-id $assoc 2>$null | Out-Null
+        }
+        aws ec2 delete-subnet --subnet-id $osub 2>$null | Out-Null
+    }
 }
 
+# Barrido adicional: desasociar y eliminar cualquier Internet Gateway con tag portal_igw
+$OrphanIgws = aws ec2 describe-internet-gateways --filters "Name=tag:Name,Values=portal_igw" --query "InternetGateways[*].InternetGatewayId" --output text 2>$null
+foreach ($oIgw in ($OrphanIgws -split '\s+' | Where-Object { $_ -match '^igw-' })) {
+    $attVpc = aws ec2 describe-internet-gateways --internet-gateway-ids $oIgw --query "InternetGateways[0].Attachments[0].VpcId" --output text 2>$null
+    if ($attVpc -and $attVpc -ne "None" -and $attVpc -match '^vpc-') {
+        $rts = aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$attVpc" --query "RouteTables[*].RouteTableId" --output text 2>$null
+        foreach ($rtId in ($rts -split '\s+' | Where-Object { $_ -match '^rtb-' })) {
+            aws ec2 delete-route --route-table-id $rtId --destination-cidr-block 0.0.0.0/0 2>$null | Out-Null
+        }
+        aws ec2 detach-internet-gateway --vpc-id $attVpc --internet-gateway-id $oIgw 2>$null | Out-Null
+    }
+    aws ec2 delete-internet-gateway --internet-gateway-id $oIgw 2>$null | Out-Null
+    Write-Host "  -> Internet Gateway huérfano $oIgw eliminado." -ForegroundColor Green
+}
 # 8. Fase 7: Eliminar Buckets de S3 (portal-cvs, portal-avatars, portal-deliverables)
 Write-Host "`n[Fase 7: Almacenamiento S3] Eliminando Buckets de S3..." -ForegroundColor Yellow
 $BucketsToRemove = @()
@@ -430,11 +502,11 @@ foreach ($bucket in $BucketsToRemove) {
             aws s3 rm "s3://$bucket" --recursive 2>$null | Out-Null
             aws s3 rb "s3://$bucket" --force 2>$null | Out-Null
         }
-        Write-Host "  -> Bucket $bucket eliminado con éxito." -ForegroundColor Green
+        Write-Host "  -> Bucket $bucket eliminado con Ã©xito." -ForegroundColor Green
     }
 }
 
-# 8. Barrido final de IPs Elásticas y archivos temporales locales (lt_back.json, lt_front.json, etc.)
+# 8. Barrido final de IPs ElÃ¡sticas y archivos temporales locales (lt_back.json, lt_front.json, etc.)
 Release-ElasticIPs
 
 Get-ChildItem -Path $PSScriptRoot -Filter "lt_*.json" | Remove-Item -Force -ErrorAction SilentlyContinue
@@ -445,5 +517,5 @@ Get-ChildItem -Path $PSScriptRoot -Filter "cf_*.json" | Remove-Item -Force -Erro
 Get-ChildItem -Path $PSScriptRoot -Filter "test_live_out.txt" | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
-Write-Host "¡Destrucción Arquitectura 1 Finalizada al 100%!" -ForegroundColor Green -BackgroundColor Black
+Write-Host "Â¡DestrucciÃ³n Arquitectura 1 Finalizada al 100%!" -ForegroundColor Green -BackgroundColor Black
 Write-Host "=======================================================" -ForegroundColor Cyan

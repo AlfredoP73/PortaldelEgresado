@@ -19,6 +19,7 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../events/presentation/events_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../alumni/presentation/alumni_directory_screen.dart';
+import '../../../core/services/push_notification_service.dart';
 
 class MainLayoutScreen extends StatefulWidget {
   final int initialIndex;
@@ -27,6 +28,16 @@ class MainLayoutScreen extends StatefulWidget {
   static void switchTab(BuildContext context, int index) {
     final state = context.findAncestorStateOfType<_MainLayoutScreenState>();
     state?.setTab(index);
+  }
+
+  static void refreshUserProfile(BuildContext context) {
+    final state = context.findAncestorStateOfType<_MainLayoutScreenState>();
+    state?._loadUserProfile();
+  }
+
+  static void refreshDashboard(BuildContext context) {
+    final state = context.findAncestorStateOfType<_MainLayoutScreenState>();
+    state?._refreshDashboard();
   }
 
   @override
@@ -41,6 +52,18 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   WebSocketChannel? _wsChannel;
   Timer? _pollTimer;
 
+  String _userName = 'Egresado UPC';
+  String _userEmail = '';
+  String _userRole = 'Egresado UPC';
+  String _userInitials = 'U';
+  String? _profilePictureUrl;
+
+  final GlobalKey<DashboardScreenState> _dashboardKey = GlobalKey<DashboardScreenState>();
+
+  void _refreshDashboard() {
+    _dashboardKey.currentState?.loadDashboardData(silent: true);
+  }
+
   final List<String> _tabTitles = const [
     'Mi Dashboard',
     'Explorar Vacantes',
@@ -49,12 +72,12 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
     'Mi Hoja de Vida',
   ];
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    JobsScreen(),
-    MatchmakingScreen(),
-    ApplicationsScreen(),
-    ProfileScreen(),
+  late final List<Widget> _screens = [
+    DashboardScreen(key: _dashboardKey),
+    const JobsScreen(),
+    const MatchmakingScreen(),
+    const ApplicationsScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -73,8 +96,72 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
 
   void setTab(int index) {
     if (index >= 0 && index < _screens.length) {
+      final prev = _currentIndex;
       setState(() => _currentIndex = index);
+      if (index == 0) {
+        // Auto-refresca silenciosamente el dashboard al seleccionarlo
+        _dashboardKey.currentState?.loadDashboardData(silent: true);
+      }
+      if (index == 4 || prev == 4) {
+        _loadUserProfile();
+      }
     }
+  }
+
+  String? _resolveImageUrl(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    if (raw.startsWith('http')) return raw;
+    return '${ApiClient.rootUrl}$raw';
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final res = await ApiClient.instance.get('/modulo1/profile');
+      if (res.data is Map) {
+        final d = res.data as Map<String, dynamic>;
+        final fName = d['first_name']?.toString().trim() ?? '';
+        final lName = d['last_name']?.toString().trim() ?? '';
+        final full = '$fName $lName'.trim();
+        final pic = d['profile_picture_url']?.toString();
+        final email = d['email']?.toString().trim() ?? '';
+        String prog = '';
+        if (d['program'] is Map && d['program']['name'] != null) {
+          prog = d['program']['name'].toString().trim();
+        }
+
+        if (mounted) {
+          setState(() {
+            if (full.isNotEmpty) {
+              _userName = full;
+              final f = fName.isNotEmpty ? fName[0] : '';
+              final l = lName.isNotEmpty ? lName[0] : '';
+              _userInitials = '$f$l'.toUpperCase();
+              if (_userInitials.isEmpty) _userInitials = 'U';
+            }
+            if (pic != null && pic.isNotEmpty) {
+              _profilePictureUrl = pic;
+            }
+            if (email.isNotEmpty) {
+              _userEmail = email;
+            }
+            if (prog.isNotEmpty) {
+              _userRole = '$prog · Egresado UPC';
+            }
+          });
+
+          final prefs = await SharedPreferences.getInstance();
+          final cached = {
+            'first_name': fName,
+            'last_name': lName,
+            'full_name': full,
+            'email': email.isNotEmpty ? email : _userEmail,
+            'profile_picture_url': pic,
+            'program_name': prog,
+          };
+          await prefs.setString('cached_user_profile', jsonEncode(cached));
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _initNotificationsAndWs() async {
@@ -83,15 +170,67 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       final token = prefs.getString('jwt_token');
       int? gradId;
 
+      // 1. Read cached profile if available for instantaneous display
+      final cachedProfileStr = prefs.getString('cached_user_profile');
+      if (cachedProfileStr != null && cachedProfileStr.isNotEmpty) {
+        try {
+          final cp = jsonDecode(cachedProfileStr);
+          if (cp is Map) {
+            final full = cp['full_name']?.toString().trim() ?? '';
+            final pic = cp['profile_picture_url']?.toString();
+            final email = cp['email']?.toString().trim() ?? '';
+            final prog = cp['program_name']?.toString().trim() ?? '';
+            if (mounted) {
+              setState(() {
+                if (full.isNotEmpty) {
+                  _userName = full;
+                  final parts = full.split(' ');
+                  final f = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0] : '';
+                  final l = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                  _userInitials = '$f$l'.toUpperCase();
+                  if (_userInitials.isEmpty) _userInitials = 'U';
+                }
+                if (pic != null && pic.isNotEmpty) _profilePictureUrl = pic;
+                if (email.isNotEmpty) _userEmail = email;
+                if (prog.isNotEmpty) _userRole = '$prog · Egresado UPC';
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
       final userDataStr = prefs.getString('user_data');
       if (userDataStr != null && userDataStr.isNotEmpty) {
         try {
           final u = jsonDecode(userDataStr);
-          if (u is Map && u['id'] != null) {
-            gradId = u['id'] is int ? u['id'] as int : int.tryParse(u['id'].toString());
+          if (u is Map) {
+            if (u['id'] != null) {
+              gradId = u['id'] is int ? u['id'] as int : int.tryParse(u['id'].toString());
+            }
+            final fName = u['first_name']?.toString().trim() ?? '';
+            final lName = u['last_name']?.toString().trim() ?? '';
+            final full = '$fName $lName'.trim();
+            final email = u['email']?.toString().trim() ?? '';
+            final role = u['role_name']?.toString() ?? 'GRADUATE';
+            if (mounted) {
+              setState(() {
+                if (full.isNotEmpty && _userName == 'Egresado UPC') {
+                  _userName = full;
+                  _userInitials = '${fName.isNotEmpty ? fName[0] : ''}${lName.isNotEmpty ? lName[0] : ''}'.toUpperCase();
+                  if (_userInitials.isEmpty) _userInitials = 'U';
+                }
+                if (_userEmail.isEmpty && email.isNotEmpty) _userEmail = email;
+                if (_userRole == 'Egresado UPC') {
+                  _userRole = role == 'COMPANY' ? 'Empresa' : (role == 'ADMIN' ? 'Administrador' : 'Egresado UPC');
+                }
+              });
+            }
           }
         } catch (_) {}
       }
+
+      // 2. Fetch fresh profile from backend
+      _loadUserProfile();
 
       if (gradId == null && token != null && token.isNotEmpty) {
         try {
@@ -412,7 +551,10 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       backgroundColor: context.bgColor,
       extendBody: true,
 
-      // ── Executive Floating Top Header Bar (Matches Layout.tsx Header Flotante) ──
+      // ── Floating Modern Sidebar (Drawer) ──
+      drawer: _buildFloatingSidebar(context, themeProvider),
+
+      // ── Executive Clean Header Bar ──
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(74),
         child: SafeArea(
@@ -450,30 +592,55 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   ),
                   child: Row(
                     children: [
-                      // Institutional Brand Emblem with subtle glow
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.22),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.28),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                      // Boton Menu Flotante (Emblema UPC / Foto que abre el Sidebar al pulsar)
+                      Builder(
+                        builder: (btnCtx) {
+                          final resolvedPhoto = _resolveImageUrl(_profilePictureUrl);
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(13),
+                            onTap: () => Scaffold.of(btnCtx).openDrawer(),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                gradient: resolvedPhoto != null ? null : AppTheme.primaryGradient,
+                                color: resolvedPhoto != null ? AppTheme.primaryColor : null,
+                                borderRadius: BorderRadius.circular(13),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.28),
+                                  width: 1.2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primaryColor.withValues(alpha: 0.28),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: resolvedPhoto != null
+                                    ? Image.network(
+                                        resolvedPhoto,
+                                        width: 38,
+                                        height: 38,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Icon(
+                                          Icons.menu_rounded,
+                                          color: Colors.white,
+                                          size: 21,
+                                        ),
+                                      )
+                                    : const Icon(Icons.menu_rounded, color: Colors.white, size: 21),
+                              ),
                             ),
-                          ],
-                        ),
-                        child: const Icon(Icons.school_rounded, color: Colors.white, size: 19),
+                          );
+                        },
                       ),
-                      const SizedBox(width: 11),
+                      const SizedBox(width: 12),
 
-                      // Two-tier Executive Title + Status Eyebrow
+                      // Titulo Completo sin recortes
                       Expanded(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -490,71 +657,35 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 5),
-                                const Flexible(
-                                  child: Text(
-                                    'PORTAL EGRESADO',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.9,
-                                      color: AppTheme.primaryColor,
-                                    ),
+                                const Text(
+                                  'PORTAL EGRESADO',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.9,
+                                    color: AppTheme.primaryColor,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 1.5),
+                            const SizedBox(height: 2),
                             Text(
                               _tabTitles[_currentIndex],
-                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: context.primaryText,
                                 letterSpacing: -0.3,
-                                height: 1.15,
                               ),
                             ),
                           ],
                         ),
                       ),
 
-                      // Right Action Buttons (Circular Pills matching Layout.tsx)
+                      // Accion Rapida 1: Mensajeria Directa
                       _buildHeaderActionBtn(
                         context,
-                        tooltip: context.isDark ? 'Modo Claro' : 'Modo Oscuro',
-                        icon: context.isDark ? Icons.wb_sunny_rounded : Icons.dark_mode_outlined,
-                        onTap: () => themeProvider.toggleTheme(!context.isDark),
-                      ),
-                      const SizedBox(width: 6),
-                      _buildHeaderActionBtn(
-                        context,
-                        tooltip: 'Directorio y Red de Contactos',
-                        icon: Icons.people_alt_outlined,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const AlumniDirectoryScreen()),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _buildHeaderActionBtn(
-                        context,
-                        tooltip: 'Eventos y Ferias',
-                        icon: Icons.event_available_outlined,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const EventsScreen()),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _buildHeaderActionBtn(
-                        context,
-                        tooltip: 'Mensajería Directa',
+                        tooltip: 'Mensajes Directos',
                         icon: Icons.chat_bubble_outline_rounded,
                         onTap: () {
                           Navigator.push(
@@ -563,28 +694,9 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                           );
                         },
                       ),
-                      const SizedBox(width: 6),
-                      _buildHeaderActionBtn(
-                        context,
-                        tooltip: 'Mi cuenta y seguridad',
-                        icon: Icons.vpn_key_outlined,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _buildHeaderActionBtn(
-                        context,
-                        tooltip: 'Gestión de Privacidad (Habeas Data)',
-                        icon: Icons.shield_outlined,
-                        onTap: () => Navigator.pushNamed(context, '/privacy_settings'),
-                      ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
 
-                      // Notifications Bell Circular Pill with Unread Badge
+                      // Accion Rapida 2: Notifications Bell Circular Pill with Unread Badge
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -781,4 +893,380 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       ),
     );
   }
+
+  Future<void> _logout() async {
+    await PushNotificationService.unregisterTokenFromBackend();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('jwt_token');
+    await prefs.remove('user_data');
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+    }
+  }
+
+  Widget _buildFloatingSidebar(BuildContext context, ThemeProvider themeProvider) {
+    final resolvedPhoto = _resolveImageUrl(_profilePictureUrl);
+
+    return Drawer(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: context.isDark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : const Color(0xFFD6E4DE),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: context.isDark ? 0.40 : 0.12),
+                blurRadius: 28,
+                offset: const Offset(4, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: Column(
+              children: [
+                // 1. User Profile Header
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: context.isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : const Color(0xFFE5EDE9),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.primaryColor,
+                          border: Border.all(
+                            color: AppTheme.brand500.withValues(alpha: 0.4),
+                            width: 2.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: resolvedPhoto != null
+                              ? Image.network(
+                                  resolvedPhoto,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Center(
+                                    child: Text(
+                                      _userInitials,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    _userInitials,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _userName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: context.primaryText,
+                              ),
+                            ),
+                            if (_userEmail.isNotEmpty)
+                              Text(
+                                _userEmail,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: context.secondaryText,
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.brand500.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                _userRole,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 2. Scrollable Navigation Items
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    children: [
+                      _buildSidebarSectionTitle('COMUNIDAD & RED'),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.hub_rounded,
+                        title: 'Mi Red Profesional',
+                        subtitle: 'Sugerencias de afinidad y directorio',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const AlumniDirectoryScreen()),
+                          );
+                        },
+                      ),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.chat_bubble_outline_rounded,
+                        title: 'Mensajería Directa',
+                        subtitle: 'Chats y conversaciones con egresados',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const MessagesScreen()),
+                          );
+                        },
+                      ),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.event_available_outlined,
+                        title: 'Eventos & Ferias UPC',
+                        subtitle: 'Convocatorias y actividades',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const EventsScreen()),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 12),
+                      _buildSidebarSectionTitle('AJUSTES & SEGURIDAD'),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.vpn_key_outlined,
+                        title: 'Mi Cuenta & Credenciales',
+                        subtitle: 'Contraseña y seguridad de acceso',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                          );
+                        },
+                      ),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.shield_outlined,
+                        title: 'Gestión de Privacidad',
+                        subtitle: 'Consentimiento Habeas Data',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/privacy_settings');
+                        },
+                      ),
+
+                      const SizedBox(height: 12),
+                      _buildSidebarSectionTitle('PREFERENCIAS'),
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: context.mutedColor.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              context.isDark ? Icons.wb_sunny_rounded : Icons.dark_mode_outlined,
+                              size: 20,
+                              color: AppTheme.primaryColor,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                context.isDark ? 'Modo Oscuro' : 'Modo Claro',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.primaryText,
+                                ),
+                              ),
+                            ),
+                            Switch.adaptive(
+                              activeColor: AppTheme.primaryColor,
+                              value: context.isDark,
+                              onChanged: (val) => themeProvider.toggleTheme(val),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Footer / Logout
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _logout();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.2)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Cerrar Sesión',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.9,
+          color: AppTheme.primaryColor.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: AppTheme.primaryColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: context.primaryText,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: context.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 18, color: context.tertiaryText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 }
