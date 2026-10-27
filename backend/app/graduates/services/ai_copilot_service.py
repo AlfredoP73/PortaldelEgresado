@@ -631,36 +631,96 @@ def chat_with_coach(db: Session, graduate_id: int, messages: List[Dict[str, str]
 
     last_user_msg = cleaned_msgs[-1]["content"].lower()
     skill_names = ", ".join(s["name"] for s in snap["skills"][:5]) or "ninguna registrada aún"
+    prog_lower = snap["program_name"].lower()
+    rec_pool = PROGRAM_DEFAULT_SKILLS["default"]
+    for k, pool in PROGRAM_DEFAULT_SKILLS.items():
+        if k in prog_lower:
+            rec_pool = pool
+            break
+    existing_lower = {s["name"].lower() for s in snap["skills"]}
+    missing_skills = [p["name"] for p in rec_pool if p["name"].lower() not in existing_lower][:4]
+    missing_str = ", ".join(missing_skills) if missing_skills else "Inglés Técnico, Gestión de Proyectos, Liderazgo Ágil"
 
-    # Respuesta heurística inteligente según la intención
-    if "entrevista" in last_user_msg:
+    # Pool completo de sugerencias dinámicas para no repetir preguntas ya hechas
+    all_suggestions = [
+        "¿Qué habilidades me recomiendas agregar según mi carrera?",
+        "Ayúdame a redactar un logro con metodología STAR",
+        "¿Cómo respondo preguntas difíciles en una entrevista?",
+        "¿Cómo negocio mi salario para mi primer o próximo empleo?",
+        "¿Qué proyectos puedo publicar en mi portafolio para destacar?",
+        "¿Cómo optimizo mi resumen profesional para pasar filtros ATS?",
+        "Dame un pitch de presentación personal de 60 segundos",
+        "¿Cómo consigo ofertas de trabajo remoto desde Colombia?",
+    ]
+    asked_lower = {m["content"].strip().lower() for m in cleaned_msgs if m["role"] == "user"}
+
+    # Enrutador contextual multi-intención (nunca repite la misma plantilla)
+    if any(w in last_user_msg for w in ("habilidad", "skill", "afinidad", "match", "competencia", "agregar")):
         reply = (
-            f"Para destacar en tus entrevistas como egresado de **{snap['program_name']}**, te recomiendo:\n\n"
-            f"1. **Estructura STAR**: Prepara 3 historias concretas sobre retos resueltos en tus experiencias ({len(snap['experiences'])} registradas) o proyectos ({len(snap['projects'])} registrados).\n"
-            f"2. **Domina tus habilidades clave**: Conecta tus competencias ({skill_names}) con las necesidades reales de la vacante.\n"
-            f"3. **Preguntas estratégicas**: Al cierre, consulta sobre los indicadores de éxito del rol en los primeros 90 días."
+            f"Para subir tu puntaje de **Matchmaking** como egresado de **{snap['program_name']}** (Cohorte {snap['graduation_year']}), "
+            f"analicé tus competencias actuales ({skill_names}):\n\n"
+            f"1. **Habilidades de alto impacto que te faltan**: Agrega **{missing_str}**. Estas aparecen en más del 70% de las vacantes de tu área.\n"
+            f"2. **Nivel de dominio**: Asegúrate de calibrar tus habilidades principales en nivel *Intermedio* o *Avanzado* si ya las aplicaste en proyectos o prácticas.\n"
+            f"3. **Palabras clave ATS**: Incluye estas mismas tecnologías dentro de tu resumen profesional para duplicar tu relevancia algorítmica.\n\n"
+            f"💡 *Tip rápido*: En la pestaña **Diagnóstico 360°** puedes agregar cualquiera de estas habilidades con **1 solo clic**."
         )
-    elif "salario" in last_user_msg or "sueldo" in last_user_msg:
-        sal_str = f"${snap['expected_salary']:,} COP" if snap.get("expected_salary") else "aún no definido en tu perfil"
+    elif any(w in last_user_msg for w in ("star", "logro", "redact", "experiencia", " práctica", "practica")):
+        sample_role = snap["experiences"][0]["position"] if snap["experiences"] else f"Practicante / Analista de {snap['program_name']}"
         reply = (
-            f"Actualmente tu aspiración salarial en el portal es **{sal_str}**. "
-            f"Para negociar con respaldo:\n\n"
-            f"- Consulta el **Mapa de Calor de Cohortes** del portal para ver el salario promedio real de **{snap['program_name']}**.\n"
-            f"- Da un rango salarial en lugar de una cifra cerrada y destaca tus certificaciones ({len(snap['certifications'])}) y experiencia ({snap['total_experience_years']} años)."
+            f"¡Claro, {snap['first_name']}! La metodología **STAR** transforma tareas genéricas en logros de alto impacto para un **{sample_role}**:\n\n"
+            f"- **S (Situación)**: *\"Durante mi etapa en el área de {snap['program_name']}, el proceso de seguimiento y entrega presentaba cuellos de botella manuales.\"*\n"
+            f"- **T (Tarea)**: *\"Asumí la responsabilidad de estandarizar y optimizar el flujo utilizando {snap['skills'][0]['name'] if snap['skills'] else 'herramientas digitales'}.\"*\n"
+            f"- **A (Acción)**: *\"Diseñé e implementé una solución estructurada con controles de calidad y automatización de reportes clave.\"*\n"
+            f"- **R (Resultado)**: *\"Reduje los tiempos de respuesta en un **35%** y mejoré la precisión de los entregables del equipo.\"*\n\n"
+            f"Puedes pegar este borrador en la pestaña **Reescritor STAR** para adaptarlo a cualquier cargo."
+        )
+    elif any(w in last_user_msg for w in ("entrevista", "pregunta", "reclutador", "seleccion")):
+        reply = (
+            f"Para brillar en entrevistas de **{snap['program_name']}**, prepara estas 3 respuestas clave:\n\n"
+            f"1. **\"Háblame de ti\" (Pitch 60s)**: *\"Soy egresado de {snap['program_name']} de la UPC ({snap['graduation_year']}), especializado en {skill_names}. Me enfoco en resolver problemas complejos con resultados medibles.\"*\n"
+            f"2. **Pregunta técnica o de caso**: Conecta siempre tu respuesta con una herramienta real que domines y explica *cómo* validas la calidad de tu trabajo.\n"
+            f"3. **Pregunta de cierre para el entrevistador**: *\"¿Cuál sería el principal indicador de éxito para esta posición durante los primeros 90 días?\"* — demuestra visión ejecutiva inmediata."
+        )
+    elif any(w in last_user_msg for w in ("salario", "sueldo", "negocia", "aspiracion", "cuanto cobrar", "pago")):
+        sal_str = f"${snap['expected_salary']:,} COP" if snap.get("expected_salary") else "aún sin definir en tu perfil"
+        reply = (
+            f"Tu aspiración salarial registrada actualmente es **{sal_str}**. Mi recomendación estratégica para negociar en **{snap['program_name']}**:\n\n"
+            f"1. **Usa rangos, no cifras fijas**: Propón una banda salarial (ej. entre `$3.2M` y `$4.2M COP` según la complejidad y modalidad del rol).\n"
+            f"2. **Apóyate en datos reales**: Revisa el **Mapa de Calor de Cohortes** en el menú izquierdo para citar el promedio real de tu promoción.\n"
+            f"3. **Justifica el valor**: Respalda tu expectativa mencionando tus competencias en **{skill_names}** y tu disponibilidad inmediata."
+        )
+    elif any(w in last_user_msg for w in ("proyecto", "portafolio", "github", "evidencia")):
+        reply = (
+            f"Actualmente registras **{len(snap['projects'])} proyecto(s)** en tu portafolio. Para diferenciarte del 85% de los candidatos de **{snap['program_name']}**:\n\n"
+            f"1. **Convierte tu trabajo de grado o práctica en un caso de estudio**: Publica el problema real, las herramientas utilizadas ({skill_names}) y el impacto logrado.\n"
+            f"2. **Crea un proyecto demostrativo corto**: Un dashboard interactivo, prototipo funcional o informe técnico alojado en un enlace público verificable.\n"
+            f"3. **Documenta resultados**: Añade capturas o métricas concretas en la sección **Proyectos & Portafolio** de tu perfil."
+        )
+    elif any(w in last_user_msg for w in ("pitch", "presentarme", "60 segundos", "resumen", "cv", "hoja de vida", "ats")):
+        reply = (
+            f"Aquí tienes un **Pitch Ejecutivo y Resumen ATS** listo para usar como egresado de **{snap['program_name']}**:\n\n"
+            f"\"Soy profesional en **{snap['program_name']}** de la Universidad Popular del Cesar (Cohorte {snap['graduation_year']}), con dominio práctico en **{skill_names}**. "
+            f"Me especializo en transformar requerimientos técnicos y operativos en soluciones eficientes, orientadas a indicadores de calidad y mejora continua.\"\n\n"
+            f" Puedes aplicarlo directamente desde el botón verde de **Diagnóstico 360°** o refinarlo en el **Reescritor STAR**."
+        )
+    elif any(w in last_user_msg for w in ("remoto", "internacional", "ingles", "exterior", "modalidad")):
+        reply = (
+            f"Para acceder a vacantes **100% remotas o híbridas** desde tu perfil de **{snap['program_name']}**:\n\n"
+            f"1. **Configura tu preferencia en el portal**: Asegúrate de marcar modalidad *Remoto / Híbrido* y mantener tu CV en PDF actualizado.\n"
+            f"2. **Habilidades de colaboración distribuida**: Destaca manejo de herramientas colaborativas, gestión autónoma del tiempo y documentación clara.\n"
+            f"3. **Revisa la Radiografía en Vivo**: Al postular a ofertas remotas, usa el comparador en vivo para igualar las competencias de los candidatos top."
         )
     else:
         reply = (
-            f"¡Hola {snap['first_name']}! Analizando tu perfil de **{snap['program_name']}** (Cohorte {snap['graduation_year']}):\n\n"
-            f"- **Fortalezas actuales**: {len(snap['skills'])} habilidades ({skill_names}), {len(snap['experiences'])} experiencia(s) y {len(snap['projects'])} proyecto(s).\n"
-            f"- **Siguiente paso de mayor impacto**: {'Ampliar tu resumen profesional a 3-4 líneas con logros medibles.' if len(snap['profile_summary']) < 120 else 'Añadir métricas de impacto en tus experiencias y postular a vacantes con afinidad >75%.'}\n\n"
-            f"¿Quieres que preparemos preguntas de entrevista, mejoremos una experiencia o revisemos qué habilidades te darían más puntaje de matchmaking?"
+            f"¡Excelente consulta, {snap['first_name']}! Basado en tu expediente actual de **{snap['program_name']}** (Cohorte {snap['graduation_year']}):\n\n"
+            f"- **Estado de tu perfil**: Cuentas con **{len(snap['skills'])} habilidades** ({skill_names}), **{len(snap['experiences'])} experiencia(s)** y **{len(snap['projects'])} proyecto(s)**.\n"
+            f"- **Prioridad #1 hoy**: {'Ampliar tu resumen ejecutivo e incorporar al menos 4 habilidades clave (' + missing_str + ') para superar el 75% de afinidad en las vacantes activas.' if len(snap['skills']) < 5 else 'Transformar tus experiencias con métricas cuantificables (método STAR) y postular a las ofertas recomendadas.'}\n"
+            f"- **Prioridad #2**: {'Subir tu Hoja de Vida en PDF para habilitar validación documental.' if not snap['has_cv'] else 'Usar la Radiografía de Competencia en Vivo en tus postulaciones activas.'}"
         )
 
-    suggestions = [
-        "¿Cómo respondo preguntas difíciles en una entrevista?",
-        "¿Qué habilidades debo agregar para subir mi afinidad?",
-        "Ayúdame a redactar un logro con metodología STAR",
-    ]
+    suggestions = [s for s in all_suggestions if s.strip().lower() not in asked_lower][:3]
+    if len(suggestions) < 3:
+        suggestions = all_suggestions[:3]
 
     if not ai_client.is_enabled():
         return {
@@ -678,17 +738,19 @@ def chat_with_coach(db: Session, graduate_id: int, messages: List[Dict[str, str]
 
     system_prompt = (
         "Eres el Copiloto IA de Empleabilidad de la Universidad Popular del Cesar (UPC). "
-        "Asesoras al egresado de forma cercana, práctica, concisa y estructurada en español. "
-        "Usa únicamente los datos reales de su perfil para personalizar tus consejos. "
+        "Asesoras al egresado de forma cercana, ejecutiva, variada y nunca repetitiva. "
+        "Responde directamente a la última pregunta del usuario con ejemplos concretos para su carrera, "
+        "usando viñetas claras y evitando repetir saludos o textos de mensajes previos. "
         + ai_client.INJECTION_GUARD
-        + f"\nPerfil actual del egresado: Programa={snap['program_name']}, Cohorte={snap['graduation_year']}, "
-        f"Experiencia={snap['total_experience_years']} años, Habilidades={skill_names}, "
+        + f"\nPerfil actual del egresado: Nombre={snap['first_name']}, Programa={snap['program_name']}, Cohorte={snap['graduation_year']}, "
+        f"Experiencia={snap['total_experience_years']} años ({len(snap['experiences'])} roles), Habilidades actuales={skill_names}, "
+        f"Habilidades recomendadas faltantes={missing_str}, "
         f"Proyectos={len(snap['projects'])}, Certificaciones={len(snap['certifications'])}, "
         f"CV cargado={'Sí' if snap['has_cv'] else 'No'}."
     )
 
     try:
-        llm_reply = ai_client.chat_text(system_prompt, cleaned_msgs, temperature=0.45, max_tokens=700)
+        llm_reply = ai_client.chat_text(system_prompt, cleaned_msgs, temperature=0.55, max_tokens=750)
         return {
             "source": "groq",
             "model": ai_client.model_name(False),

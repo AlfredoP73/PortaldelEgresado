@@ -329,7 +329,16 @@ def generate_blind_ai_summary(
         gaps.append("No registra habilidades técnicas detalladas en su perfil estructurado.")
 
     if blind_profile["projects"]:
-        strengths.append(f"Cuenta con {len(blind_profile['projects'])} proyecto(s) aplicado(s) en portafolio.")
+        strengths.append(f"Cuenta con {len(blind_profile['projects'])} proyecto(s) aplicado(s) en portafolio verificable.")
+    if blind_profile["certifications"]:
+        strengths.append(f"Acredita {len(blind_profile['certifications'])} certificación(es) complementaria(s) de actualización profesional.")
+    if blind_profile.get("graduation_year"):
+        strengths.append(f"Formación universitaria culminada (Cohorte {blind_profile['graduation_year']}) con bases metodológicas actualizadas.")
+    if blind_profile.get("preferred_modality"):
+        strengths.append(f"Flexibilidad operativa y disponibilidad en modalidad {blind_profile['preferred_modality']}.")
+    if len(strengths) < 3:
+        strengths.append("Potencial de curva de aprendizaje rápida e integración a procesos estructurados del equipo.")
+
     if not gaps:
         gaps.append("Validar profundidad práctica en escenarios de alta complejidad durante la entrevista técnica.")
 

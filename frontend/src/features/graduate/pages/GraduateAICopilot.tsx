@@ -1,33 +1,33 @@
 import { useEffect, useState } from 'react';
 import {
-  Sparkles, Wand2, MessageSquare, CheckCircle2, AlertTriangle,
-  Plus, Copy, Check, Send, RefreshCw, Target, Award, Calendar, ArrowRight
+  Sparkles, Target, Wand2, MessageSquare, CheckCircle2,
+  Plus, RefreshCw, Send, Copy, Check, Calendar, Award,
+  ArrowRight, AlertTriangle, Zap, ShieldCheck, Layers, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { graduatesApi } from '../../../api/index';
 import {
   analyzeProfileWithAi,
   rewriteWithAi,
   chatWithCoach,
   type CoachAnalysis,
   type CoachRewrite,
-  type CoachChatMessage,
 } from '../../../api/aiServices';
-import { graduatesApi } from '../../../api';
-
-type CopilotTab = 'diagnosis' | 'rewriter' | 'chat';
 
 export default function GraduateAICopilot() {
-  const [activeTab, setActiveTab] = useState<CopilotTab>('diagnosis');
+  const [activeTab, setActiveTab] = useState<'diagnosis' | 'rewriter' | 'chat'>('diagnosis');
 
-  // --- Tab 1: Diagnóstico 360° ---
+  // Tab 1: Diagnóstico 360°
   const [targetRole, setTargetRole] = useState('');
   const [analysis, setAnalysis] = useState<CoachAnalysis | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(true);
   const [applyingSummary, setApplyingSummary] = useState(false);
   const [addingSkillName, setAddingSkillName] = useState<string | null>(null);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+  const [copiedHeadline, setCopiedHeadline] = useState(false);
 
-  // --- Tab 2: Reescritor STAR ---
-  const [rewriteField, setRewriteField] = useState<'summary' | 'experience' | 'project' | 'headline' | 'cover_letter'>('summary');
+  // Tab 2: Reescritor STAR
+  const [rewriteField, setRewriteField] = useState<'summary' | 'experience' | 'project' | 'cover_letter' | 'headline'>('experience');
   const [inputText, setInputText] = useState('');
   const [ctxPosition, setCtxPosition] = useState('');
   const [ctxCompany, setCtxCompany] = useState('');
@@ -35,20 +35,22 @@ export default function GraduateAICopilot() {
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // --- Tab 3: Coach Conversacional ---
-  const [messages, setMessages] = useState<CoachChatMessage[]>([
+  // Tab 3: Chat Coach
+  const initialMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [
     {
       role: 'assistant',
       content:
-        '¡Hola! Soy tu Copiloto IA de Empleabilidad UPC. Conozco tu perfil académico, habilidades y proyectos. ¿En qué trabajamos hoy: optimizar tu resumen, preparar una entrevista o subir tu afinidad con vacantes?',
+        '¡Hola! Soy tu **Copiloto IA de Empleabilidad UPC**. Analizo tu expediente real para ayudarte a destacar ante reclutadores, superar filtros ATS, redactar logros con metodología STAR y preparar entrevistas. ¿Qué aspecto de tu carrera impulsamos hoy?',
     },
-  ]);
+  ];
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>(initialMessages);
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([
-    '¿Cómo mejoro mi resumen profesional para pasar filtros ATS?',
     '¿Qué habilidades me recomiendas agregar según mi carrera?',
-    'Prepárame 3 respuestas con método STAR para entrevista',
+    'Ayúdame a redactar un logro con metodología STAR',
+    '¿Cómo respondo preguntas difíciles en una entrevista?',
+    '¿Cómo negocio mi salario para mi próximo empleo?',
   ]);
 
   const runAnalysis = async (role?: string) => {
@@ -67,23 +69,30 @@ export default function GraduateAICopilot() {
     runAnalysis();
   }, []);
 
-  const handleApplySummaryToProfile = async (textToApply: string) => {
+  const handleApplySummaryToProfile = async (newSummary: string) => {
     try {
       setApplyingSummary(true);
       const profRes = await graduatesApi.get('/profile');
-      const current = profRes.data || {};
+      const current = profRes.data;
       await graduatesApi.post('/profile', {
         first_name: current.first_name,
         last_name: current.last_name,
-        program_id: current.program_id,
-        graduation_year: current.graduation_year,
-        phone: current.phone,
-        profile_summary: textToApply,
+        phone: current.phone || '',
+        profile_summary: newSummary,
+        availability_status: current.availability_status,
+        preferred_modality: current.preferred_modality,
+        expected_salary: current.expected_salary,
+        Current_Country: current.Current_Country,
+        Current_Department: current.Current_Department,
+        Current_City: current.Current_City,
+        work_country: current.work_country,
+        work_department: current.work_department,
+        work_city: current.work_city,
       });
-      toast.success('¡Resumen profesional actualizado en tu perfil oficial!');
+      toast.success('¡Resumen profesional actualizado en tu perfil!');
       runAnalysis(targetRole || undefined);
     } catch (err) {
-      toast.error('No se pudo aplicar el resumen al perfil');
+      toast.error('No se pudo actualizar el resumen en tu perfil');
     } finally {
       setApplyingSummary(false);
     }
@@ -94,12 +103,12 @@ export default function GraduateAICopilot() {
       setAddingSkillName(skillName);
       await graduatesApi.post('/profile/skills/quick-add', {
         skill_name: skillName,
-        proficiency_level: 'Intermedio',
+        level: 'Intermedio',
       });
-      toast.success(`Habilidad "${skillName}" añadida a tu perfil`);
+      toast.success(`Habilidad "${skillName}" agregada a tu perfil`);
       runAnalysis(targetRole || undefined);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Error al agregar habilidad');
+    } catch (err) {
+      toast.error('No se pudo agregar la habilidad');
     } finally {
       setAddingSkillName(null);
     }
@@ -107,7 +116,7 @@ export default function GraduateAICopilot() {
 
   const handleRewrite = async () => {
     if (!inputText.trim()) {
-      toast.error('Escribe o pega un texto base para mejorar con IA');
+      toast.error('Escribe primero el texto base que deseas mejorar');
       return;
     }
     try {
@@ -120,25 +129,41 @@ export default function GraduateAICopilot() {
       setRewriteResult(res.data);
       toast.success('Texto optimizado con metodología STAR');
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Error al reescribir con IA');
+      toast.error(err?.response?.data?.detail || 'Error al reescribir el texto');
     } finally {
       setLoadingRewrite(false);
     }
   };
 
-  const handleSendChat = async (textToSend?: string) => {
-    const content = (textToSend ?? chatInput).trim();
-    if (!content || sendingChat) return;
+  const handleSendChat = async (customPrompt?: string) => {
+    const promptText = (customPrompt ?? chatInput).trim();
+    if (!promptText || sendingChat) return;
 
-    const nextMessages: CoachChatMessage[] = [...messages, { role: 'user', content }];
-    setMessages(nextMessages);
+    const updated: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      ...messages,
+      { role: 'user', content: promptText },
+    ];
+    setMessages(updated);
     setChatInput('');
+
     try {
       setSendingChat(true);
-      const res = await chatWithCoach(nextMessages);
-      setMessages([...nextMessages, { role: 'assistant', content: res.data.reply }]);
+      const res = await chatWithCoach(updated);
+      setMessages([...updated, { role: 'assistant', content: res.data.reply }]);
+      const askedSet = new Set(
+        updated.filter((m) => m.role === 'user').map((m) => m.content.trim().toLowerCase())
+      );
       if (res.data.suggestions?.length) {
-        setSuggestions(res.data.suggestions);
+        const fresh = res.data.suggestions.filter((s) => !askedSet.has(s.trim().toLowerCase()));
+        setSuggestions(
+          fresh.length > 0
+            ? fresh
+            : [
+                '¿Qué proyectos puedo publicar en mi portafolio para destacar?',
+                'Dame un pitch de presentación personal de 60 segundos',
+                '¿Cómo optimizo mi resumen profesional para pasar filtros ATS?',
+              ].filter((s) => !askedSet.has(s.toLowerCase()))
+        );
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'Error al consultar al Copiloto IA');
@@ -147,50 +172,155 @@ export default function GraduateAICopilot() {
     }
   };
 
-  const statusColor = (st: string) => {
-    if (st === 'excellent') return 'bg-emerald-100 text-emerald-800 border-emerald-300';
-    if (st === 'good') return 'bg-sky-100 text-sky-800 border-sky-300';
-    if (st === 'improve') return 'bg-amber-100 text-amber-800 border-amber-300';
-    return 'bg-rose-100 text-rose-800 border-rose-300';
+  const statusMeta = (st: string, score: number) => {
+    if (st === 'excellent' || score >= 80) {
+      return {
+        badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        bar: 'linear-gradient(90deg, #059669, #10b981)',
+        label: 'Óptimo',
+      };
+    }
+    if (st === 'good' || score >= 60) {
+      return {
+        badge: 'bg-sky-50 text-sky-800 border-sky-200',
+        bar: 'linear-gradient(90deg, #0284c7, #38bdf8)',
+        label: 'Competitivo',
+      };
+    }
+    if (st === 'improve' || score >= 40) {
+      return {
+        badge: 'bg-amber-50 text-amber-800 border-amber-200',
+        bar: 'linear-gradient(90deg, #d97706, #fbbf24)',
+        label: 'Por Mejorar',
+      };
+    }
+    return {
+      badge: 'bg-rose-50 text-rose-800 border-rose-200',
+      bar: 'linear-gradient(90deg, #e11d48, #fb7185)',
+      label: 'Prioritario',
+    };
   };
 
+  // Formateador limpio de Markdown ligero (**negrita** y listas) para el Chat IA
+  const renderRichText = (raw: string, isUser: boolean) => {
+    const formatInline = (line: string) => {
+      const parts = line.split(/(\*\*[^*]+\*\*)/g);
+      return parts.map((part, idx) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return (
+            <strong key={idx} className={isUser ? 'font-black text-white' : 'font-extrabold text-emerald-800 dark:text-emerald-300'}>
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+        return <span key={idx}>{part}</span>;
+      });
+    };
+
+    const lines = raw.split('\n');
+    return (
+      <div className="space-y-1.5">
+        {lines.map((line, i) => {
+          const trimmed = line.trim();
+          if (!trimmed) return <div key={i} className="h-1" />;
+          if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+            return (
+              <div key={i} className="flex items-start gap-2 pl-1">
+                <span className="text-emerald-600 font-black mt-0.5">•</span>
+                <span className="flex-1">{formatInline(trimmed.slice(2))}</span>
+              </div>
+            );
+          }
+          const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+          if (numMatch) {
+            return (
+              <div key={i} className="flex items-start gap-2 pl-1">
+                <span className="w-5 h-5 rounded-full bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                  {numMatch[1]}
+                </span>
+                <span className="flex-1">{formatInline(numMatch[2])}</span>
+              </div>
+            );
+          }
+          return <p key={i}>{formatInline(trimmed)}</p>;
+        })}
+      </div>
+    );
+  };
+
+  const scoreValue = analysis?.overall_score ?? 0;
+  const radius = 48;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (Math.min(100, Math.max(0, scoreValue)) / 100) * circumference;
+
   return (
-    <div className="space-y-6 max-w-[1500px] mx-auto">
-      {/* Hero Banner */}
+    <div className="space-y-6 max-w-[1520px] mx-auto">
+      {/* ====================================================================
+          HERO BANNER EJECUTIVO
+          ==================================================================== */}
       <div
-        className="p-6 rounded-3xl border shadow-sm relative overflow-hidden"
+        className="p-6 sm:p-7 rounded-3xl border shadow-md relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #064e3b 0%, #087443 55%, #0d9488 100%)',
-          borderColor: 'rgba(16,185,129,0.4)',
+          background: 'linear-gradient(135deg, #042f2e 0%, #065f46 52%, #087443 100%)',
+          borderColor: 'rgba(16,185,129,0.45)',
         }}
       >
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6 text-white">
-          <div className="space-y-2 max-w-2xl">
+        <div
+          className="absolute -right-16 -top-16 w-64 h-64 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(52,211,153,0.22) 0%, transparent 70%)' }}
+        />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2.5 max-w-2xl">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-0.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-white/20 backdrop-blur-sm">
+              <span
+                className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest border"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.14)',
+                  borderColor: 'rgba(255,255,255,0.25)',
+                  color: '#ecfdf5',
+                }}
+              >
                 COPILOTO IA DE EMPLEABILIDAD · GROQ LLM
               </span>
               {analysis && (
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-400/20 border border-emerald-200/30">
-                  {analysis.source === 'groq' ? `Conectado a Groq (${analysis.model})` : 'Motor Experto Activo'}
+                <span
+                  className="px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 border"
+                  style={{
+                    backgroundColor: 'rgba(16,185,129,0.25)',
+                    borderColor: 'rgba(110,231,183,0.45)',
+                    color: '#d1fae5',
+                  }}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                  {analysis.source === 'groq' ? `Conectado a Groq (${analysis.model})` : 'Motor Experto UPC Activo'}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2.5">
-              <Sparkles className="w-8 h-8 text-emerald-200 shrink-0" />
-              Potencia tu Perfil Profesional en Todos los Aspectos
+
+            <h1
+              className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3"
+              style={{ color: '#ffffff' }}
+            >
+              <span className="p-2 rounded-2xl bg-white/15 border border-white/20 shrink-0">
+                <Sparkles className="w-7 h-7 text-emerald-200" />
+              </span>
+              <span>Potencia tu Perfil Profesional en Todos los Aspectos</span>
             </h1>
-            <p className="text-xs sm:text-sm text-emerald-50/90 leading-relaxed">
-              Auditoría 360° de tu perfil, reescritor con metodología STAR para experiencias y cartas de presentación, y mentor conversacional 24/7.
+
+            <p className="text-xs sm:text-sm leading-relaxed" style={{ color: 'rgba(236,253,245,0.9)' }}>
+              Auditoría integral 360° de tus 7 dimensiones profesionales, reescritor inteligente con metodología STAR y mentor conversacional en tiempo real.
             </p>
           </div>
 
-          {/* Tabs Selector */}
-          <div className="flex flex-wrap gap-2 bg-black/20 p-1.5 rounded-2xl backdrop-blur-md border border-white/15 self-start lg:self-auto">
+          {/* Selector de Pestañas */}
+          <div
+            className="flex flex-wrap gap-1.5 p-1.5 rounded-2xl border self-start lg:self-auto"
+            style={{ backgroundColor: 'rgba(0,0,0,0.28)', borderColor: 'rgba(255,255,255,0.18)' }}
+          >
             <button
               onClick={() => setActiveTab('diagnosis')}
               className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all ${
-                activeTab === 'diagnosis' ? 'bg-white text-emerald-900 shadow-sm' : 'text-emerald-100 hover:bg-white/10'
+                activeTab === 'diagnosis' ? 'bg-white text-emerald-950 shadow-sm' : 'text-emerald-50 hover:bg-white/10'
               }`}
             >
               <Target className="w-4 h-4" /> Diagnóstico 360°
@@ -198,7 +328,7 @@ export default function GraduateAICopilot() {
             <button
               onClick={() => setActiveTab('rewriter')}
               className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all ${
-                activeTab === 'rewriter' ? 'bg-white text-emerald-900 shadow-sm' : 'text-emerald-100 hover:bg-white/10'
+                activeTab === 'rewriter' ? 'bg-white text-emerald-950 shadow-sm' : 'text-emerald-50 hover:bg-white/10'
               }`}
             >
               <Wand2 className="w-4 h-4" /> Reescritor STAR
@@ -206,7 +336,7 @@ export default function GraduateAICopilot() {
             <button
               onClick={() => setActiveTab('chat')}
               className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all ${
-                activeTab === 'chat' ? 'bg-white text-emerald-900 shadow-sm' : 'text-emerald-100 hover:bg-white/10'
+                activeTab === 'chat' ? 'bg-white text-emerald-950 shadow-sm' : 'text-emerald-50 hover:bg-white/10'
               }`}
             >
               <MessageSquare className="w-4 h-4" /> Coach IA
@@ -222,73 +352,141 @@ export default function GraduateAICopilot() {
         <div className="space-y-6 animate-fade-in-up">
           {/* Barra de Rol Objetivo */}
           <div
-            className="p-5 rounded-2xl border flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+            className="p-5 rounded-2xl border shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-4"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
           >
             <div className="flex-1">
-              <label className="block text-[11px] font-black uppercase tracking-wider text-ink-secondary mb-1">
-                ¿A qué cargo o rol profesional aspiras? (Opcional — personaliza el diagnóstico IA)
+              <label className="block text-[11px] font-black uppercase tracking-wider text-ink-secondary mb-1.5">
+                ¿A qué cargo o rol profesional aspiras? (Opcional — calibra el diagnóstico IA y las palabras clave ATS)
               </label>
               <input
                 type="text"
                 value={targetRole}
                 onChange={(e) => setTargetRole(e.target.value)}
-                placeholder="Ej. Desarrollador Backend Cloud, Analista Financiero Senior, Coordinador Clínico..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') runAnalysis(targetRole || undefined);
+                }}
+                placeholder="Ej. Desarrollador Backend Cloud, Analista Financiero Senior, Ingeniero de Datos, Coordinador Clínico..."
                 className="input w-full text-xs"
               />
             </div>
             <button
               onClick={() => runAnalysis(targetRole || undefined)}
               disabled={loadingAnalysis}
-              className="px-5 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold flex items-center justify-center gap-2 shrink-0 sm:mt-4 transition-all"
+              className="px-5 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold flex items-center justify-center gap-2 shrink-0 sm:mt-5 shadow-sm transition-all"
             >
               <RefreshCw className={`w-4 h-4 ${loadingAnalysis ? 'animate-spin' : ''}`} />
-              {loadingAnalysis ? 'Analizando perfil...' : 'Evaluar con IA'}
+              {loadingAnalysis ? 'Auditando perfil...' : 'Evaluar con IA'}
             </button>
           </div>
 
           {loadingAnalysis ? (
-            <div className="p-16 rounded-3xl border text-center space-y-3" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-              <div className="w-10 h-10 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <div
+              className="p-16 rounded-3xl border text-center space-y-3"
+              style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+            >
+              <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm font-bold text-ink">Auditando las 7 dimensiones de tu perfil profesional...</p>
             </div>
           ) : analysis ? (
             <>
-              {/* Score Global + Resumen Sugerido */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Score Global + Resumen Ejecutivo y Victorias Rápidas */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Columna Izquierda (4 cols): Medidor Radial de Competitividad */}
                 <div
-                  className="p-6 rounded-3xl border flex flex-col justify-between space-y-4"
+                  className="lg:col-span-4 p-6 rounded-3xl border shadow-xs flex flex-col justify-between space-y-5"
                   style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black uppercase tracking-wider text-ink-secondary">
-                      Índice de Competitividad
-                    </span>
-                    <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      Nivel {analysis.level}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-5 py-2">
-                    <div className="w-24 h-24 rounded-full border-8 border-emerald-600 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-2xl font-black text-ink">{analysis.overall_score}</span>
-                      <span className="text-[10px] font-bold text-ink-tertiary">/ 100</span>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-ink-secondary flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        Índice de Competitividad
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Nivel {analysis.level}
+                      </span>
                     </div>
-                    <div className="space-y-1.5">
-                      <p className="text-sm font-bold text-ink leading-snug">{analysis.headline}</p>
-                      <p className="text-xs text-emerald-700 font-semibold">
-                        Titular sugerido: "{analysis.suggested_headline}"
+
+                    {/* Medidor Radial SVG + Diagnóstico Principal */}
+                    <div className="flex items-center gap-5 py-2">
+                      <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+                        <svg className="w-28 h-28 -rotate-90" viewBox="0 0 112 112">
+                          <circle
+                            cx="56"
+                            cy="56"
+                            r={radius}
+                            fill="transparent"
+                            stroke="var(--border-color)"
+                            strokeWidth="10"
+                          />
+                          <circle
+                            cx="56"
+                            cy="56"
+                            r={radius}
+                            fill="transparent"
+                            stroke={scoreValue >= 75 ? '#059669' : scoreValue >= 50 ? '#0284c7' : '#10b981'}
+                            strokeWidth="10"
+                            strokeLinecap="round"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeDashoffset}
+                            style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-black text-ink leading-none">{analysis.overall_score}</span>
+                          <span className="text-[10px] font-extrabold text-ink-tertiary mt-0.5">/ 100 PTS</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-sm font-extrabold text-ink leading-snug">{analysis.headline}</p>
+                        <p className="text-[11px] text-ink-secondary leading-relaxed">
+                          Ponderación basada en resumen, experiencia, habilidades, portafolio, certificaciones y visibilidad ATS.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Caja de Titular Profesional Sugerido */}
+                    <div
+                      className="p-3.5 rounded-2xl border space-y-1.5"
+                      style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                          Titular Profesional Sugerido
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(analysis.suggested_headline);
+                            setCopiedHeadline(true);
+                            toast.success('Titular copiado al portapapeles');
+                            setTimeout(() => setCopiedHeadline(false), 2000);
+                          }}
+                          className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                        >
+                          {copiedHeadline ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {copiedHeadline ? 'Copiado' : 'Copiar'}
+                        </button>
+                      </div>
+                      <p className="text-xs font-extrabold text-ink leading-snug">
+                        "{analysis.suggested_headline}"
                       </p>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t space-y-2" style={{ borderColor: 'var(--border-color)' }}>
+                  {/* Palabras Clave ATS */}
+                  <div className="pt-3 border-t space-y-2.5" style={{ borderColor: 'var(--border-color)' }}>
                     <span className="text-[11px] font-black uppercase tracking-wider text-ink-secondary block">
                       Palabras Clave ATS Detectadas / Recomendadas
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {analysis.keywords.map((kw, i) => (
-                        <span key={i} className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-muted text-ink border" style={{ borderColor: 'var(--border-color)' }}>
+                        <span
+                          key={i}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        >
                           #{kw}
                         </span>
                       ))}
@@ -296,135 +494,235 @@ export default function GraduateAICopilot() {
                   </div>
                 </div>
 
-                {/* Resumen Profesional Redactado por IA con aplicación en 1 clic */}
+                {/* Columna Derecha (8 cols): Resumen Ejecutivo Optimizado + 3 Victorias Rápidas */}
                 <div
-                  className="lg:col-span-2 p-6 rounded-3xl border flex flex-col justify-between space-y-4"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(14,165,233,0.04))',
-                    borderColor: 'rgba(16,185,129,0.3)',
-                  }}
+                  className="lg:col-span-8 p-6 rounded-3xl border shadow-xs flex flex-col justify-between space-y-5 relative overflow-hidden"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
                 >
-                  <div className="space-y-2">
+                  {/* Barra superior decorativa esmeralda */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-1.5"
+                    style={{ background: 'linear-gradient(90deg, #059669, #10b981, #0ea5e9)' }}
+                  />
+
+                  <div className="space-y-3 pt-1">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-emerald-600" />
-                        Resumen Ejecutivo Optimizado por IA para tu Perfil
-                      </h3>
-                      <span className="text-[11px] font-bold text-emerald-700">Basado en tus datos reales UPC</span>
-                    </div>
-                    <p className="text-sm text-ink leading-relaxed p-4 rounded-2xl bg-white/85 dark:bg-neutral-900/75 border border-emerald-200/70 italic">
-                      "{analysis.improved_summary}"
-                    </p>
-                  </div>
-
-                  {/* Victorias rápidas */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {analysis.quick_wins.map((qw, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-white/80 dark:bg-neutral-900/70 border space-y-1"
-                        style={{ borderColor: 'var(--border-color)' }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase text-emerald-700">Victoria Rápida #{idx + 1}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                            Impacto {qw.impact === 'high' ? 'Alto' : 'Medio'}
-                          </span>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                          <Sparkles className="w-5 h-5" />
                         </div>
-                        <p className="text-xs font-bold text-ink">{qw.title}</p>
-                        <p className="text-[11px] text-ink-secondary">{qw.detail}</p>
+                        <div>
+                          <h3 className="text-base font-black text-ink">
+                            Resumen Ejecutivo Optimizado por IA para tu Perfil
+                          </h3>
+                          <p className="text-[11px] text-ink-secondary">
+                            Redactado en primera persona a partir de tu expediente real de la Universidad Popular del Cesar
+                          </p>
+                        </div>
                       </div>
-                    ))}
+
+                      <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Optimizado para Filtros ATS
+                      </span>
+                    </div>
+
+                    {/* Bloque del Resumen (Contraste limpio y borde lateral esmeralda) */}
+                    <div
+                      className="p-4 sm:p-5 rounded-2xl border-l-4 border border-emerald-200/80 relative"
+                      style={{
+                        backgroundColor: 'var(--bg-muted)',
+                        borderLeftColor: '#059669',
+                      }}
+                    >
+                      <p className="text-sm text-ink leading-relaxed font-medium italic">
+                        "{analysis.improved_summary}"
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                  {/* 3 Tarjetas de Victorias Rápidas con alto contraste */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-ink-secondary flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-amber-500" />
+                        3 Victorias Rápidas para Subir tu Puntaje Hoy
+                      </span>
+                      <span className="text-[11px] font-semibold text-ink-tertiary">
+                        Priorizadas por impacto en el algoritmo
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {analysis.quick_wins.map((qw, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-2xl border flex flex-col justify-between space-y-2 transition-all hover:shadow-sm"
+                          style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">
+                                  {idx + 1}
+                                </span>
+                                Victoria #{idx + 1}
+                              </span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                  qw.impact === 'high'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-sky-50 text-sky-800 border-sky-200'
+                                }`}
+                              >
+                                Impacto {qw.impact === 'high' ? 'Alto' : 'Medio'}
+                              </span>
+                            </div>
+                            <p className="text-xs font-extrabold text-ink leading-snug">{qw.title}</p>
+                            <p className="text-[11px] text-ink-secondary leading-relaxed">{qw.detail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Botones de Acción del Resumen */}
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t"
+                    style={{ borderColor: 'var(--border-color)' }}
+                  >
                     <button
                       type="button"
                       onClick={() => {
-                        setInputText(analysis.improved_summary);
-                        setRewriteField('summary');
-                        setActiveTab('rewriter');
+                        navigator.clipboard.writeText(analysis.improved_summary);
+                        setCopiedSummary(true);
+                        toast.success('Resumen copiado al portapapeles');
+                        setTimeout(() => setCopiedSummary(false), 2000);
                       }}
-                      className="px-4 py-2 rounded-xl border text-xs font-bold text-ink hover:bg-surface transition-colors"
+                      className="px-3.5 py-2 rounded-xl border text-xs font-bold text-ink-secondary hover:text-ink flex items-center gap-1.5 transition-colors"
                       style={{ borderColor: 'var(--border-color)' }}
                     >
-                      Personalizar en el Reescritor
+                      {copiedSummary ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                      {copiedSummary ? 'Resumen copiado' : 'Copiar resumen'}
                     </button>
-                    <button
-                      type="button"
-                      disabled={applyingSummary}
-                      onClick={() => handleApplySummaryToProfile(analysis.improved_summary)}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {applyingSummary ? 'Guardando en tu perfil...' : 'Aplicar este resumen a mi perfil en 1 clic'}
-                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInputText(analysis.improved_summary);
+                          setRewriteField('summary');
+                          setActiveTab('rewriter');
+                        }}
+                        className="px-4 py-2.5 rounded-xl border text-xs font-extrabold text-ink hover:bg-muted transition-colors flex items-center gap-1.5"
+                        style={{ borderColor: 'var(--border-color)' }}
+                      >
+                        <Wand2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Personalizar en el Reescritor
+                      </button>
+                      <button
+                        type="button"
+                        disabled={applyingSummary}
+                        onClick={() => handleApplySummaryToProfile(analysis.improved_summary)}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {applyingSummary ? 'Guardando en tu perfil...' : 'Aplicar este resumen a mi perfil en 1 clic'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Evaluación de las 7 Secciones del Perfil */}
+              {/* Desglose de las 7 Dimensiones del Perfil */}
               <div
-                className="p-6 rounded-3xl border space-y-4"
+                className="p-6 rounded-3xl border shadow-xs space-y-4"
                 style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
               >
-                <h3 className="text-base font-extrabold text-ink">
-                  Desglose de las 7 Dimensiones de tu Perfil Profesional
-                </h3>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-emerald-600" />
+                    <h3 className="text-base font-black text-ink">
+                      Desglose de las 7 Dimensiones de tu Perfil Profesional
+                    </h3>
+                  </div>
+                  <span className="text-xs text-ink-secondary">
+                    Diagnóstico individual y acción recomendada por dimensión
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {analysis.sections.map((sec) => (
-                    <div
-                      key={sec.key}
-                      className="p-4 rounded-2xl border space-y-2.5 flex flex-col justify-between"
-                      style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border-color)' }}
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-extrabold text-ink">{sec.label}</span>
-                          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${statusColor(sec.status)}`}>
-                            {sec.score}/100
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-slate-200 dark:bg-neutral-800 overflow-hidden">
+                  {analysis.sections.map((sec) => {
+                    const meta = statusMeta(sec.status, sec.score);
+                    return (
+                      <div
+                        key={sec.key}
+                        className="p-4 rounded-2xl border space-y-3 flex flex-col justify-between transition-all hover:shadow-xs"
+                        style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-black text-ink">{sec.label}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                                {meta.label}
+                              </span>
+                              <span className="text-xs font-black text-ink">{sec.score}/100</span>
+                            </div>
+                          </div>
+
                           <div
-                            className="h-full bg-emerald-600 rounded-full transition-all"
-                            style={{ width: `${sec.score}%` }}
-                          />
+                            className="h-2.5 rounded-full overflow-hidden border"
+                            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${sec.score}%`, background: meta.bar }}
+                            />
+                          </div>
+
+                          {sec.findings.map((f, i) => (
+                            <p key={i} className="text-xs text-ink-secondary leading-relaxed">
+                              {f}
+                            </p>
+                          ))}
                         </div>
-                        {sec.findings.map((f, i) => (
-                          <p key={i} className="text-xs text-ink-secondary">{f}</p>
-                        ))}
+
+                        {sec.actions.length > 0 && (
+                          <div
+                            className="pt-2.5 border-t text-[11px] font-bold text-emerald-700 flex items-start gap-1.5"
+                            style={{ borderColor: 'var(--border-color)' }}
+                          >
+                            <ArrowRight className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{sec.actions[0]}</span>
+                          </div>
+                        )}
                       </div>
-                      {sec.actions.length > 0 && (
-                        <div className="pt-2 border-t text-[11px] font-semibold text-emerald-700 flex items-start gap-1.5" style={{ borderColor: 'var(--border-color)' }}>
-                          <ArrowRight className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          <span>{sec.actions[0]}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Habilidades recomendadas para añadir en 1 clic + Plan de 30 Días */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div
-                  className="p-6 rounded-3xl border space-y-4"
+                  className="p-6 rounded-3xl border shadow-xs space-y-4"
                   style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
+                    <h3 className="text-base font-black text-ink flex items-center gap-2">
                       <Award className="w-5 h-5 text-emerald-600" />
                       Habilidades Sugeridas para Subir tu Matchmaking
                     </h3>
-                    <span className="text-[11px] font-bold text-ink-tertiary">Agregar en 1 clic</span>
+                    <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      Agregar en 1 clic
+                    </span>
                   </div>
                   <div className="space-y-3">
                     {analysis.skills_to_add.map((sk, idx) => (
                       <div
                         key={idx}
                         className="p-3.5 rounded-2xl border flex items-center justify-between gap-3"
-                        style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border-color)' }}
+                        style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
                       >
                         <div>
                           <p className="text-xs font-extrabold text-ink">{sk.name}</p>
@@ -434,7 +732,7 @@ export default function GraduateAICopilot() {
                           type="button"
                           disabled={addingSkillName === sk.name}
                           onClick={() => handleQuickAddSkill(sk.name)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-300 text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold flex items-center gap-1 shrink-0 transition-colors shadow-xs"
                         >
                           <Plus className="w-3.5 h-3.5" /> Agregar
                         </button>
@@ -444,11 +742,11 @@ export default function GraduateAICopilot() {
                 </div>
 
                 <div
-                  className="p-6 rounded-3xl border space-y-4"
+                  className="p-6 rounded-3xl border shadow-xs space-y-4"
                   style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
                 >
-                  <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-brand-600" />
+                  <h3 className="text-base font-black text-ink flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-emerald-600" />
                     Plan de Acción de Empleabilidad a 30 Días
                   </h3>
                   <div className="space-y-3">
@@ -456,10 +754,10 @@ export default function GraduateAICopilot() {
                       <div
                         key={wk.week}
                         className="p-3.5 rounded-2xl border space-y-1.5"
-                        style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border-color)' }}
+                        style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-emerald-700 text-white">
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase bg-emerald-700 text-white">
                             Semana {wk.week}
                           </span>
                           <span className="text-xs font-extrabold text-ink">{wk.goal}</span>
@@ -485,10 +783,10 @@ export default function GraduateAICopilot() {
       {activeTab === 'rewriter' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in-up">
           <div
-            className="p-6 rounded-3xl border space-y-4"
+            className="p-6 rounded-3xl border shadow-xs space-y-4"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
           >
-            <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
+            <h3 className="text-base font-black text-ink flex items-center gap-2">
               <Wand2 className="w-5 h-5 text-emerald-600" />
               Texto Original a Transformar
             </h3>
@@ -507,7 +805,7 @@ export default function GraduateAICopilot() {
                   onClick={() => setRewriteField(f.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                     rewriteField === f.id
-                      ? 'bg-emerald-700 text-white border-emerald-800'
+                      ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
                       : 'bg-transparent text-ink-secondary border-[var(--border-color)]'
                   }`}
                 >
@@ -564,14 +862,14 @@ export default function GraduateAICopilot() {
           </div>
 
           <div
-            className="p-6 rounded-3xl border flex flex-col justify-between space-y-4"
+            className="p-6 rounded-3xl border shadow-xs flex flex-col justify-between space-y-4"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
           >
             {rewriteResult ? (
               <>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
+                    <h3 className="text-base font-black text-ink flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                       Versión Mejorada de Alto Impacto
                     </h3>
@@ -580,7 +878,10 @@ export default function GraduateAICopilot() {
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 text-sm text-ink leading-relaxed whitespace-pre-line">
+                  <div
+                    className="p-4 rounded-2xl border-l-4 border border-emerald-200 text-sm text-ink leading-relaxed whitespace-pre-line"
+                    style={{ backgroundColor: 'var(--bg-muted)', borderLeftColor: '#059669' }}
+                  >
                     {rewriteResult.improved}
                   </div>
 
@@ -650,19 +951,38 @@ export default function GraduateAICopilot() {
           ==================================================================== */}
       {activeTab === 'chat' && (
         <div
-          className="rounded-3xl border shadow-xs flex flex-col h-[620px] overflow-hidden animate-fade-in-up"
+          className="rounded-3xl border shadow-xs flex flex-col h-[640px] overflow-hidden animate-fade-in-up"
           style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
         >
           <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-extrabold text-ink">Coach de Carrera IA · Universidad Popular del Cesar</h3>
-                <p className="text-[11px] text-ink-secondary">Contextualizado en tiempo real con tu expediente profesional</p>
+                <h3 className="text-sm font-black text-ink">Coach de Carrera IA · Universidad Popular del Cesar</h3>
+                <p className="text-[11px] text-ink-secondary">
+                  Contextualizado en tiempo real con tu programa académico, habilidades y experiencias
+                </p>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMessages(initialMessages);
+                setSuggestions([
+                  '¿Qué habilidades me recomiendas agregar según mi carrera?',
+                  'Ayúdame a redactar un logro con metodología STAR',
+                  '¿Cómo respondo preguntas difíciles en una entrevista?',
+                  '¿Cómo negocio mi salario para mi próximo empleo?',
+                ]);
+              }}
+              className="px-3 py-1.5 rounded-xl border text-xs font-bold text-ink-secondary hover:text-ink flex items-center gap-1.5"
+              style={{ borderColor: 'var(--border-color)' }}
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reiniciar chat
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -672,36 +992,48 @@ export default function GraduateAICopilot() {
                 className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-line ${
+                  className={`max-w-2xl rounded-2xl px-4 py-3.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
                     m.role === 'user'
                       ? 'bg-emerald-700 text-white rounded-br-none'
-                      : 'bg-muted text-ink border rounded-bl-none'
+                      : 'text-ink border rounded-bl-none'
                   }`}
-                  style={m.role === 'assistant' ? { borderColor: 'var(--border-color)' } : undefined}
+                  style={
+                    m.role === 'assistant'
+                      ? { backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }
+                      : undefined
+                  }
                 >
-                  {m.content}
+                  {renderRichText(m.content, m.role === 'user')}
                 </div>
               </div>
             ))}
             {sendingChat && (
-              <div className="text-xs text-ink-secondary italic animate-pulse">
-                El Copiloto IA está redactando una recomendación personalizada...
+              <div className="text-xs text-ink-secondary italic animate-pulse pl-2">
+                El Copiloto IA está redactando una estrategia personalizada para tu perfil...
               </div>
             )}
           </div>
 
-          {/* Sugerencias rápidas */}
-          <div className="px-4 py-2 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border-color)' }}>
-            {suggestions.map((sug, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleSendChat(sug)}
-                className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
-              >
-                {sug}
-              </button>
-            ))}
+          {/* Sugerencias rápidas dinámicas (no repetitivas) */}
+          <div
+            className="px-4 py-2.5 border-t flex items-center gap-2 overflow-x-auto"
+            style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+          >
+            <span className="text-[10px] font-black uppercase tracking-wider text-ink-tertiary shrink-0">
+              Preguntas sugeridas:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((sug, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleSendChat(sug)}
+                  className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200 transition-colors"
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Input */}
@@ -717,13 +1049,13 @@ export default function GraduateAICopilot() {
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Pregúntame sobre tu CV, negociación salarial, entrevistas o habilidades..."
+              placeholder="Pregúntame sobre tu CV, negociación salarial, portafolio, entrevistas o método STAR..."
               className="input flex-1 text-xs"
             />
             <button
               type="submit"
               disabled={sendingChat || !chatInput.trim()}
-              className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs"
             >
               <Send className="w-4 h-4" /> Enviar
             </button>
@@ -733,4 +1065,3 @@ export default function GraduateAICopilot() {
     </div>
   );
 }
-
