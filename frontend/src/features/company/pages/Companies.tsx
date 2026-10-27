@@ -2,7 +2,7 @@ import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { authApi } from '../../../api';
-import { Search, Building2, AlertCircle, Trash2, Edit2, Check, X, Plus, MapPin, Mail, Briefcase, Users, Info, ChevronRight } from 'lucide-react';
+import { Search, Building2, AlertCircle, Trash2, Edit2, Check, X, Plus, MapPin, Mail, Briefcase, Users, Info, ChevronRight, Sparkles } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import Pagination from '../../../components/Pagination';
 import Modal from '../../../components/Modal';
@@ -256,7 +256,7 @@ export default function Companies() {
         {/* Hero Main Card */}
         <div 
           className="card overflow-hidden !p-0 shadow-sm"
-          style={{ backgroundColor: '#FFFFFF', borderColor: '#E4E7EC' }}
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
         >
           {/* Top Banner with Avatar & Company Name */}
           <div 
@@ -301,11 +301,11 @@ export default function Companies() {
           </div>
 
           {/* Card Body */}
-          <div className="p-6 sm:p-8 space-y-6" style={{ backgroundColor: '#FFFFFF' }}>
+          <div className="p-6 sm:p-8 space-y-6" style={{ backgroundColor: 'var(--bg-surface)' }}>
             {/* Row 1: Acerca de la empresa */}
             <div 
               className="flex items-center justify-between gap-4 pb-6 border-b"
-              style={{ borderColor: '#E4E7EC' }}
+              style={{ borderColor: 'var(--border-color)' }}
             >
               <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
                 <div 
@@ -323,7 +323,7 @@ export default function Companies() {
                   </h4>
                   <p 
                     className="text-sm leading-relaxed font-normal"
-                    style={{ color: '#667085' }}
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     {myCompany.description || 'Nuestra empresa ejemplo principal'}
                   </p>
@@ -351,7 +351,7 @@ export default function Companies() {
                   </p>
                   <p 
                     className="text-sm font-bold truncate mt-0.5"
-                    style={{ color: '#172033' }}
+                    style={{ color: 'var(--text-main)' }}
                   >
                     {myCompany.contact_email}
                   </p>
@@ -361,7 +361,7 @@ export default function Companies() {
               {/* Ubicación */}
               <div 
                 className="flex items-center gap-4 md:border-l md:pl-6"
-                style={{ borderColor: '#E4E7EC' }}
+                style={{ borderColor: 'var(--border-color)' }}
               >
                 <div 
                   className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
@@ -378,7 +378,7 @@ export default function Companies() {
                   </p>
                   <p 
                     className="text-sm font-bold truncate mt-0.5"
-                    style={{ color: '#172033' }}
+                    style={{ color: 'var(--text-main)' }}
                   >
                     {myCompany.city?.name || 'Valledupar'}
                   </p>
@@ -388,7 +388,7 @@ export default function Companies() {
               {/* Industria / Sector */}
               <div 
                 className="flex items-center gap-4 md:border-l md:pl-6"
-                style={{ borderColor: '#E4E7EC' }}
+                style={{ borderColor: 'var(--border-color)' }}
               >
                 <div 
                   className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
@@ -405,7 +405,7 @@ export default function Companies() {
                   </p>
                   <p 
                     className="text-sm font-bold truncate mt-0.5"
-                    style={{ color: '#172033' }}
+                    style={{ color: 'var(--text-main)' }}
                   >
                     {myCompany.sector?.name || 'Tecnología y Software'}
                   </p>
@@ -430,12 +430,40 @@ export default function Companies() {
         )}
 
         {/* Bottom Quick Link Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Copiloto IA Reclutamiento */}
+          <div 
+            onClick={() => navigate('/company-copilot')}
+            className="card p-5 flex items-center justify-between gap-4 cursor-pointer transition-all group hover:shadow-md"
+            style={{ background: 'linear-gradient(135deg, #064E3B 0%, #087443 100%)', borderColor: '#059669' }}
+          >
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform bg-white/15 text-emerald-200 border border-white/20"
+              >
+                <Sparkles className="w-5 h-5 text-emerald-200" />
+              </div>
+              <div>
+                <h4 className="font-bold text-base text-white">
+                  Copiloto IA Reclutamiento
+                </h4>
+                <p className="text-xs mt-0.5 text-emerald-100/90">
+                  Evaluación a ciegas & redactor IA
+                </p>
+              </div>
+            </div>
+            <div 
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/15 text-white border border-white/20"
+            >
+              <ChevronRight className="w-4 h-4 text-white" />
+            </div>
+          </div>
+
           {/* Gestionar Vacantes */}
           <div 
             onClick={() => navigate('/job-offers')}
             className="card p-5 flex items-center justify-between gap-4 cursor-pointer transition-all group hover:shadow-sm"
-            style={{ backgroundColor: '#FFFFFF', borderColor: '#E4E7EC' }}
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
           >
             <div className="flex items-center gap-4">
               <div 
@@ -447,13 +475,13 @@ export default function Companies() {
               <div>
                 <h4 
                   className="font-bold text-base transition-colors"
-                  style={{ color: '#172033' }}
+                  style={{ color: 'var(--text-main)' }}
                 >
                   Gestionar Vacantes
                 </h4>
                 <p 
                   className="text-xs mt-0.5"
-                  style={{ color: '#667085' }}
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Publica nuevas ofertas laborales
                 </p>
@@ -469,9 +497,9 @@ export default function Companies() {
 
           {/* Ver Candidatos */}
           <div 
-            onClick={() => navigate('/talent-pool')}
+            onClick={() => navigate('/kanban')}
             className="card p-5 flex items-center justify-between gap-4 cursor-pointer transition-all group hover:shadow-sm"
-            style={{ backgroundColor: '#FFFFFF', borderColor: '#E4E7EC' }}
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
           >
             <div className="flex items-center gap-4">
               <div 
@@ -483,15 +511,15 @@ export default function Companies() {
               <div>
                 <h4 
                   className="font-bold text-base transition-colors"
-                  style={{ color: '#172033' }}
+                  style={{ color: 'var(--text-main)' }}
                 >
-                  Ver Candidatos
+                  Ver Candidatos (Kanban)
                 </h4>
                 <p 
                   className="text-xs mt-0.5"
-                  style={{ color: '#667085' }}
+                  style={{ color: 'var(--text-secondary)' }}
                 >
-                  Revisa postulaciones activas
+                  Revisa postulaciones y modo ciego
                 </p>
               </div>
             </div>

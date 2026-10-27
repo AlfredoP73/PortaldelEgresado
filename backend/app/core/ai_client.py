@@ -26,9 +26,18 @@ import httpx
 logger = logging.getLogger("portal.ai")
 
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-FAST_MODEL = os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant")
-REQUEST_TIMEOUT = float(os.getenv("GROQ_TIMEOUT_SECONDS", "25"))
+DEFAULT_MODEL = "openai/gpt-oss-120b"
+FAST_MODEL = "openai/gpt-oss-20b"
+FALLBACK_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+RETIRED_MODELS = {
+    "llama-3.3-70b-versatile": "openai/gpt-oss-120b",
+    "llama-3.1-70b-versatile": "openai/gpt-oss-120b",
+    "llama3-70b-8192": "openai/gpt-oss-120b",
+    "llama-3.1-8b-instant": "openai/gpt-oss-20b",
+    "llama3-8b-8192": "openai/gpt-oss-20b",
+    "mixtral-8x7b-32768": "openai/gpt-oss-20b",
+}
+REQUEST_TIMEOUT = float(os.getenv("GROQ_TIMEOUT_SECONDS", "30"))
 
 
 class AIUnavailable(Exception):
@@ -48,7 +57,10 @@ def is_enabled() -> bool:
 
 
 def model_name(fast: bool = False) -> str:
-    return FAST_MODEL if fast else DEFAULT_MODEL
+    raw = (os.getenv("GROQ_FAST_MODEL" if fast else "GROQ_MODEL") or "").strip()
+    if not raw:
+        return FAST_MODEL if fast else DEFAULT_MODEL
+    return RETIRED_MODELS.get(raw, raw)
 
 
 # ── Limitador de ritmo por usuario (ventana deslizante en memoria) ───────────
@@ -125,25 +137,38 @@ def _post_chat(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise AIUnavailable("GROQ_API_KEY no está configurada")
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     last_error: Optional[Exception] = None
-    for attempt in range(2):
-        try:
-            resp = httpx.post(
-                f"{GROQ_BASE_URL}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 429 or resp.status_code >= 500:
-                last_error = AIUnavailable(f"Groq respondió HTTP {resp.status_code}")
-                time.sleep(1.2 * (attempt + 1))
-                continue
-            if resp.status_code >= 400:
-                # No registrar el cuerpo completo: puede contener fragmentos del prompt.
-                raise AIUnavailable(f"Groq rechazó la solicitud (HTTP {resp.status_code})")
-            return resp.json()
-        except httpx.HTTPError as exc:
-            last_error = AIUnavailable(f"Error de red con Groq: {exc.__class__.__name__}")
-            time.sleep(0.8)
+    requested_model = payload.get("model") or DEFAULT_MODEL
+    candidate_models = [requested_model] + [m for m in FALLBACK_MODELS if m != requested_model]
+
+    for model_id in candidate_models:
+        current_payload = {**payload, "model": model_id}
+        for attempt in range(2):
+            try:
+                resp = httpx.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers=headers,
+                    json=current_payload,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    last_error = AIUnavailable(f"Groq respondió HTTP {resp.status_code}")
+                    time.sleep(1.2 * (attempt + 1))
+                    continue
+                if resp.status_code in (400, 404):
+                    body_text = resp.text or ""
+                    if "model_not_found" in body_text or "model_decommissioned" in body_text or resp.status_code == 404:
+                        last_error = AIUnavailable(f"Modelo {model_id} no disponible (HTTP {resp.status_code})")
+                        break  # Probar el siguiente modelo en candidate_models
+                    if "response_format" in current_payload:
+                        current_payload = {k: v for k, v in current_payload.items() if k != "response_format"}
+                        continue
+                    raise AIUnavailable(f"Groq rechazó la solicitud (HTTP {resp.status_code})")
+                if resp.status_code >= 400:
+                    raise AIUnavailable(f"Groq rechazó la solicitud (HTTP {resp.status_code})")
+                return resp.json()
+            except httpx.HTTPError as exc:
+                last_error = AIUnavailable(f"Error de red con Groq: {exc.__class__.__name__}")
+                time.sleep(0.8)
     raise last_error or AIUnavailable("Groq no respondió")
 
 
@@ -153,7 +178,7 @@ def chat_json(
     *,
     fast: bool = False,
     temperature: float = 0.3,
-    max_tokens: int = 1800,
+    max_tokens: int = 2600,
     validator: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Devuelve un dict JSON generado por el modelo. Lanza AIUnavailable ante cualquier fallo."""
@@ -183,7 +208,7 @@ def chat_text(
     *,
     fast: bool = False,
     temperature: float = 0.5,
-    max_tokens: int = 900,
+    max_tokens: int = 1800,
 ) -> str:
     """Respuesta conversacional en texto libre."""
     payload = {

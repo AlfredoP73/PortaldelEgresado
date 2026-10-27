@@ -410,7 +410,7 @@ def generate_blind_ai_summary(
     )
 
     try:
-        llm = ai_client.chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=1200)
+        llm = ai_client.chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=2200)
         raw_score = llm.get("fit_score")
         parsed_score = int(raw_score) if isinstance(raw_score, (int, float)) else fit_score
         parsed_score = max(0, min(100, parsed_score))

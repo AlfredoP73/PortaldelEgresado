@@ -501,7 +501,7 @@ def analyze_graduate_profile(db: Session, graduate_id: int, target_role: Optiona
     )
 
     try:
-        llm_data = ai_client.chat_json(system_prompt, user_prompt, temperature=0.35, max_tokens=1600)
+        llm_data = ai_client.chat_json(system_prompt, user_prompt, temperature=0.35, max_tokens=2600)
         result = {
             **base,
             "source": "groq",
@@ -603,7 +603,7 @@ def rewrite_profile_text(
     )
 
     try:
-        data = ai_client.chat_json(system_prompt, user_prompt, temperature=0.4, max_tokens=1000)
+        data = ai_client.chat_json(system_prompt, user_prompt, temperature=0.4, max_tokens=2000)
         return {
             "source": "groq",
             "model": ai_client.model_name(False),
@@ -655,7 +655,22 @@ def chat_with_coach(db: Session, graduate_id: int, messages: List[Dict[str, str]
     asked_lower = {m["content"].strip().lower() for m in cleaned_msgs if m["role"] == "user"}
 
     # Enrutador contextual multi-intención (nunca repite la misma plantilla)
-    if any(w in last_user_msg for w in ("habilidad", "skill", "afinidad", "match", "competencia", "agregar")):
+    if any(w in last_user_msg for w in ("curso", "internet", "plataforma", "certific", "aprender", "estudiar", "ciencia de datos", "data science", "coursera", "udemy", "platzi", "edx")):
+        topic_focus = "Ciencia de Datos, Machine Learning y Analítica" if any(k in last_user_msg for k in ("datos", "data", "ia", "python", "estadistica")) else f"especialización en {snap['program_name']}"
+        reply = (
+            f"¡Excelente iniciativa, {snap['first_name']}! Aquí tienes los mejores **cursos de internet y certificaciones online** para fortalecer tu perfil en **{topic_focus}**:\n\n"
+            f"1. **Coursera / DeepLearning.AI & IBM (Con opción de auditar gratis)**:\n"
+            f"   - *IBM Data Science Professional Certificate* (Python, SQL, Pandas, Scikit-Learn y visualización).\n"
+            f"   - *Machine Learning Specialization* (Andrew Ng - Stanford / DeepLearning.AI).\n"
+            f"2. **Kaggle Learn & Google Cloud Skills Boost (100% Gratuitos con insignia verificable)**:\n"
+            f"   - Micro-cursos prácticos de *Intro to Machine Learning*, *Pandas*, *SQL Avanzado* y *Feature Engineering* en `kaggle.com/learn`.\n"
+            f"3. **AWS Skill Builder / Microsoft Learn**:\n"
+            f"   - Rutas gratuitas de *AWS Cloud Practitioner* e *Ingeniería de Datos en la Nube*.\n"
+            f"4. **edX / MIT & HarvardX**:\n"
+            f"   - *CS50’s Introduction to Artificial Intelligence with Python* y *Data Science: R & Python Basics*.\n\n"
+            f"💡 **Consejo para tu CV**: Apenas completes cualquiera de estos módulos, regístralo en tu sección de **Certificaciones** y publica el proyecto final en **Proyectos & Portafolio**."
+        )
+    elif any(w in last_user_msg for w in ("habilidad", "skill", "afinidad", "match", "competencia", "agregar")):
         reply = (
             f"Para subir tu puntaje de **Matchmaking** como egresado de **{snap['program_name']}** (Cohorte {snap['graduation_year']}), "
             f"analicé tus competencias actuales ({skill_names}):\n\n"
@@ -750,7 +765,7 @@ def chat_with_coach(db: Session, graduate_id: int, messages: List[Dict[str, str]
     )
 
     try:
-        llm_reply = ai_client.chat_text(system_prompt, cleaned_msgs, temperature=0.55, max_tokens=750)
+        llm_reply = ai_client.chat_text(system_prompt, cleaned_msgs, temperature=0.55, max_tokens=2000)
         return {
             "source": "groq",
             "model": ai_client.model_name(False),

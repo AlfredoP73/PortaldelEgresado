@@ -35,6 +35,7 @@ import AdminSettings from './features/admin/pages/AdminSettings';
 import ExecutiveAnalyticsDashboard from './features/dashboard/pages/ExecutiveAnalyticsDashboard';
 import CohortHeatmapPage from './features/dashboard/pages/CohortHeatmapPage';
 import GraduateAICopilot from './features/graduate/pages/GraduateAICopilot';
+import CompanyAICopilot from './features/company/pages/CompanyAICopilot';
 import AlumniDirectoryPage from './features/graduates/pages/AlumniDirectoryPage';
 import EventsPage from './features/events/pages/EventsPage';
 import MessagesPage from './features/messages/pages/MessagesPage';
@@ -109,6 +110,10 @@ export default function App() {
             <Route
               path="/company/dashboard"
               element={<Layout><CompanyDashboard /></Layout>}
+            />
+            <Route
+              path="/company-copilot"
+              element={<Layout><CompanyAICopilot /></Layout>}
             />
             <Route
               path="/job-offers"

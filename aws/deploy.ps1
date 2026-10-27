@@ -9,8 +9,8 @@ if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps
 
 # Cargar variables de IA (GROQ_API_KEY, GROQ_MODEL, GROQ_FAST_MODEL) desde el archivo .env raiz si existe
 $GroqApiKey = if ($env:GROQ_API_KEY) { $env:GROQ_API_KEY } else { "" }
-$GroqModel = if ($env:GROQ_MODEL) { $env:GROQ_MODEL } else { "llama-3.3-70b-versatile" }
-$GroqFastModel = if ($env:GROQ_FAST_MODEL) { $env:GROQ_FAST_MODEL } else { "llama-3.1-8b-instant" }
+$GroqModel = if ($env:GROQ_MODEL) { $env:GROQ_MODEL } else { "openai/gpt-oss-120b" }
+$GroqFastModel = if ($env:GROQ_FAST_MODEL) { $env:GROQ_FAST_MODEL } else { "openai/gpt-oss-20b" }
 $RootEnvFile = "$PSScriptRoot\..\.env"
 if (Test-Path $RootEnvFile) {
     Get-Content $RootEnvFile | ForEach-Object {
@@ -19,6 +19,8 @@ if (Test-Path $RootEnvFile) {
         if ($_ -match "^\s*GROQ_FAST_MODEL\s*=\s*(.+)$") { $GroqFastModel = $Matches[1].Trim().Trim('"').Trim("'") }
     }
 }
+if ($GroqModel -in @("llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192")) { $GroqModel = "openai/gpt-oss-120b" }
+if ($GroqFastModel -in @("llama-3.1-8b-instant", "llama3-8b-8192", "mixtral-8x7b-32768")) { $GroqFastModel = "openai/gpt-oss-20b" }
 
 $AZ_A = "us-east-1a"
 $AZ_B = "us-east-1b"

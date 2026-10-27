@@ -476,16 +476,16 @@ export function ExecutiveAnalyticsDashboard() {
           style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
         >
           {/* Top Accent Banner */}
-          <div className="px-6 py-4 bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-sky-50/60 border-b border-emerald-200/70 flex flex-wrap items-center justify-between gap-3">
+          <div className="px-6 py-4 bg-emerald-500/10 border-b border-emerald-500/20 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-2xs">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-900 block">
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
                   Informe Ejecutivo de Inteligencia Artificial para Rectoría y Decanaturas
                 </span>
-                <p className="text-sm sm:text-base font-extrabold text-slate-900 mt-0.5">
+                <p className="text-sm sm:text-base font-extrabold text-ink mt-0.5">
                   {executiveHeadline}
                 </p>
               </div>
@@ -493,7 +493,7 @@ export function ExecutiveAnalyticsDashboard() {
             <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-700 text-white shadow-2xs flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5" />
               {aiBriefing.source === 'groq' || (aiBriefing as any).ai_powered
-                ? 'Groq Llama-3.3-70B Activo'
+                ? 'Groq AI (gpt-oss-120b) Activo'
                 : 'Motor Analítico Institucional UPC'}
             </span>
           </div>
@@ -511,10 +511,10 @@ export function ExecutiveAnalyticsDashboard() {
                     ? 'border-l-4 border-l-amber-500'
                     : 'border-l-4 border-l-sky-600';
                 const badgeBg = isPositive
-                  ? 'bg-emerald-100 text-emerald-800'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                   : isWarning
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-sky-100 text-sky-800';
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                    : 'bg-sky-500/15 text-sky-700 dark:text-sky-300';
 
                 return (
                   <div
@@ -547,19 +547,19 @@ export function ExecutiveAnalyticsDashboard() {
             {executiveRecommendationsList.length > 0 && (
               <div className="pt-1">
                 <p className="text-[11px] font-black uppercase tracking-wider text-ink-secondary mb-2.5 flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-emerald-700" />
+                  <Target className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   Decisiones Estratégicas Recomendadas para Consejo Académico:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {executiveRecommendationsList.map((rec: string, idx: number) => (
                     <div
                       key={idx}
-                      className="p-3.5 rounded-2xl border flex items-start gap-3 bg-emerald-50/60 border-emerald-200/90"
+                      className="p-3.5 rounded-2xl border flex items-start gap-3 bg-emerald-500/10 border-emerald-500/25"
                     >
                       <span className="w-6 h-6 rounded-lg bg-emerald-700 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
                         0{idx + 1}
                       </span>
-                      <p className="text-xs font-bold text-slate-800 leading-snug">{rec}</p>
+                      <p className="text-xs font-bold text-ink leading-snug">{rec}</p>
                     </div>
                   ))}
                 </div>
@@ -1138,6 +1138,8 @@ export function ExecutiveAnalyticsDashboard() {
             selectedProgram={
               programs.find((p: any) => String(p.id) === String(selectedProgram))?.name
             }
+            rawRecords={rawRecords}
+            totalActiveGraduates={Number(kpis.total_active_graduates || 107)}
           />
         </div>
       )}
@@ -1150,6 +1152,8 @@ export function ExecutiveAnalyticsDashboard() {
           selectedProgram={
             programs.find((p: any) => String(p.id) === String(selectedProgram))?.name
           }
+          rawRecords={rawRecords}
+          totalActiveGraduates={Number(kpis.total_active_graduates || 107)}
         />
       )}
 

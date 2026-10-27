@@ -789,7 +789,7 @@ def get_cohort_insights(
             "recommendations (lista de 3 recomendaciones accionables)."
         )
         usr_p = f"Audiencia: {audience}\nResumen de cohortes: {summary}\nMuestra de celdas: {cohort_data['cells'][:12]}"
-        llm = ai_client.chat_json(sys_p, usr_p, temperature=0.3, max_tokens=1000)
+        llm = ai_client.chat_json(sys_p, usr_p, temperature=0.3, max_tokens=2200)
         result = {
             **fallback,
             "source": "groq",
@@ -873,7 +873,7 @@ def get_executive_insights(
             f"Brechas de habilidades: {top_gaps}\n"
             f"Embudo: {analytics['funnel']}"
         )
-        llm = ai_client.chat_json(sys_p, usr_p, temperature=0.3, max_tokens=1100)
+        llm = ai_client.chat_json(sys_p, usr_p, temperature=0.3, max_tokens=2200)
         result = {
             **fallback,
             "source": "groq",

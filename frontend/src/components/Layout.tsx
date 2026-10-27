@@ -120,6 +120,13 @@ const getNavItems = (role: string) => {
       section: 'Módulo Empresas',
     },
     {
+      name: 'Copiloto IA Reclutamiento',
+      path: '/company-copilot',
+      icon: Sparkles,
+      roles: ['ADMIN', 'COMPANY'],
+      section: 'Módulo Empresas',
+    },
+    {
       name: role === 'COMPANY' ? 'Mi Perfil Empresarial' : 'Empresas Aliadas',
       path: '/companies',
       icon: Building2,
