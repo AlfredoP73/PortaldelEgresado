@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 import '../../main/presentation/main_layout_screen.dart';
+import '../../copilot/presentation/ai_copilot_screen.dart';
 import 'tabs/personal_data_tab.dart';
 import 'tabs/experience_tab.dart';
 import 'tabs/academic_tab.dart';
@@ -319,6 +320,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     minHeight: 6,
                                     backgroundColor: Colors.white.withValues(alpha: 0.15),
                                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF45C388)),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const AICopilotScreen()),
+                                      );
+                                      _loadProfileHeader();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.brand500,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 9),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                    icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                                    label: const Text(
+                                      'Mejorar mi Perfil con Copiloto IA (Groq)',
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                                    ),
                                   ),
                                 ),
                               ],

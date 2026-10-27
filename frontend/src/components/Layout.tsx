@@ -1,4 +1,4 @@
-﻿import React, { type ReactNode, useState, useEffect } from 'react';
+import React, { type ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -104,6 +104,13 @@ const getNavItems = (role: string) => {
       roles: ['ADMIN'],
       section: 'Inteligencia Institucional',
     },
+    {
+      name: 'Mapa Calor Cohortes',
+      path: '/cohorts',
+      icon: Trophy,
+      roles: ['ADMIN', 'GRADUATE'],
+      section: 'Inteligencia Institucional',
+    },
 
     {
       name: 'Dashboard',
@@ -139,6 +146,13 @@ const getNavItems = (role: string) => {
       name: 'Dashboard',
       path: '/graduate/dashboard',
       icon: LayoutDashboard,
+      roles: ['GRADUATE'],
+      section: 'Módulo Egresado',
+    },
+    {
+      name: 'Copiloto IA Perfil',
+      path: '/copilot',
+      icon: Sparkles,
       roles: ['GRADUATE'],
       section: 'Módulo Egresado',
     },
@@ -248,6 +262,8 @@ export default function Layout({ children }: LayoutProps) {
     '/network': 'Mi Red Profesional & Network',
     '/events': 'Eventos, Ferias y Convocatorias',
     '/messages': 'Mensajería Directa y Red de Contactos',
+    '/copilot': 'Copiloto IA del Egresado (Groq LLM)',
+    '/cohorts': 'Mapa de Calor de Empleabilidad y Salarios por Cohorte',
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {

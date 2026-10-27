@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import api, { graduatesApi } from '../../../api';
+import ApplicantBenchmarkCard from './ApplicantBenchmarkCard';
 import toast from 'react-hot-toast';
 
 interface ApplicationDetailProps {
@@ -315,8 +316,14 @@ export default function ApplicationDetail({ application, onBack, onUpdate }: App
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Sub Processes & Interview Prep IA */}
+        {/* RIGHT COLUMN: Live Benchmark, Sub Processes & Interview Prep IA */}
         <div className="flex-1 flex flex-col gap-6">
+          {jobOfferId && (
+            <ApplicantBenchmarkCard
+              jobOfferId={jobOfferId}
+              jobTitle={application.job_offer?.title}
+            />
+          )}
           <div 
             className="p-8 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}

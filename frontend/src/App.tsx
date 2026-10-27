@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -33,6 +33,8 @@ import GraduateDashboard from './features/graduate/pages/GraduateDashboard';
 import AdminMatchmaking from './features/admin/pages/AdminMatchmaking';
 import AdminSettings from './features/admin/pages/AdminSettings';
 import ExecutiveAnalyticsDashboard from './features/dashboard/pages/ExecutiveAnalyticsDashboard';
+import CohortHeatmapPage from './features/dashboard/pages/CohortHeatmapPage';
+import GraduateAICopilot from './features/graduate/pages/GraduateAICopilot';
 import AlumniDirectoryPage from './features/graduates/pages/AlumniDirectoryPage';
 import EventsPage from './features/events/pages/EventsPage';
 import MessagesPage from './features/messages/pages/MessagesPage';
@@ -195,6 +197,14 @@ export default function App() {
             <Route
               path="/surveys"
               element={<Layout><GraduateSurveys /></Layout>}
+            />
+            <Route
+              path="/copilot"
+              element={<Layout><GraduateAICopilot /></Layout>}
+            />
+            <Route
+              path="/cohorts"
+              element={<Layout><CohortHeatmapPage /></Layout>}
             />
           </Route>
 

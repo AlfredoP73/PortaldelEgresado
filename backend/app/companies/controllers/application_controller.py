@@ -6,7 +6,12 @@ from app.database import get_db
 from app.auth.utils.auth_utils import get_current_user
 from app.auth.rbac import RoleChecker
 from app.companies import schemas
-from app.companies.services import application_service
+from app.companies.services import application_service, blind_hiring_service
+from pydantic import BaseModel
+from typing import Optional
+
+class BlindAiSummaryRequest(BaseModel):
+    force: Optional[bool] = False
 
 require_company = RoleChecker(["COMPANY"])
 require_admin_or_company = RoleChecker(["ADMIN", "COMPANY"])
@@ -24,6 +29,19 @@ def create_application(app: schemas.ApplicationCreate, db: Session = Depends(get
 @router.get("/applications/job/{job_offer_id}", response_model=List[schemas.ApplicationWithCandidate], dependencies=[Depends(require_admin_or_company)])
 def get_applications_by_job(job_offer_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return application_service.get_applications_by_job(job_offer_id, current_user, db)
+
+@router.get("/applications/job/{job_offer_id}/blind", dependencies=[Depends(require_admin_or_company)])
+def get_blind_applications_by_job(job_offer_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return blind_hiring_service.get_blind_applications_by_job(job_offer_id, current_user, db)
+
+@router.get("/applications/{application_id}/blind-profile", dependencies=[Depends(require_admin_or_company)])
+def get_blind_application_profile(application_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return blind_hiring_service.get_blind_candidate_profile(application_id, current_user, db)
+
+@router.post("/applications/{application_id}/ai-summary", dependencies=[Depends(require_admin_or_company)])
+def generate_blind_ai_summary(application_id: int, body: Optional[BlindAiSummaryRequest] = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    force = bool(body.force) if body else False
+    return blind_hiring_service.generate_blind_ai_summary(application_id, current_user, db, force=force)
 
 @router.put("/applications/{application_id}/status", response_model=schemas.Application, dependencies=[Depends(require_company)])
 def update_application_status(application_id: int, status_update: schemas.ApplicationUpdateStatus, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -377,3 +395,20 @@ def get_all_applications_internal(db: Session = Depends(get_db)):
         .joinedload(models.JobOffer.company)
         .joinedload(models.Company.city),
     ).all()
+
+@internal_router.get("/applications/job/{job_offer_id}")
+def get_applications_by_job_internal(job_offer_id: int, db: Session = Depends(get_db)):
+    from app.companies import models
+    apps = db.query(models.CandidateApplication).filter(
+        models.CandidateApplication.job_offer_id == job_offer_id
+    ).all()
+    return [
+        {
+            "id": a.id,
+            "job_offer_id": a.job_offer_id,
+            "graduate_id": a.graduate_id,
+            "status": a.status.value if hasattr(a.status, "value") else str(a.status),
+            "application_date": a.application_date.isoformat() if a.application_date else None,
+        }
+        for a in apps
+    ]

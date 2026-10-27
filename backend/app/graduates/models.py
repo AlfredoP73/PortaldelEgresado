@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, Boolean, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, Boolean, DateTime, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -91,6 +91,8 @@ class GraduateSkill(Base):
     graduate_id = Column(Integer, ForeignKey("graduates.user_id"), primary_key=True)
     skill_id = Column(Integer, ForeignKey("skills.id"), primary_key=True)
     proficiency_level = Column(String)
+
+    skill = relationship("Skill", lazy="joined")
 
 class GraduateLanguage(Base):
     __tablename__ = "graduate_languages"

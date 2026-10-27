@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
+import 'widgets/applicant_benchmark_card.dart';
 
 class ApplicationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> application;
@@ -373,6 +374,15 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Radiografía de Competencia en Vivo (Benchmark Anónimo en Tiempo Real) ──
+            if (_jobOfferId > 0) ...[
+              ApplicantBenchmarkCard(
+                jobOfferId: _jobOfferId,
+                jobTitle: job['title']?.toString(),
               ),
               const SizedBox(height: 16),
             ],

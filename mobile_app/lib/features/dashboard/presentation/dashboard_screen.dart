@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/api_client.dart';
 import '../../main/presentation/main_layout_screen.dart';
+import '../../copilot/presentation/ai_copilot_screen.dart';
+import '../../cohorts/presentation/cohort_heatmap_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -224,6 +226,109 @@ class DashboardScreenState extends State<DashboardScreen> {
 
             // ── Fuerza del Perfil Card (Matches ProfileCompleteness.tsx) ──
             _buildProfileStrengthCard(context),
+            const SizedBox(height: 14),
+
+            // ── Nuevos Módulos de IA (Groq) y Mapa de Calor de Cohortes ──
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AICopilotScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: AppTheme.subtleShadow,
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                              Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 16),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Copiloto IA 360°',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Diagnóstico, método STAR y Coach con Groq AI',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white70, fontSize: 10.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CohortHeatmapScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: context.surfaceColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.brand300),
+                        boxShadow: AppTheme.subtleShadow,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Icon(Icons.grid_on_rounded, color: AppTheme.primaryColor, size: 20),
+                              Icon(Icons.arrow_forward_rounded, color: context.secondaryText, size: 16),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Mapa de Cohortes',
+                            style: TextStyle(
+                              color: context.primaryText,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Empleabilidad y salarios reales por promoción',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: context.secondaryText, fontSize: 10.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
 
             // ── 4 KPI Cards (Two Rows - Pixel-perfect without GridView spacing bugs) ──

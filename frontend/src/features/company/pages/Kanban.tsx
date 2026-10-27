@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../../api';
-import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical, Plus } from 'lucide-react';
+import { getBlindApplications, type BlindCandidate } from '../../../api/aiServices';
+import { Briefcase, ChevronDown, User, Calendar, AlertCircle, Search, MoreVertical, Plus, EyeOff, Eye, Sparkles, ShieldCheck } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
 import CandidateDetailsModal from '../../graduate/components/CandidateDetailsModal';
+import BlindCandidateModal from '../components/BlindCandidateModal';
 import AddSubProcessModal from '../components/AddSubProcessModal';
 import RejectionModal from '../components/RejectionModal';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
@@ -20,16 +22,22 @@ interface JobOffer {
 interface Application {
   id: number;
   job_offer_id: number;
-  candidate_id: number;
+  candidate_id?: number;
   status: string;
   application_date: string;
-  match_score?: number;
+  match_score?: number | null;
+  alias?: string;
+  headline?: string;
+  top_skills?: string[];
+  experience_years?: number;
+  identity_revealed?: boolean;
   graduate?: {
+    user_id?: number;
     first_name: string;
     last_name: string;
     program_id: number;
     graduation_year: number;
-  };
+  } | null;
 }
 
 const KANBAN_COLUMNS = [
@@ -46,6 +54,8 @@ export default function Kanban() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
+  const [blindModalAppId, setBlindModalAppId] = useState<number | null>(null);
+  const [blindMode, setBlindMode] = useState<boolean>(() => localStorage.getItem('upc_blind_hiring') === 'true');
   const [draggingAppId, setDraggingAppId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [addingSubProcessStage, setAddingSubProcessStage] = useState<string | null>(null);
@@ -79,9 +89,20 @@ export default function Kanban() {
 
   useEffect(() => {
     if (selectedJob !== null) {
-      fetchApplications(selectedJob);
+      fetchApplications(selectedJob, blindMode);
     }
-  }, [selectedJob]);
+  }, [selectedJob, blindMode]);
+
+  const toggleBlindMode = () => {
+    const next = !blindMode;
+    setBlindMode(next);
+    localStorage.setItem('upc_blind_hiring', String(next));
+    toast.success(
+      next
+        ? 'Modo Selección a Ciegas activado: datos personales ocultos hasta etapa de Entrevista'
+        : 'Modo estándar restaurado'
+    );
+  };
 
   const fetchJobs = async () => {
     try {
@@ -95,11 +116,16 @@ export default function Kanban() {
     }
   };
 
-  const fetchApplications = async (jobId: number) => {
+  const fetchApplications = async (jobId: number, useBlind = blindMode) => {
     setLoading(true);
     try {
-      const response = await api.get(`/applications/job/${jobId}`);
-      setApplications(response.data);
+      if (useBlind) {
+        const res = await getBlindApplications(jobId);
+        setApplications(res.data as unknown as Application[]);
+      } else {
+        const response = await api.get(`/applications/job/${jobId}`);
+        setApplications(response.data);
+      }
     } catch (error) {
       console.error('Error fetching applications:', error);
       setApplications([]);
@@ -175,9 +201,14 @@ export default function Kanban() {
 
   const filteredApplications = useMemo(() => {
     if (!searchTerm) return applications;
+    const q = searchTerm.toLowerCase();
     return applications.filter(app => {
-      const name = app.graduate ? `${app.graduate.first_name} ${app.graduate.last_name}`.toLowerCase() : `candidato #${app.candidate_id}`;
-      return name.includes(searchTerm.toLowerCase());
+      const name = app.alias
+        ? `${app.alias} ${(app.top_skills || []).join(' ')} ${app.headline || ''}`.toLowerCase()
+        : app.graduate
+          ? `${app.graduate.first_name} ${app.graduate.last_name}`.toLowerCase()
+          : `candidato #${app.candidate_id || app.id}`;
+      return name.includes(q);
     });
   }, [applications, searchTerm]);
 
@@ -190,6 +221,20 @@ export default function Kanban() {
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleBlindMode}
+            className={twMerge(
+              "px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 border transition-all shadow-sm w-full md:w-auto justify-center",
+              blindMode
+                ? "bg-emerald-700 text-white border-emerald-800 shadow-emerald-600/20"
+                : "bg-white text-ink border-[var(--border-color)] hover:border-emerald-500"
+            )}
+            title="Activar/Desactivar Modo de Reclutamiento a Ciegas (Anti-Sesgo) con IA"
+          >
+            {blindMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-emerald-600" />}
+            <span>{blindMode ? 'Blind Hiring + IA: ACTIVO' : 'Modo Reclutamiento a Ciegas'}</span>
+          </button>
           <div className="relative w-full md:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-ink-tertiary" />
@@ -225,6 +270,31 @@ export default function Kanban() {
       </div>
 
       <AnimatePresence>
+        {blindMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-2xl p-3.5 border bg-emerald-50/90 border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-emerald-700 text-white">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-extrabold text-emerald-950">
+                  Protocolo de Selección sin Sesgos (Blind Hiring) + Copiloto IA Activo
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Nombres, fotos, contacto e instituciones permanecen cifrados bajo alias UPC hasta que el candidato avanza a <strong>ENTREVISTADOS</strong> o <strong>CONTRATADOS</strong>.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white text-emerald-800 border border-emerald-300 shrink-0">
+              100% Basado en Mérito
+            </span>
+          </motion.div>
+        )}
         {selectedApps.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, height: 0, y: -10 }} 
@@ -378,7 +448,7 @@ export default function Kanban() {
                               )}
                             </div>
                             <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 z-10">
-                              {app.match_score !== undefined && (
+                              {app.match_score !== undefined && app.match_score !== null && (
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   app.match_score >= 80 ? 'bg-green-100 text-green-700' : 
                                   app.match_score >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
@@ -391,22 +461,63 @@ export default function Kanban() {
                                </button>
                             </div>
                             <div className="flex items-start gap-3 mb-2">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center text-brand-600 font-bold shrink-0 border border-brand-100 shadow-sm">
-                                {app.graduate ? `${app.graduate.first_name.charAt(0)}${app.graduate.last_name.charAt(0)}` : <User className="w-5 h-5" />}
+                              <div className={twMerge(
+                                "w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 border shadow-sm",
+                                blindMode && !app.identity_revealed
+                                  ? "bg-emerald-900 text-emerald-100 border-emerald-700"
+                                  : "bg-gradient-to-br from-brand-100 to-brand-50 text-brand-600 border-brand-100"
+                              )}>
+                                {blindMode && !app.identity_revealed ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : app.graduate ? (
+                                  `${app.graduate.first_name.charAt(0)}${app.graduate.last_name.charAt(0)}`
+                                ) : (
+                                  <User className="w-5 h-5" />
+                                )}
                               </div>
                               <div className="pr-16">
                                 <h4 className="font-bold text-ink text-sm leading-tight">
-                                  {app.graduate ? `${app.graduate.first_name} ${app.graduate.last_name}` : `Candidato #${app.candidate_id}`}
+                                  {blindMode
+                                    ? (app.identity_revealed && app.graduate
+                                        ? `${app.graduate.first_name} ${app.graduate.last_name} (${app.alias})`
+                                        : (app.alias || `Candidato UPC #${app.id}`))
+                                    : (app.graduate ? `${app.graduate.first_name} ${app.graduate.last_name}` : `Candidato #${app.candidate_id || app.id}`)}
                                 </h4>
+                                {blindMode && app.headline && (
+                                  <p className="text-[11px] text-emerald-700 font-semibold mt-0.5 line-clamp-1">
+                                    {app.headline}
+                                  </p>
+                                )}
                                 <div className="flex items-center gap-1.5 text-xs text-ink-tertiary mt-1">
                                   <Calendar className="w-3.5 h-3.5" />
                                   <span>{app.application_date ? new Date(app.application_date).toLocaleDateString() : 'N/A'}</span>
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">{'Ver Perfil y Pruebas'}</span>
-                              {!isAdmin && <span className="text-[10px] text-ink-tertiary uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">Arrastrar</span>}
+                            {blindMode && app.top_skills && app.top_skills.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {app.top_skills.slice(0, 3).map((sk, idx) => (
+                                  <span key={idx} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                    {sk}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">
+                                {blindMode ? 'Pruebas' : 'Ver Perfil y Pruebas'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBlindModalAppId(app.id);
+                                }}
+                                className="text-[11px] font-extrabold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-md border border-emerald-300 flex items-center gap-1 transition-colors"
+                              >
+                                <Sparkles className="w-3 h-3 text-emerald-700" />
+                                Dictamen IA Ciego
+                              </button>
                             </div>
                           </motion.div>
                         ))
@@ -421,6 +532,14 @@ export default function Kanban() {
       )}
 
       <AnimatePresence>
+        {blindModalAppId && (
+          <BlindCandidateModal
+            key="blind-candidate-modal"
+            applicationId={blindModalAppId}
+            onClose={() => setBlindModalAppId(null)}
+            onOpenFullModal={(appId) => setSelectedApplicationId(appId)}
+          />
+        )}
         {selectedApplicationId && (
           <CandidateDetailsModal 
             key="candidate-modal"

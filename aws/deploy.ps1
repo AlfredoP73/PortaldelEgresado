@@ -7,6 +7,19 @@ Write-Host "=======================================================" -Foreground
 # Credenciales: se cargan desde aws/credentials.ps1 (ignorado por git).
 if (Test-Path "$PSScriptRoot\credentials.ps1") { . "$PSScriptRoot\credentials.ps1" }
 
+# Cargar variables de IA (GROQ_API_KEY, GROQ_MODEL, GROQ_FAST_MODEL) desde el archivo .env raiz si existe
+$GroqApiKey = if ($env:GROQ_API_KEY) { $env:GROQ_API_KEY } else { "" }
+$GroqModel = if ($env:GROQ_MODEL) { $env:GROQ_MODEL } else { "llama-3.3-70b-versatile" }
+$GroqFastModel = if ($env:GROQ_FAST_MODEL) { $env:GROQ_FAST_MODEL } else { "llama-3.1-8b-instant" }
+$RootEnvFile = "$PSScriptRoot\..\.env"
+if (Test-Path $RootEnvFile) {
+    Get-Content $RootEnvFile | ForEach-Object {
+        if ($_ -match "^\s*GROQ_API_KEY\s*=\s*(.+)$") { $GroqApiKey = $Matches[1].Trim().Trim('"').Trim("'") }
+        if ($_ -match "^\s*GROQ_MODEL\s*=\s*(.+)$") { $GroqModel = $Matches[1].Trim().Trim('"').Trim("'") }
+        if ($_ -match "^\s*GROQ_FAST_MODEL\s*=\s*(.+)$") { $GroqFastModel = $Matches[1].Trim().Trim('"').Trim("'") }
+    }
+}
+
 $AZ_A = "us-east-1a"
 $AZ_B = "us-east-1b"
 
@@ -276,6 +289,9 @@ SMTP_PORT=587
 SMTP_USER=portal.egresados.upc@gmail.com
 SMTP_PASS=vmxlkvqzcpycsxlk
 SMTP_FROM_EMAIL=portal.egresados.upc@gmail.com
+GROQ_API_KEY=$GroqApiKey
+GROQ_MODEL=$GroqModel
+GROQ_FAST_MODEL=$GroqFastModel
 EOF
 
 # Garantizar que rabbitmq esté definido en docker-compose.back.yml

@@ -2,14 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.auth.utils.auth_utils import get_current_user
 from app.matchmaking import schemas
 from app.matchmaking.deps import (
     require_any_owner,
     require_company_or_admin,
+    require_graduate_or_admin,
     require_graduate_owner_or_admin,
     require_internal_or_admin,
 )
-from app.matchmaking.services import matching_service
+from app.matchmaking.services import matching_service, benchmark_service
 
 router = APIRouter(prefix="/matching", tags=["Matching"])
 
@@ -47,3 +49,19 @@ def match_puntual(graduate_id: int, job_offer_id: int, db: Session = Depends(get
     if not match:
         raise HTTPException(status_code=404, detail="Egresado o vacante no encontrados")
     return match
+
+
+@router.get("/benchmark/{job_offer_id}", dependencies=[Depends(require_graduate_or_admin)])
+def benchmark_vacante(
+    job_offer_id: int,
+    include_ai: bool = True,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Radiografía de competencia en vivo para el egresado frente a los demás postulantes de una vacante."""
+    return benchmark_service.get_applicant_benchmark(
+        db=db,
+        job_offer_id=job_offer_id,
+        graduate_id=current_user["id"],
+        include_ai=include_ai,
+    )

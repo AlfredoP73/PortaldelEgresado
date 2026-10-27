@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -37,6 +37,18 @@ def get_graduate_internal(graduate_id: int, db: Session = Depends(get_db)):
     candidate_dict['experiences'] = [{k: v for k, v in exp.__dict__.items() if not k.startswith('_')} for exp in candidate.experiences]
     candidate_dict['academic_histories'] = [{k: v for k, v in edu.__dict__.items() if not k.startswith('_')} for edu in candidate.academic_histories]
     candidate_dict['certifications'] = [{k: v for k, v in cert.__dict__.items() if not k.startswith('_')} for cert in candidate.certifications]
+    candidate_dict['skills'] = [
+        {
+            "skill_id": sk.skill_id,
+            "skill_name": sk.skill.name if getattr(sk, 'skill', None) else f"Skill {sk.skill_id}",
+            "proficiency_level": sk.proficiency_level
+        }
+        for sk in getattr(candidate, 'skills', [])
+    ]
+    candidate_dict['projects'] = [
+        {k: v for k, v in proj.__dict__.items() if not k.startswith('_')}
+        for proj in getattr(candidate, 'projects', [])
+    ]
     
     return candidate_dict
 
@@ -51,6 +63,7 @@ def get_all_graduates_internal(db: Session = Depends(get_db)):
         g_dict['academic_histories'] = [{k: v for k, v in edu.__dict__.items() if not k.startswith('_')} for edu in g.academic_histories]
         g_dict['certifications'] = [{k: v for k, v in cert.__dict__.items() if not k.startswith('_')} for cert in g.certifications]
         g_dict['skills'] = [{"skill_id": sk.skill_id, "skill_name": sk.skill.name if hasattr(sk, 'skill') and sk.skill else f"Skill {sk.skill_id}", "proficiency_level": sk.proficiency_level} for sk in g.skills]
+        g_dict['projects'] = [{k: v for k, v in proj.__dict__.items() if not k.startswith('_')} for proj in getattr(g, 'projects', [])]
         results.append(g_dict)
     return results
 

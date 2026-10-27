@@ -19,6 +19,8 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../events/presentation/events_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../alumni/presentation/alumni_directory_screen.dart';
+import '../../copilot/presentation/ai_copilot_screen.dart';
+import '../../cohorts/presentation/cohort_heatmap_screen.dart';
 import '../../../core/services/push_notification_service.dart';
 
 class MainLayoutScreen extends StatefulWidget {
@@ -1050,6 +1052,34 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     children: [
+                      _buildSidebarSectionTitle('INTELIGENCIA ARTIFICIAL & ANALÍTICA'),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'Copiloto IA de Perfil 360°',
+                        subtitle: 'Auditoría ATS, reescritor STAR y Coach IA',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const AICopilotScreen()),
+                          );
+                        },
+                      ),
+                      _buildSidebarItem(
+                        context,
+                        icon: Icons.grid_on_rounded,
+                        title: 'Mapa de Calor por Cohorte',
+                        subtitle: 'Salarios e inserción laboral por promoción',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CohortHeatmapScreen()),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
                       _buildSidebarSectionTitle('COMUNIDAD & RED'),
                       _buildSidebarItem(
                         context,

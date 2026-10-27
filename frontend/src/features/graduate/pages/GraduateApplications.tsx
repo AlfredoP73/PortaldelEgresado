@@ -216,6 +216,9 @@ export default function GraduateApplications() {
                                   <Users className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                                   {app.job_offer?.applicants_count || 1} {app.job_offer?.applicants_count === 1 ? 'candidato' : 'candidatos'}
                                 </div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  📊 Ver Radiografía de Competencia en Vivo
+                                </span>
                               </div>
                             </div>
 

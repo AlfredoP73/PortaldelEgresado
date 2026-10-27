@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getGraduateDashboard } from '../../../api/dashboardServices';
 import type { GraduateDashboardData } from '../../../api/dashboardServices';
-import { FileText, Eye, Target, RefreshCw } from 'lucide-react';
+import { FileText, Eye, Target, RefreshCw, Sparkles, Grid, ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import {
   Tooltip as RechartsTooltip,
@@ -25,6 +26,7 @@ import {
 } from 'recharts';
 
 export default function GraduateDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState<GraduateDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -78,11 +80,71 @@ export default function GraduateDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="page-header flex items-center justify-between">
-        <h1 className="page-title">{'Dashboard Egresado'}</h1>
-        <button onClick={fetchData} className="btn-outline p-2" title="Actualizar">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="page-title">{'Dashboard Egresado'}</h1>
+          <p className="text-xs text-ink-secondary mt-0.5">
+            Analítica de postulaciones, competitividad e inteligencia artificial aplicada a tu carrera
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/copilot')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Copiloto IA 360°
+          </button>
+          <button
+            onClick={() => navigate('/cohorts')}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+          >
+            <Grid className="w-3.5 h-3.5" />
+            Mapa de Calor Cohortes
+          </button>
+          <button onClick={fetchData} className="btn-outline p-2" title="Actualizar">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Accesos Rápidos de Inteligencia Artificial y Trayectoria */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div
+          onClick={() => navigate('/copilot')}
+          className="cursor-pointer rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 p-5 text-white shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-200">
+              <Sparkles className="w-3 h-3" /> Groq AI · Llama 3.3
+            </span>
+            <h3 className="text-base font-extrabold">Copiloto IA de Perfil Profesional</h3>
+            <p className="text-xs text-emerald-100/85">
+              Diagnóstico 360°, reescritor con método STAR y coach conversacional para multiplicar tus entrevistas.
+            </p>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
+            <ArrowRight className="w-5 h-5 text-white" />
+          </span>
+        </div>
+
+        <div
+          onClick={() => navigate('/cohorts')}
+          className="cursor-pointer rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-5 shadow-sm hover:border-emerald-500/40 transition-all flex items-center justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+              <Grid className="w-3 h-3" /> Inteligencia Laboral UPC
+            </span>
+            <h3 className="text-base font-extrabold text-ink">Mapa de Calor de Empleabilidad y Salarios</h3>
+            <p className="text-xs text-ink-secondary">
+              Compara inserción laboral, salario promedio, días al primer empleo y trabajo remoto por cohorte y programa.
+            </p>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+            <ArrowRight className="w-5 h-5" />
+          </span>
+        </div>
       </div>
 
       {/* KPIs Grid */}

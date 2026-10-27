@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +8,7 @@ from app.graduates.controllers.graduate_controller import router as graduate_rou
 from app.graduates.controllers.experience_controller import router as experience_router
 from app.graduates.controllers.education_controller import router as education_router
 from app.graduates.controllers.misc_controller import router as misc_router
+from app.graduates.controllers.ai_copilot_controller import router as ai_copilot_router
 import app.graduates.models
 
 app = FastAPI(
@@ -37,6 +38,7 @@ app.include_router(internal_router)
 app.include_router(experience_router)
 app.include_router(education_router)
 app.include_router(misc_router)
+app.include_router(ai_copilot_router)
 
 os.makedirs("uploads/cvs", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

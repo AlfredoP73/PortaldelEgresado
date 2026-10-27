@@ -260,6 +260,12 @@ class HttpCompaniesAdapter(CompaniesServicePort):
         resp = httpx.get(f"{self.base_url}/api/internal/applications", timeout=5.0)
         resp.raise_for_status()
         return resp.json()
+
+    @circuit(failure_threshold=3, recovery_timeout=30)
+    def get_job_applications(self, job_offer_id: int) -> list:
+        resp = httpx.get(f"{self.base_url}/api/internal/applications/job/{job_offer_id}", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
         
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_jobs(self, params: dict) -> list | dict:

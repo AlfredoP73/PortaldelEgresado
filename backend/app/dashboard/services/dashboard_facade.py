@@ -21,3 +21,12 @@ class DashboardFacade:
     def get_executive_analytics(self, program_id: int = None, year_min: int = None, year_max: int = None, modality: str = None):
         return dashboard_service.get_executive_analytics(self.db, program_id, year_min, year_max, modality)
 
+    def get_cohort_heatmap(self, audience: str = "graduate", program_id: int = None, year_min: int = None, year_max: int = None):
+        return dashboard_service.get_cohort_heatmap(self.db, audience=audience, program_id=program_id, year_min=year_min, year_max=year_max)
+
+    def get_cohort_insights(self, user_id: int, audience: str = "graduate", program_id: int = None, year_min: int = None, year_max: int = None):
+        return dashboard_service.get_cohort_insights(self.db, user_id=user_id, audience=audience, program_id=program_id, year_min=year_min, year_max=year_max)
+
+    def get_executive_insights(self, user_id: int, program_id: int = None, year_min: int = None, year_max: int = None, modality: str = None):
+        return dashboard_service.get_executive_insights(self.db, user_id=user_id, program_id=program_id, year_min=year_min, year_max=year_max, modality=modality)
+
