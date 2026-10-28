@@ -201,51 +201,264 @@ export default function GraduateAICopilot() {
     };
   };
 
-  // Formateador limpio de Markdown ligero (**negrita** y listas) para el Chat IA
+  // Formateador avanzado de Markdown (Tablas reales, Encabezados, Código, Listas, Negrita/Cursiva) para el Chat IA
   const renderRichText = (raw: string, isUser: boolean) => {
     const formatInline = (line: string) => {
-      const parts = line.split(/(\*\*[^*]+\*\*)/g);
-      return parts.map((part, idx) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
+      // Tokenize **bold**, `code`, and *italic*
+      const tokens = line.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g);
+      return tokens.map((tok, idx) => {
+        if (!tok) return null;
+        if (tok.startsWith('**') && tok.endsWith('**') && tok.length > 4) {
           return (
-            <strong key={idx} className={isUser ? 'font-black text-white' : 'font-extrabold text-emerald-800 dark:text-emerald-300'}>
-              {part.slice(2, -2)}
+            <strong
+              key={idx}
+              className={
+                isUser
+                  ? 'font-black text-white'
+                  : 'font-extrabold text-emerald-700 dark:text-emerald-300'
+              }
+            >
+              {tok.slice(2, -2)}
             </strong>
           );
         }
-        return <span key={idx}>{part}</span>;
+        if (tok.startsWith('`') && tok.endsWith('`') && tok.length > 2) {
+          return (
+            <code
+              key={idx}
+              className={
+                isUser
+                  ? 'px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-[11px]'
+                  : 'px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 font-mono text-[11px] font-bold'
+              }
+            >
+              {tok.slice(1, -1)}
+            </code>
+          );
+        }
+        if (tok.startsWith('*') && tok.endsWith('*') && tok.length > 2) {
+          return (
+            <em key={idx} className="italic font-semibold opacity-95">
+              {tok.slice(1, -1)}
+            </em>
+          );
+        }
+        return <span key={idx}>{tok}</span>;
       });
     };
 
+    const parseTableCells = (rowLine: string): string[] => {
+      const cleaned = rowLine.trim().replace(/^\|/, '').replace(/\|$/, '');
+      return cleaned.split('|').map((c) => c.trim());
+    };
+
+    const isSeparatorRow = (rowLine: string): boolean => {
+      const trimmed = rowLine.trim();
+      if (!trimmed.includes('|') || !trimmed.includes('-')) return false;
+      const cells = parseTableCells(trimmed);
+      return cells.length > 0 && cells.every((c) => /^:?-{2,}:?$/.test(c));
+    };
+
     const lines = raw.split('\n');
-    return (
-      <div className="space-y-1.5">
-        {lines.map((line, i) => {
-          const trimmed = line.trim();
-          if (!trimmed) return <div key={i} className="h-1" />;
-          if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-            return (
-              <div key={i} className="flex items-start gap-2 pl-1">
-                <span className="text-emerald-600 font-black mt-0.5">•</span>
-                <span className="flex-1">{formatInline(trimmed.slice(2))}</span>
-              </div>
-            );
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      // 1. Blank line
+      if (!trimmed) {
+        elements.push(<div key={`sp-${i}`} className="h-1.5" />);
+        i++;
+        continue;
+      }
+
+      // 2. Horizontal rule (---, ***, ___)
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+        elements.push(
+          <hr
+            key={`hr-${i}`}
+            className="my-2.5 border-t"
+            style={{ borderColor: 'var(--border-color)' }}
+          />
+        );
+        i++;
+        continue;
+      }
+
+      // 3. Fenced Code Block (```lang ... ```)
+      if (trimmed.startsWith('```')) {
+        const lang = trimmed.slice(3).trim() || 'código';
+        const codeLines: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        if (i < lines.length) i++; // skip closing ```
+        elements.push(
+          <div
+            key={`code-${i}`}
+            className="my-2.5 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 text-slate-100 shadow-xs"
+          >
+            <div className="px-3 py-1 bg-slate-800 border-b border-slate-700 text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
+              {lang}
+            </div>
+            <pre className="p-3 text-xs font-mono overflow-x-auto leading-relaxed">
+              <code>{codeLines.join('\n')}</code>
+            </pre>
+          </div>
+        );
+        continue;
+      }
+
+      // 4. Markdown Table (| col1 | col2 | followed by |---|---|)
+      if (
+        trimmed.includes('|') &&
+        i + 1 < lines.length &&
+        isSeparatorRow(lines[i + 1])
+      ) {
+        const headers = parseTableCells(trimmed);
+        i += 2; // skip header and separator row
+        const bodyRows: string[][] = [];
+        while (i < lines.length && lines[i].trim().includes('|')) {
+          if (!isSeparatorRow(lines[i])) {
+            bodyRows.push(parseTableCells(lines[i]));
           }
-          const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-          if (numMatch) {
-            return (
-              <div key={i} className="flex items-start gap-2 pl-1">
-                <span className="w-5 h-5 rounded-full bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">
-                  {numMatch[1]}
-                </span>
-                <span className="flex-1">{formatInline(numMatch[2])}</span>
-              </div>
-            );
-          }
-          return <p key={i}>{formatInline(trimmed)}</p>;
-        })}
-      </div>
-    );
+          i++;
+        }
+
+        elements.push(
+          <div
+            key={`tbl-${i}`}
+            className="my-3 overflow-x-auto rounded-2xl border shadow-2xs"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr
+                  className="border-b"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(8,116,67,0.12), rgba(16,185,129,0.06))',
+                    borderColor: 'var(--border-color)',
+                  }}
+                >
+                  {headers.map((h, hIdx) => (
+                    <th
+                      key={hIdx}
+                      className="px-3.5 py-2.5 font-black uppercase tracking-wider text-[11px] text-emerald-800 dark:text-emerald-300"
+                    >
+                      {formatInline(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
+                {bodyRows.map((row, rIdx) => (
+                  <tr
+                    key={rIdx}
+                    className="transition-colors hover:bg-emerald-500/5"
+                    style={{ borderColor: 'var(--border-color)' }}
+                  >
+                    {headers.map((_, cIdx) => (
+                      <td
+                        key={cIdx}
+                        className="px-3.5 py-2.5 align-top leading-relaxed text-ink"
+                      >
+                        {formatInline(row[cIdx] ?? '')}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+
+      // 5. Headings (#, ##, ###, ####)
+      const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingText = headingMatch[2];
+        elements.push(
+          <div
+            key={`hd-${i}`}
+            className={`pt-2 pb-1 flex items-center gap-2 ${
+              level <= 2
+                ? 'text-sm sm:text-base font-black text-emerald-800 dark:text-emerald-300 border-b pb-1.5'
+                : 'text-xs sm:text-sm font-black text-ink'
+            }`}
+            style={level <= 2 ? { borderColor: 'var(--border-color)' } : undefined}
+          >
+            <span className="w-1.5 h-4 rounded-full bg-emerald-600 shrink-0" />
+            <span>{formatInline(headingText)}</span>
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      // 6. Blockquote (> ...)
+      if (trimmed.startsWith('> ')) {
+        elements.push(
+          <div
+            key={`bq-${i}`}
+            className="my-1.5 pl-3 py-1.5 border-l-3 border-emerald-600 bg-emerald-500/5 rounded-r-xl text-xs italic text-ink-secondary"
+          >
+            {formatInline(trimmed.slice(2))}
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      // 7. Bullet list (- , * , • )
+      if (
+        trimmed.startsWith('- ') ||
+        trimmed.startsWith('• ') ||
+        (trimmed.startsWith('* ') && !trimmed.startsWith('**'))
+      ) {
+        elements.push(
+          <div key={`ul-${i}`} className="flex items-start gap-2 pl-1">
+            <span className="text-emerald-600 dark:text-emerald-400 font-black mt-0.5">•</span>
+            <span className="flex-1">{formatInline(trimmed.slice(2))}</span>
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      // 8. Numbered list (1. , 2. )
+      const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      if (numMatch) {
+        elements.push(
+          <div key={`ol-${i}`} className="flex items-start gap-2 pl-1">
+            <span className="w-5 h-5 rounded-full bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">
+              {numMatch[1]}
+            </span>
+            <span className="flex-1">{formatInline(numMatch[2])}</span>
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      // 9. Standard paragraph
+      elements.push(
+        <p key={`p-${i}`} className="leading-relaxed">
+          {formatInline(trimmed)}
+        </p>
+      );
+      i++;
+    }
+
+    return <div className="space-y-1.5">{elements}</div>;
   };
 
   const scoreValue = analysis?.overall_score ?? 0;
@@ -992,7 +1205,9 @@ export default function GraduateAICopilot() {
                 className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-2xl px-4 py-3.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
+                  className={`${
+                    m.role === 'user' ? 'max-w-2xl' : 'max-w-4xl w-full'
+                  } rounded-2xl px-4 sm:px-5 py-3.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
                     m.role === 'user'
                       ? 'bg-emerald-700 text-white rounded-br-none'
                       : 'text-ink border rounded-bl-none'

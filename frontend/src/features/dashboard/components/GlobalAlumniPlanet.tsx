@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   Globe2,
   Compass,
@@ -360,6 +361,7 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
   rawRecords = [],
   totalActiveGraduates = 107,
 }) => {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [layerMode, setLayerMode] = useState<PlanetLayerMode>('diaspora');
   const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('projection');
@@ -368,9 +370,10 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
   const [isAutoRotating, setIsAutoRotating] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1.15);
   const [rotation, setRotation] = useState<{ lon: number; lat: number }>({ lon: -42, lat: 20 });
-  const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() =>
+  const [bodyHasDark, setBodyHasDark] = useState<boolean>(() =>
     typeof document !== 'undefined' && document.body.classList.contains('dark')
   );
+  const isDarkTheme = theme === 'dark' || bodyHasDark;
 
   const isDraggingRef = useRef<boolean>(false);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -380,7 +383,7 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
   // Watch body.dark class changes so the Globe adapts immediately to Dark / Light mode
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const updateTheme = () => setIsDarkTheme(document.body.classList.contains('dark'));
+    const updateTheme = () => setBodyHasDark(document.body.classList.contains('dark'));
     updateTheme();
     const observer = new MutationObserver(updateTheme);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -602,13 +605,13 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
       // Clear background
       ctx.clearRect(0, 0, width, height);
 
-      // Theme-aware Ocean & Space Colors
+      // Theme-aware Ocean & Atlas Colors (True Light Mode vs Dark Mode)
       const oceanColors = isDarkTheme
         ? ['#0F2942', '#09192B', '#040D18']
-        : ['#1E3A5F', '#0F2540', '#081526'];
+        : ['#FFFFFF', '#E6F5EF', '#C5E6D9'];
 
-      // Subtle starfield
-      ctx.fillStyle = isDarkTheme ? 'rgba(148, 163, 184, 0.2)' : 'rgba(148, 163, 184, 0.25)';
+      // Subtle background particles / grid dots
+      ctx.fillStyle = isDarkTheme ? 'rgba(148, 163, 184, 0.2)' : 'rgba(8, 116, 67, 0.14)';
       for (let i = 0; i < 32; i++) {
         const sx = ((i * 97) % 100) * (width / 100);
         const sy = ((i * 53) % 100) * (height / 100);
@@ -621,9 +624,15 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
 
       // Outer atmospheric halo
       const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.88, cx, cy, radius * 1.22);
-      haloGrad.addColorStop(0, 'rgba(16, 185, 129, 0.24)');
-      haloGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.09)');
-      haloGrad.addColorStop(1, 'rgba(6, 78, 59, 0)');
+      if (isDarkTheme) {
+        haloGrad.addColorStop(0, 'rgba(16, 185, 129, 0.24)');
+        haloGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.09)');
+        haloGrad.addColorStop(1, 'rgba(6, 78, 59, 0)');
+      } else {
+        haloGrad.addColorStop(0, 'rgba(8, 116, 67, 0.16)');
+        haloGrad.addColorStop(0.5, 'rgba(16, 185, 129, 0.08)');
+        haloGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      }
       ctx.fillStyle = haloGrad;
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2);
@@ -647,14 +656,14 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
       ctx.fill();
 
       // Rim border
-      ctx.strokeStyle = 'rgba(52, 211, 153, 0.42)';
+      ctx.strokeStyle = isDarkTheme ? 'rgba(52, 211, 153, 0.42)' : 'rgba(8, 116, 67, 0.36)';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.stroke();
 
       // Graticule lines
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.11)';
+      ctx.strokeStyle = isDarkTheme ? 'rgba(56, 189, 248, 0.11)' : 'rgba(8, 116, 67, 0.13)';
       ctx.lineWidth = 0.75;
 
       for (let lat = -60; lat <= 60; lat += 20) {
@@ -705,7 +714,9 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
         const p3 = rotatePoint3D(latLonToXYZ(dot.lat, dot.lon, radius), rotation.lon, rotation.lat);
         if (p3.z > 0) {
           const depthAlpha = Math.min(1, p3.z / (radius * 0.65));
-          ctx.fillStyle = `rgba(52, 211, 153, ${0.2 + depthAlpha * 0.28})`;
+          ctx.fillStyle = isDarkTheme
+            ? `rgba(52, 211, 153, ${0.2 + depthAlpha * 0.28})`
+            : `rgba(8, 116, 67, ${0.34 + depthAlpha * 0.46})`;
           ctx.beginPath();
           ctx.arc(cx + p3.x, cy - p3.y, dotSize, 0, Math.PI * 2);
           ctx.fill();
@@ -758,8 +769,14 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
             started = false;
           }
         }
-        ctx.strokeStyle = isSelected ? hub.color : 'rgba(52, 211, 153, 0.42)';
-        ctx.lineWidth = isSelected ? 2.8 : 1.4;
+        ctx.strokeStyle = isSelected
+          ? isDarkTheme
+            ? hub.color
+            : '#D97706'
+          : isDarkTheme
+            ? 'rgba(52, 211, 153, 0.42)'
+            : 'rgba(8, 116, 67, 0.45)';
+        ctx.lineWidth = isSelected ? 2.8 : 1.5;
         ctx.stroke();
 
         const packetIdx = Math.floor(
@@ -767,11 +784,11 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
         );
         const packetPt = arcScreenPts[packetIdx];
         if (packetPt && packetPt.visible) {
-          ctx.fillStyle = '#FFFFFF';
+          ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#065F46';
           ctx.shadowColor = hub.color;
           ctx.shadowBlur = 10;
           ctx.beginPath();
-          ctx.arc(packetPt.x, packetPt.y, isSelected ? 3.8 : 2.4, 0, Math.PI * 2);
+          ctx.arc(packetPt.x, packetPt.y, isSelected ? 3.8 : 2.6, 0, Math.PI * 2);
           ctx.fill();
           ctx.shadowBlur = 0;
         }
@@ -861,13 +878,13 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
             ctx.stroke();
           }
 
-          ctx.fillStyle = hub.color;
+          ctx.fillStyle = isDarkTheme ? hub.color : isSelected ? '#D97706' : '#087443';
           ctx.beginPath();
           ctx.arc(sx, sy, metricRadius, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.strokeStyle = '#040D18';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isDarkTheme ? '#040D18' : '#FFFFFF';
+          ctx.lineWidth = 1.6;
           ctx.stroke();
 
           // Hide macro country pill if zoomed into city pins of this exact hub to avoid overlap
@@ -889,17 +906,28 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
             ctx.fillStyle = isSelected
               ? 'rgba(8, 116, 67, 0.96)'
               : hub.isOrigin
-                ? 'rgba(6, 78, 59, 0.92)'
-                : 'rgba(15, 23, 42, 0.88)';
+                ? 'rgba(6, 78, 59, 0.94)'
+                : isDarkTheme
+                  ? 'rgba(15, 23, 42, 0.88)'
+                  : 'rgba(255, 255, 255, 0.94)';
             ctx.beginPath();
             ctx.roundRect(pillX, pillY, textWidth + 12, 17, 6);
             ctx.fill();
 
-            ctx.strokeStyle = isSelected ? '#34D399' : 'rgba(148, 163, 184, 0.4)';
+            ctx.strokeStyle = isSelected
+              ? '#34D399'
+              : isDarkTheme
+                ? 'rgba(148, 163, 184, 0.4)'
+                : 'rgba(8, 116, 67, 0.35)';
             ctx.lineWidth = 1;
             ctx.stroke();
 
-            ctx.fillStyle = '#F8FAFC';
+            ctx.fillStyle =
+              isSelected || hub.isOrigin
+                ? '#FFFFFF'
+                : isDarkTheme
+                  ? '#F8FAFC'
+                  : '#0F172A';
             ctx.fillText(labelText, pillX + 6, pillY + 12);
           }
         }
@@ -1169,15 +1197,23 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
         {/* Left/Center: Interactive 3D Planet Viewport */}
         <div
           className={`lg:col-span-7 relative min-h-[470px] sm:min-h-[520px] flex flex-col justify-between overflow-hidden transition-colors ${
-            isDarkTheme ? 'bg-[#040B14]' : 'bg-[#071324]'
+            isDarkTheme
+              ? 'bg-[#040B14]'
+              : 'bg-gradient-to-br from-[#F4FAF7] via-[#E8F5EE] to-[#DCF0E6]'
           }`}
         >
           {/* Top Overlay Controls + Zoom Bar */}
           <div className="relative z-10 p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-            <div className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md text-xs text-slate-200 flex items-center gap-2 pointer-events-auto">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div
+              className={`px-3 py-1.5 rounded-xl border backdrop-blur-md text-xs flex items-center gap-2 pointer-events-auto shadow-2xs ${
+                isDarkTheme
+                  ? 'bg-slate-900/90 border-slate-700/80 text-slate-200'
+                  : 'bg-white/95 border-emerald-200 text-slate-800'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-semibold">Origen:</span>
-              <span className="font-extrabold text-emerald-300">
+              <span className={`font-extrabold ${isDarkTheme ? 'text-emerald-300' : 'text-emerald-700'}`}>
                 [CO] Valledupar, Cesar (10.46°N, 73.25°W)
               </span>
             </div>
@@ -1194,7 +1230,11 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
               </button>
               <button
                 onClick={() => setZoom((z) => Math.max(0.85, Number((z - 0.45).toFixed(2))))}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                  isDarkTheme
+                    ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-white/95 hover:bg-emerald-50 border-slate-200 text-slate-700'
+                }`}
                 title="Alejar vista (Zoom Out)"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
@@ -1202,7 +1242,7 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
               </button>
               <button
                 onClick={() => focusOnHub(selectedHub, 2.5)}
-                className="px-2.5 py-1.5 rounded-xl bg-sky-600/90 hover:bg-sky-500 text-white text-xs font-extrabold flex items-center gap-1 cursor-pointer transition-colors"
+                className="px-2.5 py-1.5 rounded-xl bg-sky-600/90 hover:bg-sky-500 text-white text-xs font-extrabold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
                 title="Enfocar y ampliar las ciudades del país seleccionado"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -1210,12 +1250,16 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
               </button>
               <button
                 onClick={() => setIsAutoRotating((v) => !v)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                  isDarkTheme
+                    ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-white/95 hover:bg-emerald-50 border-slate-200 text-slate-700'
+                }`}
               >
                 {isAutoRotating ? (
-                  <Pause className="w-3.5 h-3.5 text-emerald-400" />
+                  <Pause className="w-3.5 h-3.5 text-emerald-500" />
                 ) : (
-                  <Play className="w-3.5 h-3.5 text-amber-400" />
+                  <Play className="w-3.5 h-3.5 text-amber-500" />
                 )}
                 {isAutoRotating ? 'Pausar' : 'Rotar'}
               </button>
@@ -1225,7 +1269,11 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
                   setZoom(1.15);
                   setSelectedCityName(null);
                 }}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                  isDarkTheme
+                    ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-white/95 hover:bg-emerald-50 border-slate-200 text-slate-700'
+                }`}
                 title="Restablecer vista global"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -1245,13 +1293,23 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
           />
 
           {/* Bottom Country & City Quick Selector Pills */}
-          <div className="relative z-10 p-4 bg-gradient-to-t from-[#040B14] via-[#040B14]/85 to-transparent space-y-2">
+          <div
+            className={`relative z-10 p-4 space-y-2 ${
+              isDarkTheme
+                ? 'bg-gradient-to-t from-[#040B14] via-[#040B14]/85 to-transparent'
+                : 'bg-gradient-to-t from-[#D8EDE3] via-[#E6F4EE]/90 to-transparent'
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <p
+                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                  isDarkTheme ? 'text-slate-300' : 'text-slate-700'
+                }`}
+              >
+                <Layers className={`w-3.5 h-3.5 ${isDarkTheme ? 'text-emerald-400' : 'text-emerald-700'}`} />
                 Haz clic en un país para ampliar su ubicación y desplegar sus ciudades:
               </p>
-              <span className="text-[10px] font-bold text-emerald-400">
+              <span className={`text-[10px] font-extrabold ${isDarkTheme ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 Zoom: {zoom.toFixed(1)}x
               </span>
             </div>
@@ -1265,7 +1323,9 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
                     className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
                       active
                         ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm scale-[1.03]'
-                        : 'bg-slate-900/90 text-slate-300 border-slate-700/80 hover:border-emerald-500/60 hover:text-white'
+                        : isDarkTheme
+                          ? 'bg-slate-900/90 text-slate-300 border-slate-700/80 hover:border-emerald-500/60 hover:text-white'
+                          : 'bg-white/95 text-slate-700 border-slate-200 hover:border-emerald-500 hover:text-emerald-800 shadow-2xs'
                     }`}
                   >
                     <span

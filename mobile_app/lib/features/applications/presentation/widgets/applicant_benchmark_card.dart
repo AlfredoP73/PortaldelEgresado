@@ -67,16 +67,15 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
     try {
       await ApiClient.instance.post(
         '/modulo1/profile/skills/quick-add',
-        data: {
-          'skill_name': skillName,
-          'level': 'INTERMEDIATE',
-        },
+        data: {'skill_name': skillName, 'level': 'Intermedio'},
       );
       if (mounted) {
         setState(() => _addedSkills.add(skillName));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('¡Habilidad "$skillName" añadida a tu perfil! Actualizando radiografía...'),
+            content: Text(
+              '¡Habilidad "$skillName" añadida a tu perfil! Actualizando radiografía...',
+            ),
             backgroundColor: AppTheme.primaryColor,
           ),
         );
@@ -124,7 +123,10 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
             const SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.primaryColor),
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppTheme.primaryColor,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -133,12 +135,19 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                 children: [
                   Text(
                     'Calculando Radiografía de Competencia en Vivo...',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: context.primaryText),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: context.primaryText,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Comparando tu perfil de forma anónima frente a los demás postulantes de esta vacante.',
-                    style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: context.secondaryText,
+                    ),
                   ),
                 ],
               ),
@@ -184,19 +193,77 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
     final myScore = _toDouble(d['my_score'], 0);
     final avgScore = _toDouble(d['avg_score'], 0);
     final topScore = _toDouble(d['top_score'], 0);
-    final criteria = d['criteria_comparison'] is Map
-        ? Map<String, dynamic>.from(d['criteria_comparison'] as Map)
-        : <String, dynamic>{};
-    final gaps = (d['my_gaps'] as List? ?? []).map((e) => e.toString()).toList();
-    final strengths = (d['strengths'] as List? ?? []).map((e) => e.toString()).toList();
+
+    // Parse breakdown (List of {key, label, mine, avg, top} or Map criteria_comparison)
+    final Map<String, Map<String, dynamic>> criteria = {};
+    if (d['breakdown'] is List) {
+      for (final item in (d['breakdown'] as List)) {
+        if (item is Map) {
+          final k = (item['key'] ?? '').toString();
+          if (k.isNotEmpty) {
+            criteria[k] = Map<String, dynamic>.from(item);
+          }
+        }
+      }
+    } else if (d['criteria_comparison'] is Map) {
+      final cc = d['criteria_comparison'] as Map;
+      for (final entry in cc.entries) {
+        if (entry.value is Map) {
+          criteria[entry.key.toString()] = Map<String, dynamic>.from(
+            entry.value as Map,
+          );
+        }
+      }
+    }
+
+    // Parse my_gaps (List of Map {skill, required_level} or String)
+    final List<String> gaps = [];
+    for (final g in (d['my_gaps'] as List? ?? [])) {
+      if (g is Map) {
+        final sName = (g['skill'] ?? g['name'] ?? '').toString();
+        if (sName.isNotEmpty) gaps.add(sName);
+      } else if (g != null) {
+        gaps.add(g.toString());
+      }
+    }
+
+    final strengths =
+        (d['strengths'] as List? ?? []).map((e) => e.toString()).toList();
     final levers = (d['improvement_levers'] as List? ?? [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
-    final aiTips = (d['ai_tips'] as List? ?? []).map((e) => e.toString()).toList();
-    final stageDist = d['stage_distribution'] is Map
-        ? Map<String, dynamic>.from(d['stage_distribution'] as Map)
-        : <String, dynamic>{};
+
+    // Parse ai_tips (Map {summary, tips: [...]} or List)
+    final List<String> aiTips = [];
+    String aiSummaryText = '';
+    if (d['ai_tips'] is Map) {
+      final at = d['ai_tips'] as Map;
+      aiSummaryText = (at['summary'] ?? '').toString();
+      for (final t in (at['tips'] as List? ?? [])) {
+        aiTips.add(t.toString());
+      }
+    } else if (d['ai_tips'] is List) {
+      for (final t in (d['ai_tips'] as List)) {
+        aiTips.add(t.toString());
+      }
+    }
+
+    // Parse stage_distribution (List of {status, count} or Map)
+    final Map<String, int> stageDist = {};
+    if (d['stage_distribution'] is List) {
+      for (final st in (d['stage_distribution'] as List)) {
+        if (st is Map) {
+          final k = (st['status'] ?? 'POSTULADO').toString();
+          stageDist[k] = _toInt(st['count'], 0);
+        }
+      }
+    } else if (d['stage_distribution'] is Map) {
+      final sd = d['stage_distribution'] as Map;
+      for (final entry in sd.entries) {
+        stageDist[entry.key.toString()] = _toInt(entry.value, 0);
+      }
+    }
 
     return Container(
       width: double.infinity,
@@ -204,7 +271,10 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
       decoration: BoxDecoration(
         color: context.surfaceColor,
         borderRadius: AppTheme.cardRadius,
-        border: Border.all(color: AppTheme.brand300.withValues(alpha: 0.65), width: 1.2),
+        border: Border.all(
+          color: AppTheme.brand300.withValues(alpha: 0.65),
+          width: 1.2,
+        ),
         boxShadow: AppTheme.subtleShadow,
       ),
       child: Column(
@@ -220,7 +290,11 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                   gradient: AppTheme.primaryGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.radar_rounded, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.radar_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -230,7 +304,10 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppTheme.brand50,
                             borderRadius: BorderRadius.circular(6),
@@ -271,7 +348,10 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                     ),
                     Text(
                       'Tu posición real frente a los demás candidatos postulados a esta oferta',
-                      style: TextStyle(fontSize: 11.5, color: context.secondaryText),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: context.secondaryText,
+                      ),
                     ),
                   ],
                 ),
@@ -302,7 +382,8 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                 child: _buildMetricTile(
                   context,
                   label: 'PERCENTIL',
-                  value: 'Top ${100 - percentile <= 0 ? 1 : (100 - percentile)}%',
+                  value:
+                      'Top ${100 - percentile <= 0 ? 1 : (100 - percentile)}%',
                   sub: 'Superas al $percentile%',
                 ),
               ),
@@ -312,7 +393,8 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                   context,
                   label: 'TU PUNTAJE',
                   value: '${myScore.round()}%',
-                  sub: 'Media ${avgScore.round()}% · Líder ${topScore.round()}%',
+                  sub:
+                      'Media ${avgScore.round()}% · Líder ${topScore.round()}%',
                 ),
               ),
             ],
@@ -333,19 +415,19 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
           _buildCriterionRow(
             context,
             label: 'Habilidades Técnicas (50%)',
-            data: criteria['skills'] is Map ? Map<String, dynamic>.from(criteria['skills']) : {},
+            data: criteria['skills'] ?? {},
           ),
           const SizedBox(height: 8),
           _buildCriterionRow(
             context,
             label: 'Experiencia Relevante (30%)',
-            data: criteria['experience'] is Map ? Map<String, dynamic>.from(criteria['experience']) : {},
+            data: criteria['experience'] ?? {},
           ),
           const SizedBox(height: 8),
           _buildCriterionRow(
             context,
             label: 'Afinidad de Programa UPC (20%)',
-            data: criteria['program'] is Map ? Map<String, dynamic>.from(criteria['program']) : {},
+            data: criteria['program'] ?? {},
           ),
 
           // ── Distribución Anónima del Embudo ──
@@ -366,7 +448,10 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
               runSpacing: 6,
               children: stageDist.entries.map((entry) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: context.mutedColor,
                     borderRadius: BorderRadius.circular(8),
@@ -406,9 +491,14 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                 final isBusy = _addingSkill == skill;
                 return InkWell(
                   borderRadius: BorderRadius.circular(10),
-                  onTap: (isAdded || isBusy) ? null : () => _quickAddSkill(skill),
+                  onTap: (isAdded || isBusy)
+                      ? null
+                      : () => _quickAddSkill(skill),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isAdded
                           ? const Color(0xFFDCFCE7)
@@ -427,13 +517,20 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                           const SizedBox(
                             width: 12,
                             height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFB45309)),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFB45309),
+                            ),
                           )
                         else
                           Icon(
-                            isAdded ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                            isAdded
+                                ? Icons.check_circle_rounded
+                                : Icons.add_circle_outline_rounded,
                             size: 14,
-                            color: isAdded ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                            color: isAdded
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFFB45309),
                           ),
                         const SizedBox(width: 5),
                         Text(
@@ -441,7 +538,9 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w800,
-                            color: isAdded ? const Color(0xFF15803D) : const Color(0xFF92400E),
+                            color: isAdded
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFF92400E),
                           ),
                         ),
                       ],
@@ -466,35 +565,60 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
             ),
             const SizedBox(height: 8),
             ...levers.take(3).map((lv) {
-              final action = lv['action']?.toString() ?? '';
-              final gain = _toDouble(lv['estimated_score_gain'], 5);
+              final action =
+                  (lv['title'] ?? lv['action'] ?? 'Mejorar competencia')
+                      .toString();
+              final gain = _toDouble(
+                lv['estimated_gain'] ?? lv['estimated_score_gain'],
+                5,
+              );
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: AppTheme.brand50.withValues(alpha: context.isDark ? 0.14 : 0.7),
+                  color: AppTheme.brand50.withValues(
+                    alpha: context.isDark ? 0.14 : 0.7,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppTheme.brand200),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.trending_up_rounded, size: 16, color: AppTheme.primaryColor),
+                    const Icon(
+                      Icons.trending_up_rounded,
+                      size: 16,
+                      color: AppTheme.primaryColor,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         action,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.primaryText),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: context.primaryText,
+                        ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryColor,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         '+${gain.round()} pts',
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -523,7 +647,11 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.auto_awesome_rounded, color: Color(0xFF7CDAAC), size: 16),
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Color(0xFF7CDAAC),
+                        size: 16,
+                      ),
                       SizedBox(width: 6),
                       Text(
                         'RECOMENDACIONES TÁCTICAS DE IA (GROQ)',
@@ -536,6 +664,17 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                       ),
                     ],
                   ),
+                  if (aiSummaryText.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      aiSummaryText,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   ...(aiTips.isNotEmpty ? aiTips : strengths).take(3).map(
                     (tip) => Padding(
@@ -543,7 +682,13 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('• ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const Text(
+                            '• ',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           Expanded(
                             child: Text(
                               tip,
@@ -640,12 +785,20 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.primaryText),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: context.primaryText,
+                ),
               ),
             ),
             Text(
               'Tú: ${mine.round()}%  |  Media: ${avg.round()}%  |  Top: ${top.round()}%',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.secondaryText),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: context.secondaryText,
+              ),
             ),
           ],
         ),
@@ -665,4 +818,3 @@ class _ApplicantBenchmarkCardState extends State<ApplicantBenchmarkCard> {
     );
   }
 }
-

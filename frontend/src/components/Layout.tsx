@@ -270,6 +270,7 @@ export default function Layout({ children }: LayoutProps) {
     '/events': 'Eventos, Ferias y Convocatorias',
     '/messages': 'Mensajería Directa y Red de Contactos',
     '/copilot': 'Copiloto IA del Egresado (Groq LLM)',
+    '/company-copilot': 'Copiloto IA de Reclutamiento · Empresas',
     '/cohorts': 'Mapa de Calor de Empleabilidad y Salarios por Cohorte',
   };
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, ShieldCheck, Sparkles, Award, Briefcase, GraduationCap,
   FolderGit2, CheckCircle2, AlertTriangle, HelpCircle, RefreshCw,
@@ -112,17 +113,21 @@ export default function BlindCandidateModal({
     'Adaptabilidad y Aprendizaje Técnico',
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 overflow-y-auto">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-3 sm:p-6"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-4xl rounded-3xl shadow-2xl border overflow-hidden my-6 max-h-[92vh] flex flex-col"
+        className="w-full max-w-4xl rounded-3xl shadow-2xl border overflow-hidden max-h-[90vh] flex flex-col"
         style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* ====================================================================
             HEADER EJECUTIVO MODO ANTI-SESGO
             ==================================================================== */}
         <div
-          className="px-6 py-5 flex items-center justify-between gap-4 relative overflow-hidden"
+          className="px-6 py-5 flex items-center justify-between gap-4 relative overflow-hidden shrink-0"
           style={{
             background: 'linear-gradient(135deg, #042f2e 0%, #065f46 55%, #0f766e 100%)',
           }}
@@ -188,7 +193,7 @@ export default function BlindCandidateModal({
         {/* ====================================================================
             BODY DEL EXPEDIENTE CIEGO
             ==================================================================== */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
           {loadingProfile ? (
             <div className="py-16 text-center space-y-3">
               <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -587,7 +592,7 @@ export default function BlindCandidateModal({
 
         {/* Footer */}
         <div
-          className="px-6 py-4 border-t flex flex-wrap items-center justify-between gap-3"
+          className="px-6 py-4 border-t flex flex-wrap items-center justify-between gap-3 shrink-0"
           style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
         >
           <div className="flex items-center gap-2 text-xs text-ink-secondary">
@@ -621,6 +626,7 @@ export default function BlindCandidateModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
