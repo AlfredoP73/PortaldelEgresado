@@ -188,3 +188,28 @@ class GraduateConnection(Base):
     message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class AICoachSession(Base):
+    __tablename__ = "ai_coach_sessions"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    graduate_id = Column(Integer, ForeignKey("graduates.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False, default="Nueva conversación")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    messages = relationship("AICoachMessage", back_populates="session", cascade="all, delete-orphan", order_by="AICoachMessage.id.asc()")
+
+
+class AICoachMessage(Base):
+    __tablename__ = "ai_coach_messages"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("ai_coach_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # 'user' | 'assistant'
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("AICoachSession", back_populates="messages")
+

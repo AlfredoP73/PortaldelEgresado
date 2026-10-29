@@ -48,13 +48,29 @@ export interface CoachRewrite extends AiMeta {
 }
 
 export interface CoachChatMessage {
+  id?: number;
   role: 'user' | 'assistant';
   content: string;
+  created_at?: string;
+}
+
+export interface CoachChatSession {
+  id: number;
+  graduate_id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message_preview: string;
+  messages?: CoachChatMessage[];
 }
 
 export interface CoachChatReply extends AiMeta {
   reply: string;
   suggestions: string[];
+  session_id?: number;
+  session_title?: string;
+  messages?: CoachChatMessage[];
 }
 
 export const getAiStatus = () =>
@@ -69,8 +85,26 @@ export const rewriteWithAi = (data: {
   context?: { position?: string; company?: string; job_title?: string };
 }) => graduatesApi.post<CoachRewrite>('/ai/coach/rewrite', data, AI_TIMEOUT);
 
-export const chatWithCoach = (messages: CoachChatMessage[]) =>
-  graduatesApi.post<CoachChatReply>('/ai/coach/chat', { messages }, AI_TIMEOUT);
+export const getCoachSessions = () =>
+  graduatesApi.get<CoachChatSession[]>('/ai/coach/sessions');
+
+export const createCoachSession = (title?: string) =>
+  graduatesApi.post<CoachChatSession>('/ai/coach/sessions', title ? { title } : {});
+
+export const getCoachSession = (sessionId: number) =>
+  graduatesApi.get<CoachChatSession>(`/ai/coach/sessions/${sessionId}`);
+
+export const deleteCoachSession = (sessionId: number) =>
+  graduatesApi.delete<{ deleted_id: number; sessions: CoachChatSession[]; active_session: CoachChatSession }>(
+    `/ai/coach/sessions/${sessionId}`
+  );
+
+export const chatWithCoach = (messages: CoachChatMessage[], sessionId?: number | null) =>
+  graduatesApi.post<CoachChatReply>(
+    '/ai/coach/chat',
+    { messages, session_id: sessionId ?? undefined },
+    AI_TIMEOUT
+  );
 
 // ── B. Reclutamiento a ciegas + dictamen IA ──────────────────────────────────
 export interface BlindCandidate {

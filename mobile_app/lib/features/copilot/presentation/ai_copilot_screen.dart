@@ -37,22 +37,27 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
   bool _rewriting = false;
   Map<String, dynamic>? _rewriteResult;
 
-  // Tab 3: Chat Coach
+  // Tab 3: Chat Coach (Sincronizado Web <-> Móvil + Acceso Seguro a Vacantes)
   final TextEditingController _chatCtrl = TextEditingController();
   final ScrollController _chatScrollCtrl = ScrollController();
   bool _sendingChat = false;
-  final List<Map<String, String>> _messages = [
+  bool _loadingSessions = false;
+  int? _activeSessionId;
+  List<Map<String, dynamic>> _chatSessions = [];
+  static const String _welcomeMessage =
+      '¡Hola! Soy tu **Copiloto IA de Empleabilidad UPC**. Tengo acceso en tiempo real a tu expediente, a tus postulaciones y al **catálogo de vacantes activas del portal** (protegiendo siempre los datos privados de terceros). ¿Qué aspecto de tu carrera o búsqueda laboral impulsamos hoy?';
+
+  List<Map<String, String>> _messages = [
     {
       'role': 'assistant',
-      'content':
-          '¡Hola! Soy tu **Copiloto IA de Empleabilidad UPC**. Analizo tu expediente real para ayudarte a destacar ante reclutadores, superar filtros ATS, redactar logros con metodología STAR y recomendar rutas de aprendizaje. ¿Qué aspecto de tu carrera impulsamos hoy?',
+      'content': _welcomeMessage,
     },
   ];
   List<String> _followUpSuggestions = [
+    '¿Qué vacantes activas hay en el portal para mi perfil?',
+    '¿Cuál es el estado actual de mis postulaciones?',
     '¿Qué habilidades me recomiendas agregar según mi carrera?',
-    '¿Qué cursos de internet me recomiendas para ciencia de datos?',
     'Ayúdame a redactar un logro con metodología STAR',
-    '¿Cómo negocio mi salario para mi próximo empleo?',
   ];
 
   @override
@@ -105,7 +110,145 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
       }
     } catch (_) {}
 
-    await _runDiagnosis();
+    await Future.wait([
+      _runDiagnosis(),
+      _loadChatSessions(),
+    ]);
+  }
+
+  Future<void> _loadChatSessions([int? selectId]) async {
+    if (!mounted) return;
+    setState(() => _loadingSessions = true);
+    try {
+      final res = await ApiClient.instance.get('/modulo1/ai/coach/sessions');
+      if (res.data is List && mounted) {
+        final list = (res.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        final targetId =
+            selectId ??
+            _activeSessionId ??
+            (list.isNotEmpty ? (list.first['id'] as int?) : null);
+        setState(() {
+          _chatSessions = list;
+          _activeSessionId = targetId;
+        });
+        if (targetId != null) {
+          await _selectChatSession(targetId, silent: true);
+        }
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingSessions = false);
+    }
+  }
+
+  Future<void> _selectChatSession(int sessionId, {bool silent = false}) async {
+    try {
+      setState(() => _activeSessionId = sessionId);
+      final res = await ApiClient.instance.get(
+        '/modulo1/ai/coach/sessions/$sessionId',
+      );
+      if (res.data is Map && mounted) {
+        final data = Map<String, dynamic>.from(res.data as Map);
+        final rawMsgs = (data['messages'] as List?) ?? [];
+        if (rawMsgs.isNotEmpty) {
+          final parsed = rawMsgs.whereType<Map>().map((m) {
+            return {
+              'role': (m['role']?.toString() == 'user') ? 'user' : 'assistant',
+              'content': m['content']?.toString() ?? '',
+            };
+          }).toList();
+          setState(() => _messages = parsed);
+          _scrollToBottom();
+        }
+      }
+    } catch (_) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo cargar la conversación seleccionada.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createNewChatSession() async {
+    setState(() => _loadingSessions = true);
+    try {
+      final res = await ApiClient.instance.post(
+        '/modulo1/ai/coach/sessions',
+        data: {'title': 'Nueva conversación'},
+      );
+      if (res.data is Map && mounted) {
+        final created = Map<String, dynamic>.from(res.data as Map);
+        final newId = created['id'] as int?;
+        final rawMsgs = (created['messages'] as List?) ?? [];
+        setState(() {
+          _activeSessionId = newId;
+          _messages = rawMsgs.isNotEmpty
+              ? rawMsgs.whereType<Map>().map((m) {
+                  return {
+                    'role':
+                        (m['role']?.toString() == 'user') ? 'user' : 'assistant',
+                    'content': m['content']?.toString() ?? '',
+                  };
+                }).toList()
+              : [
+                  {'role': 'assistant', 'content': _welcomeMessage},
+                ];
+          _followUpSuggestions = [
+            '¿Qué vacantes activas hay en el portal para mi perfil?',
+            '¿Cuál es el estado actual de mis postulaciones?',
+            '¿Qué habilidades me recomiendas agregar según mi carrera?',
+            'Ayúdame a redactar un logro con metodología STAR',
+          ];
+        });
+        await _loadChatSessions(newId);
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingSessions = false);
+    }
+  }
+
+  Future<void> _deleteChatSession(int sessionId) async {
+    try {
+      final res = await ApiClient.instance.delete(
+        '/modulo1/ai/coach/sessions/$sessionId',
+      );
+      if (res.data is Map && mounted) {
+        final d = Map<String, dynamic>.from(res.data as Map);
+        final remaining = ((d['sessions'] as List?) ?? [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        final active = d['active_session'] is Map
+            ? Map<String, dynamic>.from(d['active_session'] as Map)
+            : null;
+        setState(() {
+          _chatSessions = remaining;
+          if (active != null) {
+            _activeSessionId = active['id'] as int?;
+            final rawMsgs = (active['messages'] as List?) ?? [];
+            _messages = rawMsgs.isNotEmpty
+                ? rawMsgs.whereType<Map>().map((m) {
+                    return {
+                      'role': (m['role']?.toString() == 'user')
+                          ? 'user'
+                          : 'assistant',
+                      'content': m['content']?.toString() ?? '',
+                    };
+                  }).toList()
+                : [
+                    {'role': 'assistant', 'content': _welcomeMessage},
+                  ];
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _runDiagnosis() async {
@@ -295,6 +438,7 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
         data: {
           'messages': fullMessages,
           'message': text,
+          'session_id': _activeSessionId,
           'target_role': _targetRoleCtrl.text.trim(),
           'history': history,
         },
@@ -304,6 +448,8 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
         final reply =
             d['reply']?.toString() ??
             'Aquí tienes mis recomendaciones profesionales.';
+        final newSessionId = d['session_id'] as int?;
+        final serverMsgs = (d['messages'] as List?) ?? [];
         final rawSugs =
             (d['suggestions'] as List?) ??
             (d['follow_up_suggestions'] as List?) ??
@@ -318,7 +464,19 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
             .toList();
 
         setState(() {
-          _messages.add({'role': 'assistant', 'content': reply});
+          if (newSessionId != null) _activeSessionId = newSessionId;
+          if (serverMsgs.isNotEmpty) {
+            _messages = serverMsgs.whereType<Map>().map((m) {
+              return {
+                'role': (m['role']?.toString() == 'user')
+                    ? 'user'
+                    : 'assistant',
+                'content': m['content']?.toString() ?? '',
+              };
+            }).toList();
+          } else {
+            _messages.add({'role': 'assistant', 'content': reply});
+          }
           if (sugs.isNotEmpty) _followUpSuggestions = sugs;
           if (d['source'] == 'groq') {
             _isGroqConnected = true;
@@ -327,6 +485,20 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
           }
         });
         _scrollToBottom();
+        // Refresh session list metadata in background
+        ApiClient.instance
+            .get('/modulo1/ai/coach/sessions')
+            .then((listRes) {
+              if (listRes.data is List && mounted) {
+                setState(() {
+                  _chatSessions = (listRes.data as List)
+                      .whereType<Map>()
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList();
+                });
+              }
+            })
+            .catchError((_) {});
       }
     } catch (_) {
       if (mounted) {
@@ -1934,11 +2106,371 @@ class _AICopilotScreenState extends State<AICopilotScreen> {
   }
 
   // ===========================================================================
-  // TAB 3: COACH IA CONVERSACIONAL (CON TABLAS Y FORMATO MARKDOWN RICO)
+  // TAB 3: COACH IA CONVERSACIONAL (CON HISTORIAL WEB & MÓVIL Y TABLAS MARKDOWN)
   // ===========================================================================
+  void _showChatSessionsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: context.borderColor,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.brand50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.history_rounded,
+                              color: AppTheme.primaryColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Historial de Conversaciones (${_chatSessions.length})',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: context.primaryText,
+                                  ),
+                                ),
+                                Text(
+                                  'Sincronizadas en tiempo real entre Portal Web y App Móvil',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: context.secondaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(sheetCtx);
+                              await _createNewChatSession();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: const Text(
+                              'Nuevo Chat',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: _chatSessions.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No tienes conversaciones guardadas aún.',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: context.secondaryText,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: _chatSessions.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, idx) {
+                                  final s = _chatSessions[idx];
+                                  final sId = s['id'] as int?;
+                                  final isSelected = sId == _activeSessionId;
+                                  final title =
+                                      s['title']?.toString() ??
+                                      'Conversación IA';
+                                  final preview =
+                                      s['last_message_preview']?.toString() ??
+                                      '';
+                                  final count = s['message_count'] ?? 1;
+
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () async {
+                                      Navigator.pop(sheetCtx);
+                                      if (sId != null) {
+                                        await _selectChatSession(sId);
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppTheme.primaryColor.withValues(
+                                                alpha: 0.12,
+                                              )
+                                            : context.bgColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? AppTheme.primaryColor
+                                              : context.borderColor,
+                                          width: isSelected ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.chat_bubble_outline_rounded,
+                                            size: 18,
+                                            color: isSelected
+                                                ? AppTheme.primaryColor
+                                                : context.secondaryText,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: isSelected
+                                                        ? AppTheme.primaryColor
+                                                        : context.primaryText,
+                                                  ),
+                                                ),
+                                                if (preview.isNotEmpty) ...[
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    preview,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 11.5,
+                                                      color:
+                                                          context.secondaryText,
+                                                    ),
+                                                  ),
+                                                ],
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '$count mensajes · Sincronizado',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppTheme.primaryColor
+                                                        .withValues(alpha: 0.8),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 18,
+                                              color: AppTheme.statusRechazado,
+                                            ),
+                                            onPressed: () async {
+                                              if (sId != null) {
+                                                await _deleteChatSession(sId);
+                                                setSheetState(() {});
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildCoachChatTab(BuildContext context) {
+    final currentTitle = _chatSessions
+        .where((s) => s['id'] == _activeSessionId)
+        .map((s) => s['title']?.toString() ?? 'Coach IA UPC')
+        .firstOrNull ??
+        'Coach de Carrera IA';
+
     return Column(
       children: [
+        // Barra Superior de Historial de Chats (Sincronizado Web & Móvil)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            border: Border(bottom: BorderSide(color: context.borderColor)),
+          ),
+          child: Row(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _showChatSessionsSheet(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.history_rounded,
+                        size: 15,
+                        color: AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Chats (${_chatSessions.length})',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 15,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: context.primaryText,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.verified_user_rounded,
+                          size: 11,
+                          color: AppTheme.primaryColor,
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            'Conectado a Vacantes · Web & Móvil',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: context.secondaryText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Sincronizar con Web',
+                onPressed: _loadingSessions
+                    ? null
+                    : () => _loadChatSessions(_activeSessionId),
+                icon: Icon(
+                  Icons.sync_rounded,
+                  size: 18,
+                  color: context.secondaryText,
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Nueva conversación',
+                onPressed: _loadingSessions ? null : _createNewChatSession,
+                icon: const Icon(
+                  Icons.add_comment_rounded,
+                  size: 18,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // Quick Suggestions Strip
         Container(
           width: double.infinity,

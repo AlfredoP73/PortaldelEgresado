@@ -32,7 +32,13 @@ class ChatMessageItem(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    messages: List[ChatMessageItem]
+    messages: Optional[List[ChatMessageItem]] = None
+    message: Optional[str] = None
+    session_id: Optional[int] = None
+
+
+class CreateSessionRequest(BaseModel):
+    title: Optional[str] = None
 
 
 @router.get("/status")
@@ -68,12 +74,54 @@ def rewrite_text(
     )
 
 
+@router.get("/coach/sessions")
+def list_sessions(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return ai_copilot_service.list_coach_sessions(db, current_user["id"])
+
+
+@router.post("/coach/sessions")
+def create_session(
+    body: Optional[CreateSessionRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    title = body.title if body else None
+    return ai_copilot_service.create_coach_session(db, current_user["id"], title=title)
+
+
+@router.get("/coach/sessions/{session_id}")
+def get_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return ai_copilot_service.get_coach_session(db, current_user["id"], session_id)
+
+
+@router.delete("/coach/sessions/{session_id}")
+def delete_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return ai_copilot_service.delete_coach_session(db, current_user["id"], session_id)
+
+
 @router.post("/coach/chat")
 def chat_coach(
     body: ChatRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    msgs = [{"role": m.role, "content": m.content} for m in body.messages]
-    return ai_copilot_service.chat_with_coach(db, current_user["id"], msgs)
-
+    msgs = [{"role": m.role, "content": m.content} for m in (body.messages or [])]
+    if not msgs and body.message:
+        msgs = [{"role": "user", "content": body.message}]
+    return ai_copilot_service.chat_with_coach(
+        db=db,
+        graduate_id=current_user["id"],
+        messages=msgs,
+        session_id=body.session_id,
+    )

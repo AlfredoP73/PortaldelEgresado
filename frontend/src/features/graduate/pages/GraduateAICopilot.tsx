@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   Sparkles, Target, Wand2, MessageSquare, CheckCircle2,
   Plus, RefreshCw, Send, Copy, Check, Calendar, Award,
-  ArrowRight, AlertTriangle, Zap, ShieldCheck, Layers, RotateCcw
+  ArrowRight, AlertTriangle, Zap, ShieldCheck, Layers, RotateCcw,
+  Trash2, History, Smartphone, Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { graduatesApi } from '../../../api/index';
@@ -10,8 +11,13 @@ import {
   analyzeProfileWithAi,
   rewriteWithAi,
   chatWithCoach,
+  getCoachSessions,
+  createCoachSession,
+  getCoachSession,
+  deleteCoachSession,
   type CoachAnalysis,
   type CoachRewrite,
+  type CoachChatSession,
 } from '../../../api/aiServices';
 
 export default function GraduateAICopilot() {
@@ -35,23 +41,128 @@ export default function GraduateAICopilot() {
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Tab 3: Chat Coach
+  // Tab 3: Chat Coach (con Historial Persistente Web <-> Móvil y Acceso Seguro al Sistema)
   const initialMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [
     {
       role: 'assistant',
       content:
-        '¡Hola! Soy tu **Copiloto IA de Empleabilidad UPC**. Analizo tu expediente real para ayudarte a destacar ante reclutadores, superar filtros ATS, redactar logros con metodología STAR y preparar entrevistas. ¿Qué aspecto de tu carrera impulsamos hoy?',
+        '¡Hola! Soy tu **Copiloto IA de Empleabilidad UPC**. Tengo acceso en tiempo real a tu expediente, a tus postulaciones y al **catálogo de vacantes activas del portal** (bajo estricta protección de datos personales de terceros). ¿Qué aspecto de tu carrera o búsqueda laboral impulsamos hoy?',
     },
   ];
+  const [sessions, setSessions] = useState<CoachChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [showSidebarMobile, setShowSidebarMobile] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>(initialMessages);
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([
+    '¿Qué vacantes activas hay en el portal para mi perfil?',
+    '¿Cuál es el estado actual de mis postulaciones?',
     '¿Qué habilidades me recomiendas agregar según mi carrera?',
     'Ayúdame a redactar un logro con metodología STAR',
-    '¿Cómo respondo preguntas difíciles en una entrevista?',
-    '¿Cómo negocio mi salario para mi próximo empleo?',
   ]);
+
+  const loadChatSessions = async (selectId?: number) => {
+    try {
+      setLoadingSessions(true);
+      const res = await getCoachSessions();
+      const list = Array.isArray(res.data) ? res.data : [];
+      setSessions(list);
+      const targetId = selectId ?? activeSessionId ?? (list[0]?.id || null);
+      if (targetId) {
+        setActiveSessionId(targetId);
+        const detail = await getCoachSession(targetId);
+        if (detail.data?.messages?.length) {
+          setMessages(
+            detail.data.messages.map((m) => ({
+              role: m.role === 'user' ? 'user' : 'assistant',
+              content: m.content,
+            }))
+          );
+        }
+      }
+    } catch {
+      // Fallback local si el servicio está reiniciando
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const handleSelectSession = async (sessionId: number) => {
+    try {
+      setActiveSessionId(sessionId);
+      setShowSidebarMobile(false);
+      const detail = await getCoachSession(sessionId);
+      if (detail.data?.messages?.length) {
+        setMessages(
+          detail.data.messages.map((m) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content,
+          }))
+        );
+      } else {
+        setMessages(initialMessages);
+      }
+    } catch {
+      toast.error('No se pudo cargar la conversación');
+    }
+  };
+
+  const handleNewChatSession = async () => {
+    try {
+      setLoadingSessions(true);
+      const res = await createCoachSession('Nueva conversación');
+      const created = res.data;
+      setActiveSessionId(created.id);
+      setMessages(
+        created.messages?.length
+          ? created.messages.map((m) => ({
+              role: m.role === 'user' ? 'user' : 'assistant',
+              content: m.content,
+            }))
+          : initialMessages
+      );
+      setSuggestions([
+        '¿Qué vacantes activas hay en el portal para mi perfil?',
+        '¿Cuál es el estado actual de mis postulaciones?',
+        '¿Qué habilidades me recomiendas agregar según mi carrera?',
+        'Ayúdame a redactar un logro con metodología STAR',
+      ]);
+      const listRes = await getCoachSessions();
+      if (Array.isArray(listRes.data)) setSessions(listRes.data);
+      setShowSidebarMobile(false);
+      toast.success('Nueva conversación iniciada');
+    } catch {
+      setMessages(initialMessages);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await deleteCoachSession(sessionId);
+      const remaining = res.data?.sessions || [];
+      setSessions(remaining);
+      const active = res.data?.active_session;
+      if (active) {
+        setActiveSessionId(active.id);
+        setMessages(
+          active.messages?.length
+            ? active.messages.map((m) => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content,
+              }))
+            : initialMessages
+        );
+      }
+      toast.success('Conversación eliminada');
+    } catch {
+      toast.error('No se pudo eliminar la conversación');
+    }
+  };
 
   const runAnalysis = async (role?: string) => {
     try {
@@ -67,6 +178,7 @@ export default function GraduateAICopilot() {
 
   useEffect(() => {
     runAnalysis();
+    loadChatSessions();
   }, []);
 
   const handleApplySummaryToProfile = async (newSummary: string) => {
@@ -148,8 +260,27 @@ export default function GraduateAICopilot() {
 
     try {
       setSendingChat(true);
-      const res = await chatWithCoach(updated);
-      setMessages([...updated, { role: 'assistant', content: res.data.reply }]);
+      const res = await chatWithCoach(updated, activeSessionId);
+      if (res.data.session_id && res.data.session_id !== activeSessionId) {
+        setActiveSessionId(res.data.session_id);
+      }
+      if (res.data.messages?.length) {
+        setMessages(
+          res.data.messages.map((m) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content,
+          }))
+        );
+      } else {
+        setMessages([...updated, { role: 'assistant', content: res.data.reply }]);
+      }
+      // Actualizar lista lateral de conversaciones sincronizadas
+      getCoachSessions()
+        .then((listRes) => {
+          if (Array.isArray(listRes.data)) setSessions(listRes.data);
+        })
+        .catch(() => {});
+
       const askedSet = new Set(
         updated.filter((m) => m.role === 'user').map((m) => m.content.trim().toLowerCase())
       );
@@ -159,9 +290,9 @@ export default function GraduateAICopilot() {
           fresh.length > 0
             ? fresh
             : [
+                '¿Qué vacantes activas hay en el portal para mi perfil?',
+                '¿Cuál es el estado actual de mis postulaciones?',
                 '¿Qué proyectos puedo publicar en mi portafolio para destacar?',
-                'Dame un pitch de presentación personal de 60 segundos',
-                '¿Cómo optimizo mi resumen profesional para pasar filtros ATS?',
               ].filter((s) => !askedSet.has(s.toLowerCase()))
         );
       }
@@ -1160,121 +1291,257 @@ export default function GraduateAICopilot() {
       )}
 
       {/* ====================================================================
-          TAB 3: COACH CONVERSACIONAL IA
+          TAB 3: COACH CONVERSACIONAL IA (CON HISTORIAL SINCRONIZADO WEB & MÓVIL)
           ==================================================================== */}
       {activeTab === 'chat' && (
         <div
-          className="rounded-3xl border shadow-xs flex flex-col h-[640px] overflow-hidden animate-fade-in-up"
+          className="rounded-3xl border shadow-xs flex h-[680px] overflow-hidden animate-fade-in-up relative"
           style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
         >
-          <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-ink">Coach de Carrera IA · Universidad Popular del Cesar</h3>
-                <p className="text-[11px] text-ink-secondary">
-                  Contextualizado en tiempo real con tu programa académico, habilidades y experiencias
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMessages(initialMessages);
-                setSuggestions([
-                  '¿Qué habilidades me recomiendas agregar según mi carrera?',
-                  'Ayúdame a redactar un logro con metodología STAR',
-                  '¿Cómo respondo preguntas difíciles en una entrevista?',
-                  '¿Cómo negocio mi salario para mi próximo empleo?',
-                ]);
-              }}
-              className="px-3 py-1.5 rounded-xl border text-xs font-bold text-ink-secondary hover:text-ink flex items-center gap-1.5"
-              style={{ borderColor: 'var(--border-color)' }}
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Reiniciar chat
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {messages.map((m, idx) => (
-              <div
-                key={idx}
-                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`${
-                    m.role === 'user' ? 'max-w-2xl' : 'max-w-4xl w-full'
-                  } rounded-2xl px-4 sm:px-5 py-3.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
-                    m.role === 'user'
-                      ? 'bg-emerald-700 text-white rounded-br-none'
-                      : 'text-ink border rounded-bl-none'
-                  }`}
-                  style={
-                    m.role === 'assistant'
-                      ? { backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }
-                      : undefined
-                  }
-                >
-                  {renderRichText(m.content, m.role === 'user')}
-                </div>
-              </div>
-            ))}
-            {sendingChat && (
-              <div className="text-xs text-ink-secondary italic animate-pulse pl-2">
-                El Copiloto IA está redactando una estrategia personalizada para tu perfil...
-              </div>
-            )}
-          </div>
-
-          {/* Sugerencias rápidas dinámicas (no repetitivas) */}
-          <div
-            className="px-4 py-2.5 border-t flex items-center gap-2 overflow-x-auto"
+          {/* BARRA LATERAL DE CONVERSACIONES GUARDADAS */}
+          <aside
+            className={`${
+              showSidebarMobile ? 'flex absolute inset-y-0 left-0 z-30 w-80 shadow-2xl' : 'hidden md:flex w-72 lg:w-80'
+            } flex-col border-r shrink-0`}
             style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
           >
-            <span className="text-[10px] font-black uppercase tracking-wider text-ink-tertiary shrink-0">
-              Preguntas sugeridas:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((sug, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleSendChat(sug)}
-                  className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200 transition-colors"
-                >
-                  {sug}
-                </button>
-              ))}
-            </div>
-          </div>
+            <div className="p-4 border-b space-y-3" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-black uppercase tracking-wider text-ink">
+                    Mis Conversaciones ({sessions.length})
+                  </span>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                  <Smartphone className="w-3 h-3" /> Web & Móvil
+                </span>
+              </div>
 
-          {/* Input */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendChat();
-            }}
-            className="p-4 border-t flex items-center gap-2"
-            style={{ borderColor: 'var(--border-color)' }}
-          >
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Pregúntame sobre tu CV, negociación salarial, portafolio, entrevistas o método STAR..."
-              className="input flex-1 text-xs"
-            />
-            <button
-              type="submit"
-              disabled={sendingChat || !chatInput.trim()}
-              className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs"
+              <button
+                type="button"
+                onClick={handleNewChatSession}
+                disabled={loadingSessions}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-xs transition-all"
+              >
+                <Plus className="w-4 h-4" /> Nueva Conversación
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+              {sessions.map((sess) => {
+                const isSelected = sess.id === activeSessionId;
+                return (
+                  <div
+                    key={sess.id}
+                    onClick={() => handleSelectSession(sess.id)}
+                    className={`group rounded-2xl p-3 cursor-pointer border transition-all flex items-start justify-between gap-2 ${
+                      isSelected
+                        ? 'bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                        : 'hover:border-emerald-500/40 text-ink'
+                    }`}
+                    style={
+                      !isSelected
+                        ? { backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }
+                        : undefined
+                    }
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <MessageSquare
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            isSelected ? 'text-emerald-200' : 'text-emerald-600'
+                          }`}
+                        />
+                        <p className="text-xs font-extrabold truncate">{sess.title}</p>
+                      </div>
+                      {sess.last_message_preview && (
+                        <p
+                          className={`text-[11px] truncate mt-1 ${
+                            isSelected ? 'text-emerald-100/90' : 'text-ink-secondary'
+                          }`}
+                        >
+                          {sess.last_message_preview}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          }`}
+                        >
+                          {sess.message_count || 1} msj
+                        </span>
+                        <span
+                          className={`text-[10px] ${
+                            isSelected ? 'text-emerald-100/80' : 'text-ink-tertiary'
+                          }`}
+                        >
+                          {sess.updated_at ? new Date(sess.updated_at).toLocaleDateString('es-CO') : 'Hoy'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      title="Eliminar conversación"
+                      onClick={(e) => handleDeleteSession(sess.id, e)}
+                      className={`p-1.5 rounded-lg opacity-70 hover:opacity-100 transition-opacity ${
+                        isSelected
+                          ? 'hover:bg-white/20 text-white'
+                          : 'hover:bg-rose-500/10 text-ink-tertiary hover:text-rose-600'
+                      }`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              className="p-3 border-t text-[10px] text-ink-secondary flex items-start gap-2"
+              style={{ borderColor: 'var(--border-color)' }}
             >
-              <Send className="w-4 h-4" /> Enviar
-            </button>
-          </form>
+              <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Acceso Seguro UPC:</strong> Consulta vacantes y tus postulaciones en vivo. Datos privados de terceros protegidos (Ley 1581).
+              </span>
+            </div>
+          </aside>
+
+          {/* PANEL PRINCIPAL DE CONVERSACIÓN */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="p-4 border-b flex items-center justify-between gap-2" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSidebarMobile(!showSidebarMobile)}
+                  className="md:hidden p-2 rounded-xl border text-ink-secondary hover:text-ink"
+                  style={{ borderColor: 'var(--border-color)' }}
+                  title="Ver historial de chats"
+                >
+                  <History className="w-4 h-4" />
+                </button>
+                <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-black text-ink truncate">
+                      {sessions.find((s) => s.id === activeSessionId)?.title || 'Coach de Carrera IA · UPC'}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                      Conectado a Vacantes y Postulaciones en Vivo
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-secondary truncate">
+                    Historial guardado y sincronizado entre tu Portal Web y App Móvil · Protección Habeas Data activa
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => loadChatSessions(activeSessionId || undefined)}
+                  className="px-3 py-1.5 rounded-xl border text-xs font-bold text-ink-secondary hover:text-ink flex items-center gap-1.5"
+                  style={{ borderColor: 'var(--border-color)' }}
+                  title="Sincronizar mensajes con App Móvil"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSessions ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Sincronizar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNewChatSession}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-700 text-emerald-800 dark:text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-extrabold flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Nuevo chat
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {messages.map((m, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`${
+                      m.role === 'user' ? 'max-w-2xl' : 'max-w-4xl w-full'
+                    } rounded-2xl px-4 sm:px-5 py-3.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
+                      m.role === 'user'
+                        ? 'bg-emerald-700 text-white rounded-br-none'
+                        : 'text-ink border rounded-bl-none'
+                    }`}
+                    style={
+                      m.role === 'assistant'
+                        ? { backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }
+                        : undefined
+                    }
+                  >
+                    {renderRichText(m.content, m.role === 'user')}
+                  </div>
+                </div>
+              ))}
+              {sendingChat && (
+                <div className="text-xs text-ink-secondary italic animate-pulse pl-2">
+                  El Copiloto IA está consultando el sistema y redactando una respuesta personalizada...
+                </div>
+              )}
+            </div>
+
+            {/* Sugerencias rápidas dinámicas (no repetitivas) */}
+            <div
+              className="px-4 py-2.5 border-t flex items-center gap-2 overflow-x-auto"
+              style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
+            >
+              <span className="text-[10px] font-black uppercase tracking-wider text-ink-tertiary shrink-0">
+                Preguntas sugeridas:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((sug, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleSendChat(sug)}
+                    className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white border border-emerald-200 transition-colors"
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Input */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendChat();
+              }}
+              className="p-4 border-t flex items-center gap-2"
+              style={{ borderColor: 'var(--border-color)' }}
+            >
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Pregúntame qué vacantes hay en el portal, el estado de tus postulaciones, cursos, salarios o método STAR..."
+                className="input flex-1 text-xs"
+              />
+              <button
+                type="submit"
+                disabled={sendingChat || !chatInput.trim()}
+                className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs"
+              >
+                <Send className="w-4 h-4" /> Enviar
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

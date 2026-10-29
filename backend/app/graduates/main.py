@@ -130,6 +130,24 @@ def ensure_graduates_schema():
                 """))
                 conn.execute(text("ALTER TABLE graduate_projects ADD COLUMN IF NOT EXISTS resource_type VARCHAR(50);"))
                 conn.execute(text("ALTER TABLE graduate_projects ADD COLUMN IF NOT EXISTS resource_url VARCHAR(500);"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS ai_coach_sessions (
+                        id SERIAL PRIMARY KEY,
+                        graduate_id INTEGER NOT NULL REFERENCES graduates(user_id) ON DELETE CASCADE,
+                        title VARCHAR(200) NOT NULL DEFAULT 'Nueva conversación',
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS ai_coach_messages (
+                        id SERIAL PRIMARY KEY,
+                        session_id INTEGER NOT NULL REFERENCES ai_coach_sessions(id) ON DELETE CASCADE,
+                        role VARCHAR(20) NOT NULL,
+                        content TEXT NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
                 print("Graduates schema check completed successfully.")
         except Exception as e:
             print(f"Schema check warning in graduates: {e}")
