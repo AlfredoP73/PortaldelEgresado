@@ -32,6 +32,8 @@ import CompanyDashboard from './features/company/pages/CompanyDashboard';
 import GraduateDashboard from './features/graduate/pages/GraduateDashboard';
 import AdminMatchmaking from './features/admin/pages/AdminMatchmaking';
 import AdminSettings from './features/admin/pages/AdminSettings';
+import AdminSurveys from './features/admin/pages/AdminSurveys';
+import CoordinatorVerifications from './features/coordinator/pages/CoordinatorVerifications';
 import ExecutiveAnalyticsDashboard from './features/dashboard/pages/ExecutiveAnalyticsDashboard';
 import CohortHeatmapPage from './features/dashboard/pages/CohortHeatmapPage';
 import GraduateAICopilot from './features/graduate/pages/GraduateAICopilot';
@@ -46,6 +48,7 @@ const HomeRedirect = () => {
   if (!rawUser) return <Navigate to="/login" replace />;
   const user = JSON.parse(rawUser);
   if (user.role_name === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
+  if (user.role_name === 'COORDINATOR') return <Navigate to="/coordinator/verifications" replace />;
   if (user.role_name === 'COMPANY') return <Navigate to="/company/dashboard" replace />;
   if (user.role_name === 'GRADUATE') return <Navigate to="/graduate/dashboard" replace />;
   return <Navigate to="/login" replace />;
@@ -78,6 +81,18 @@ export default function App() {
             <Route
               path="/admin/analytics"
               element={<Layout><ExecutiveAnalyticsDashboard /></Layout>}
+            />
+          </Route>
+
+          {/* ADMIN y COORDINATOR */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COORDINATOR']} />}>
+            <Route
+              path="/coordinator/verifications"
+              element={<Layout><CoordinatorVerifications /></Layout>}
+            />
+            <Route
+              path="/admin/surveys"
+              element={<Layout><AdminSurveys /></Layout>}
             />
           </Route>
 

@@ -52,10 +52,48 @@ def start_rabbitmq_consumer():
             print(f"RabbitMQ consumer error: {e}")
             time.sleep(5)
 
+def start_sqs_consumer():
+    import boto3
+    queue_url = os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
+    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+    sqs = boto3.client("sqs", region_name=region)
+    print(f"Matchmaking worker started consuming from Amazon SQS: {queue_url}")
+    while True:
+        try:
+            resp = sqs.receive_message(
+                QueueUrl=queue_url,
+                MaxNumberOfMessages=5,
+                WaitTimeSeconds=20,
+            )
+            for msg in resp.get("Messages", []):
+                db = SessionLocal()
+                try:
+                    data = json.loads(msg["Body"])
+                    if "graduate_id" in data:
+                        matching_service.recalcular_por_egresado(db, data["graduate_id"])
+                    if "job_offer_id" in data:
+                        matching_service.recalcular_por_vacante(db, data["job_offer_id"])
+                    sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=msg["ReceiptHandle"])
+                except Exception as e:
+                    print(f"Error processing SQS message: {e}")
+                finally:
+                    db.close()
+        except Exception as e:
+            print(f"SQS consumer error: {e}")
+            time.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    thread = threading.Thread(target=start_rabbitmq_consumer, daemon=True)
-    thread.start()
+    # En AWS Lambda, los eventos SQS invocan directamente matchmaking_handler (Event Source Mapping),
+    # por lo que no se levantan hilos consumidores infinitos en segundo plano.
+    if not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        if os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip():
+            thread = threading.Thread(target=start_sqs_consumer, daemon=True)
+            thread.start()
+        else:
+            thread = threading.Thread(target=start_rabbitmq_consumer, daemon=True)
+            thread.start()
     yield
 
 app = FastAPI(

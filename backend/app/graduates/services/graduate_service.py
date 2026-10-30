@@ -59,6 +59,31 @@ def admin_create_graduate(body: schemas.AdminGraduateCreate, db: Session):
 def admin_get_all_graduates(db: Session):
     return db.query(models.Graduate).all()
 
+def ensure_graduate_verified(current_user: dict, db: Session) -> Optional[models.Graduate]:
+    """
+    Bloquea funciones sensibles para egresados cuya cuenta aún se encuentra en
+    estado PENDING_VERIFICATION o REJECTED ante la Coordinación UPC.
+    """
+    if not current_user or current_user.get("role_id") != 3:
+        return None
+    grad = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
+    status_val = (getattr(grad, "verification_status", None) if grad else current_user.get("verification_status")) or "APPROVED"
+    if status_val != "APPROVED":
+        if status_val == "REJECTED":
+            notes = getattr(grad, "verification_notes", None) if grad else None
+            msg = (
+                f"Tu verificación académica presenta una observación de Coordinación UPC: "
+                f"{notes or 'Revisa tu cédula y número de acta/diploma en tu perfil y reenvía la solicitud.'}"
+            )
+        else:
+            msg = (
+                "Tu cuenta se encuentra PENDIENTE DE VERIFICACIÓN por el Coordinador UPC. "
+                "Una vez validada tu cédula y acta/diploma se habilitarán postulaciones, encuestas oficiales, networking y mensajería."
+            )
+        raise HTTPException(status_code=403, detail=msg)
+    return grad
+
+
 def get_profile(current_user: dict, db: Session):
     profile = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
     if not profile:
@@ -76,13 +101,19 @@ def create_or_update_profile(profile: schemas.GraduateUpdate, current_user: dict
     if "phone_number" in profile_data:
         profile_data["phone"] = profile_data.pop("phone_number")
         
-    # Remove fields not in DB to prevent errors
-    profile_data.pop("document_id", None)
+    # Remove fields not editable directly / not in DB
     profile_data.pop("address", None)
     profile_data.pop("document_type", None)
     profile_data.pop("user_id", None)
+    profile_data.pop("verification_status", None)
+    profile_data.pop("verification_notes", None)
+    profile_data.pop("verified_by_user_id", None)
+    profile_data.pop("verified_at", None)
 
     if db_profile:
+        # Si aún no está aprobado, mantener oculto del directorio público
+        if (getattr(db_profile, "verification_status", None) or "APPROVED") != "APPROVED":
+            profile_data["directory_visible"] = False
         for key, value in profile_data.items():
             if hasattr(db_profile, key):
                 setattr(db_profile, key, value)
@@ -90,13 +121,62 @@ def create_or_update_profile(profile: schemas.GraduateUpdate, current_user: dict
         # Require mandatory fields for new profile
         if not all(k in profile_data for k in ("first_name", "last_name", "program_id", "graduation_year")):
             raise HTTPException(status_code=400, detail="Faltan campos obligatorios para crear el perfil")
-        db_profile = models.Graduate(**profile_data, user_id=current_user["id"])
+        init_status = current_user.get("verification_status") or "APPROVED"
+        if init_status != "APPROVED":
+            profile_data["directory_visible"] = False
+        db_profile = models.Graduate(
+            **profile_data,
+            user_id=current_user["id"],
+            verification_status=init_status,
+        )
         db.add(db_profile)
     
     db.commit()
     db.refresh(db_profile)
-    matchmaking_adapter.trigger_recalculate(graduate_id=current_user["id"])
+    if (getattr(db_profile, "verification_status", None) or "APPROVED") == "APPROVED":
+        matchmaking_adapter.trigger_recalculate(graduate_id=current_user["id"])
     return db_profile
+
+
+def resubmit_verification(body: schemas.ResubmitVerificationRequest, current_user: dict, db: Session):
+    """Permite al egresado corregir cédula, programa, año y acta/diploma y volver a PENDING_VERIFICATION."""
+    grad = db.query(models.Graduate).filter(models.Graduate.user_id == current_user["id"]).first()
+    if not grad:
+        raise HTTPException(status_code=404, detail="Perfil de egresado no encontrado")
+
+    doc_id = (body.document_id or "").strip()
+    act_num = (body.degree_act_number or "").strip()
+    dip_num = (body.diploma_number or "").strip()
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="El número de cédula es obligatorio.")
+    if not act_num and not dip_num:
+        raise HTTPException(status_code=400, detail="Debes indicar tu número de acta de grado o número de diploma.")
+
+    if body.first_name and body.first_name.strip():
+        grad.first_name = body.first_name.strip()
+    if body.last_name and body.last_name.strip():
+        grad.last_name = body.last_name.strip()
+    grad.document_id = doc_id
+    grad.program_id = body.program_id
+    grad.graduation_year = body.graduation_year
+    grad.degree_act_number = act_num or None
+    grad.diploma_number = dip_num or None
+    if body.phone is not None:
+        grad.phone = body.phone.strip() or None
+    grad.verification_status = "PENDING_VERIFICATION"
+    grad.verification_notes = None
+    grad.directory_visible = False
+
+    db.commit()
+    db.refresh(grad)
+
+    auth_adapter.update_user_verification(
+        user_id=grad.user_id,
+        verification_status="PENDING_VERIFICATION",
+        verification_notes=None,
+        full_name=f"{grad.first_name} {grad.last_name}",
+    )
+    return grad
 
 from app.core.adapters import MinioStorageAdapter, RabbitMQMatchmakingAdapter
 

@@ -40,8 +40,9 @@ app.include_router(education_router)
 app.include_router(misc_router)
 app.include_router(ai_copilot_router)
 
-os.makedirs("uploads/cvs", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+_uploads_dir = "/tmp/uploads" if os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "uploads"
+os.makedirs(f"{_uploads_dir}/cvs", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
 
 import threading
 from sqlalchemy import text
@@ -61,6 +62,14 @@ def ensure_graduates_schema():
                 conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS mentor_opt_in BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS directory_visible BOOLEAN DEFAULT TRUE;"))
                 conn.execute(text("UPDATE graduates SET directory_visible = TRUE WHERE directory_visible IS NULL;"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS document_id VARCHAR(40);"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS degree_act_number VARCHAR(60);"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS diploma_number VARCHAR(60);"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS verification_status VARCHAR(30) DEFAULT 'APPROVED';"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS verification_notes TEXT;"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS verified_by_user_id INTEGER;"))
+                conn.execute(text("ALTER TABLE graduates ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;"))
+                conn.execute(text("UPDATE graduates SET verification_status = 'APPROVED' WHERE verification_status IS NULL;"))
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS saved_jobs (
                         id SERIAL PRIMARY KEY,
@@ -148,10 +157,42 @@ def ensure_graduates_schema():
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );
                 """))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS moment_code VARCHAR(20) DEFAULT 'M1';"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS category VARCHAR(120) DEFAULT 'Empleabilidad y Pertinencia (OLE/CNA)';"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS target_program_id INTEGER;"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS target_graduation_year INTEGER;"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS is_mandatory BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS closes_at DATE;"))
+                conn.execute(text("ALTER TABLE surveys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
+
+                # Auto-sembrar encuestas oficiales MEN / OLE / CNA (M0, M1, M5) si la tabla está vacía
+                existing_surveys = conn.execute(text("SELECT COUNT(*) FROM surveys;")).scalar() or 0
+                if existing_surveys == 0:
+                    import json
+                    from app.graduates.services.survey_templates import OFFICIAL_SURVEY_TEMPLATES
+                    for tpl in OFFICIAL_SURVEY_TEMPLATES:
+                        if tpl["moment_code"] in ("M0", "M1", "M5"):
+                            conn.execute(
+                                text("""
+                                    INSERT INTO surveys (title, description, moment_code, category, is_mandatory, questions_json, is_active)
+                                    VALUES (:title, :description, :moment_code, :category, :is_mandatory, CAST(:questions_json AS JSONB), TRUE);
+                                """),
+                                {
+                                    "title": tpl["title"],
+                                    "description": tpl["description"],
+                                    "moment_code": tpl["moment_code"],
+                                    "category": tpl["category"],
+                                    "is_mandatory": tpl["is_mandatory"],
+                                    "questions_json": json.dumps(tpl["questions_json"], ensure_ascii=False),
+                                },
+                            )
                 print("Graduates schema check completed successfully.")
         except Exception as e:
             print(f"Schema check warning in graduates: {e}")
-    threading.Thread(target=_run, daemon=True).start()
+    if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        _run()
+    else:
+        threading.Thread(target=_run, daemon=True).start()
 
 @app.get("/")
 def health_check():

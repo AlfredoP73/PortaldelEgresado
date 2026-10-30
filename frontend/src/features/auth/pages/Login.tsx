@@ -1,11 +1,30 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Mail, Lock, AlertCircle, Loader2, Eye, EyeOff,
     BookOpen, Users, Award, Briefcase, GraduationCap,
-    Building2, CheckCircle2, ArrowRight, Shield, TrendingUp, Sparkles
+    Building2, CheckCircle2, ArrowRight, Shield, TrendingUp, Sparkles,
+    User as UserIcon, IdCard, FileBadge, Phone
 } from 'lucide-react';
-import { authApi } from '../../../api';
+import { authApi, getPublicPrograms } from '../../../api';
+
+const FALLBACK_UPC_PROGRAMS = [
+    { id: 1, name: 'Ingeniería de Sistemas' },
+    { id: 2, name: 'Ingeniería Ambiental' },
+    { id: 3, name: 'Ingeniería Electrónica' },
+    { id: 4, name: 'Enfermería' },
+    { id: 5, name: 'Microbiología' },
+    { id: 6, name: 'Instrumentación Quirúrgica' },
+    { id: 7, name: 'Administración de Empresas' },
+    { id: 8, name: 'Contaduría Pública' },
+    { id: 9, name: 'Economía' },
+    { id: 10, name: 'Comercio Internacional' },
+    { id: 11, name: 'Derecho' },
+    { id: 12, name: 'Sociología' },
+    { id: 13, name: 'Psicología' },
+    { id: 14, name: 'Licenciatura en Matemáticas' },
+    { id: 15, name: 'Licenciatura en Lengua Castellana e Inglés' },
+];
 
 interface ApiError {
     response?: { data?: { detail?: string } };
@@ -40,6 +59,29 @@ export default function Login() {
     const [acceptPrivacy, setAcceptPrivacy] = useState(false);
     const [authorizeData, setAuthorizeData] = useState(false);
 
+    // Campos de acreditación académica para Registro Abierto de Egresados (cualquier dominio de correo)
+    const [programs, setPrograms] = useState<{ id: number; name: string }[]>(FALLBACK_UPC_PROGRAMS);
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [documentId, setDocumentId] = useState('');
+    const [programId, setProgramId] = useState<number>(1);
+    const [graduationYear, setGraduationYear] = useState<string>(String(new Date().getFullYear()));
+    const [degreeActNumber, setDegreeActNumber] = useState('');
+    const [diplomaNumber, setDiplomaNumber] = useState('');
+    const [phone, setPhone] = useState('');
+
+    useEffect(() => {
+        if (!isRegistering || roleId !== 3) return;
+        getPublicPrograms()
+            .then((res) => {
+                if (Array.isArray(res.data) && res.data.length > 0) {
+                    setPrograms(res.data);
+                    setProgramId((prev) => (res.data.some((p) => p.id === prev) ? prev : res.data[0].id));
+                }
+            })
+            .catch(() => {});
+    }, [isRegistering, roleId]);
+
     const handleNextStep = async () => {
         setError('');
         if (registerStep === 1) {
@@ -47,12 +89,8 @@ export default function Login() {
             return;
         }
         if (registerStep === 2) {
-            if (!email.trim()) {
-                setError('Ingresa tu correo electrónico para continuar.');
-                return;
-            }
-            if (roleId === 3 && !email.trim().toLowerCase().endsWith('@unicesar.edu.co')) {
-                setError('Debes ingresar tu correo institucional @unicesar.edu.co');
+            if (!email.trim() || !email.includes('@')) {
+                setError('Ingresa un correo electrónico válido (Gmail, Hotmail, Outlook, institucional, etc.).');
                 return;
             }
             if (password.length < 8 || getPasswordStrength() < 2) {
@@ -61,13 +99,31 @@ export default function Login() {
             }
 
             if (roleId === 3) {
+                if (!firstName.trim() || !lastName.trim()) {
+                    setError('Ingresa tus nombres y apellidos tal como figuran en tu título universitario.');
+                    return;
+                }
+                if (!documentId.trim()) {
+                    setError('Ingresa tu número de cédula o documento de identidad.');
+                    return;
+                }
+                const yr = Number(graduationYear);
+                if (!programId || !yr || yr < 1976 || yr > new Date().getFullYear() + 1) {
+                    setError('Selecciona tu programa académico y un año de graduación válido.');
+                    return;
+                }
+                if (!degreeActNumber.trim() && !diplomaNumber.trim()) {
+                    setError('Ingresa tu número de acta de grado o número de diploma para verificación de Coordinación.');
+                    return;
+                }
+
                 setLoading(true);
                 try {
                     await authApi.post('/validate-graduate-email', { email: email.trim() });
                     setRegisterStep(3);
                 } catch (err: unknown) {
                     const apiErr = err as ApiError;
-                    setError(apiErr.response?.data?.detail || 'Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC.');
+                    setError(apiErr.response?.data?.detail || 'No se pudo validar la disponibilidad del correo.');
                 } finally {
                     setLoading(false);
                 }
@@ -86,11 +142,6 @@ export default function Login() {
             await handleNextStep();
             return;
         }
-
-        if (isRegistering && roleId === 3 && !email.toLowerCase().endsWith('@unicesar.edu.co')) {
-            setError('Debes registrarte con tu correo institucional @unicesar.edu.co');
-            return;
-        }
         
         setLoading(true);
         try {
@@ -100,20 +151,33 @@ export default function Login() {
                     setLoading(false);
                     return;
                 }
-                const { data } = await authApi.post('/register', { 
-                    email, 
-                    password, 
+                const payload: Record<string, unknown> = {
+                    email: email.trim(),
+                    password,
                     role_id: roleId,
                     accept_privacy_policy: acceptPrivacy,
-                    authorize_data_treatment: authorizeData
-                });
+                    authorize_data_treatment: authorizeData,
+                };
+                if (roleId === 3) {
+                    payload.first_name = firstName.trim();
+                    payload.last_name = lastName.trim();
+                    payload.document_id = documentId.trim();
+                    payload.program_id = Number(programId);
+                    payload.graduation_year = Number(graduationYear);
+                    payload.degree_act_number = degreeActNumber.trim() || undefined;
+                    payload.diploma_number = diplomaNumber.trim() || undefined;
+                    payload.phone = phone.trim() || undefined;
+                }
+                const { data } = await authApi.post('/register', payload);
                 setRegistrationMessage(data?.message || '');
                 setRegistrationSuccess(true);
             } else {
                 const { data } = await authApi.post('/login', { email, password });
                 localStorage.setItem('access_token', data.access_token);
                 localStorage.setItem('user', JSON.stringify(data.user));
-                if (data.user.role_name === 'GRADUATE') navigate('/profile', { replace: true });
+                if (data.user.role_name === 'COORDINATOR') navigate('/coordinator/verifications', { replace: true });
+                else if (data.user.role_name === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+                else if (data.user.role_name === 'GRADUATE') navigate('/profile', { replace: true });
                 else navigate('/companies', { replace: true });
             }
         } catch (err: unknown) {
@@ -415,7 +479,7 @@ export default function Login() {
                                                     {
                                                         id: 3,
                                                         label: 'Egresado UPC',
-                                                        desc: 'Activa tu cuenta institucional verificando tu registro oficial.',
+                                                        desc: 'Regístrate con cualquier correo personal y acredita tu acta o diploma.',
                                                         Icon: GraduationCap,
                                                     },
                                                     {
@@ -450,7 +514,7 @@ export default function Login() {
                                             <div className="rounded-xl bg-slate-50 border border-slate-200/80 px-3.5 py-2.5 text-[11.5px] text-slate-600 leading-relaxed">
                                                 {roleId === 3 ? (
                                                     <span>
-                                                        <strong className="text-slate-800">Nota para Egresados:</strong> Tu correo <code className="text-brand-700 font-semibold">@unicesar.edu.co</code> se validará contra la base de datos oficial de egresados para enviarte el enlace de activación.
+                                                        <strong className="text-slate-800">Registro abierto + Verificación:</strong> Puedes usar cualquier correo (<code className="text-brand-700 font-semibold">Gmail, Hotmail, Outlook o institucional</code>). Tu cuenta quedará en <strong className="text-amber-700">revisión del Coordinador UPC</strong> mientras validamos tu cédula y acta o diploma.
                                                     </span>
                                                 ) : (
                                                     <span>
@@ -461,23 +525,140 @@ export default function Login() {
                                         </div>
                                     )}
 
-                                    {/* ── LOGIN NORMAL O ETAPA 2 (REGISTRO): CORREO + CONTRASEÑA + REQUISITOS ── */}
+                                    {/* ── LOGIN NORMAL O ETAPA 2 (REGISTRO): CORREO + DATOS DE GRADO + CONTRASEÑA ── */}
                                     {(!isRegistering || registerStep === 2) && (
                                         <div className="space-y-4 animate-fade-in-up">
                                             {/* Email */}
                                             <div className="space-y-1.5">
                                                 <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
-                                                    {isRegistering && roleId === 3 ? 'Correo institucional (@unicesar.edu.co)' : 'Correo electrónico'}
+                                                    {isRegistering && roleId === 3 ? 'Correo electrónico (personal o institucional)' : 'Correo electrónico'}
                                                 </label>
                                                 <div className="relative">
                                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
                                                         <Mail className="w-4 h-4" />
                                                     </div>
                                                     <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                        placeholder={isRegistering && roleId === 3 ? 'usuario@unicesar.edu.co' : 'correo@empresa.com'} value={email}
+                                                        placeholder={isRegistering && roleId === 3 ? 'ejemplo@gmail.com o @hotmail.com' : 'correo@ejemplo.com'} value={email}
                                                         onChange={e => setEmail(e.target.value)} required autoComplete="email" />
                                                 </div>
                                             </div>
+
+                                            {/* Campos de Verificación Académica para Egresado UPC */}
+                                            {isRegistering && roleId === 3 && (
+                                                <div className="space-y-3 p-3.5 rounded-2xl bg-emerald-50/45 border border-emerald-200/70">
+                                                    <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-brand-800 flex items-center gap-1.5">
+                                                        <FileBadge className="w-3.5 h-3.5 text-brand-600" />
+                                                        Datos para verificación por Coordinación UPC
+                                                    </p>
+                                                    <div className="grid grid-cols-2 gap-2.5">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombres *</label>
+                                                            <div className="relative">
+                                                                <UserIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                                                <input
+                                                                    type="text"
+                                                                    value={firstName}
+                                                                    onChange={e => setFirstName(e.target.value)}
+                                                                    placeholder="Ej. Carlos Andrés"
+                                                                    className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-2.5 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Apellidos *</label>
+                                                            <input
+                                                                type="text"
+                                                                value={lastName}
+                                                                onChange={e => setLastName(e.target.value)}
+                                                                placeholder="Ej. Zuleta Ramos"
+                                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2.5">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cédula / Documento *</label>
+                                                            <div className="relative">
+                                                                <IdCard className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                                                <input
+                                                                    type="text"
+                                                                    value={documentId}
+                                                                    onChange={e => setDocumentId(e.target.value)}
+                                                                    placeholder="Ej. 1065842910"
+                                                                    className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-2.5 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Celular (opcional)</label>
+                                                            <div className="relative">
+                                                                <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                                                <input
+                                                                    type="tel"
+                                                                    value={phone}
+                                                                    onChange={e => setPhone(e.target.value)}
+                                                                    placeholder="300 000 0000"
+                                                                    className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-2.5 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-3 gap-2.5">
+                                                        <div className="col-span-2">
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Programa Académico UPC *</label>
+                                                            <select
+                                                                value={programId}
+                                                                onChange={e => setProgramId(Number(e.target.value))}
+                                                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                            >
+                                                                {programs.map(p => (
+                                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Año Grado *</label>
+                                                            <input
+                                                                type="number"
+                                                                min={1976}
+                                                                max={new Date().getFullYear() + 1}
+                                                                value={graduationYear}
+                                                                onChange={e => setGraduationYear(e.target.value)}
+                                                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2.5">
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">N° Acta de Grado *</label>
+                                                            <input
+                                                                type="text"
+                                                                value={degreeActNumber}
+                                                                onChange={e => setDegreeActNumber(e.target.value)}
+                                                                placeholder="Ej. ACTA-2023-148"
+                                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">o N° de Diploma</label>
+                                                            <input
+                                                                type="text"
+                                                                value={diplomaNumber}
+                                                                onChange={e => setDiplomaNumber(e.target.value)}
+                                                                placeholder="Ej. DIP-98412"
+                                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-brand-500 focus:outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Password */}
                                             <div className="space-y-1.5">

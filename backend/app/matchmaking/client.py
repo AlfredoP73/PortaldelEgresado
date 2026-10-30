@@ -18,9 +18,13 @@ INTERNAL_TOKEN = os.getenv("MATCHMAKING_INTERNAL_TOKEN", "token_interno_servicio
 def trigger_recalcular(
     graduate_id: Optional[int] = None,
     job_offer_id: Optional[int] = None,
-    timeout: float = 10.0,
+    timeout: float = 15.0,
 ) -> bool:
-    """Dispara POST /matching/recalcular. Nunca lanza; devuelve éxito booleano."""
+    """
+    Dispara el recálculo de afinidades:
+    - Si SQS_MATCHMAKING_QUEUE_URL está configurada (AWS Serverless / Lambda), publica asíncronamente en Amazon SQS.
+    - De lo contrario (o como fallback), invoca POST /matching/recalcular vía HTTP.
+    """
     payload: dict = {}
     if graduate_id is not None:
         payload["graduate_id"] = graduate_id
@@ -29,11 +33,25 @@ def trigger_recalcular(
     if not payload:
         return False
 
+    sqs_url = os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
+    if sqs_url:
+        try:
+            from app.core.adapters import SQSMatchmakingAdapter
+            if SQSMatchmakingAdapter(sqs_url).trigger_recalculate(
+                graduate_id=graduate_id,
+                job_offer_id=job_offer_id,
+            ):
+                return True
+        except Exception as e:
+            print(f"SQS publish fallback to HTTP in trigger_recalcular: {e}")
+
+    matchmaking_url = os.getenv("MATCHMAKING_URL", MATCHMAKING_URL)
+    internal_token = os.getenv("MATCHMAKING_INTERNAL_TOKEN", INTERNAL_TOKEN)
     try:
         resp = httpx.post(
-            f"{MATCHMAKING_URL}/matching/recalcular",
+            f"{matchmaking_url}/matching/recalcular",
             json=payload,
-            headers={"X-Internal-Token": INTERNAL_TOKEN},
+            headers={"X-Internal-Token": internal_token},
             timeout=timeout,
         )
         resp.raise_for_status()

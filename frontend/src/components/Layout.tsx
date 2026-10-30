@@ -26,13 +26,25 @@ import {
   Calendar,
   MessageSquare,
   X,
-  FolderGit2
+  FolderGit2,
+  ShieldCheck,
+  AlertTriangle,
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import NotificationsBell from './NotificationsBell';
+import Modal from './Modal';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
-import { getAuthNotifications } from '../api';
+import {
+  authApi,
+  graduatesApi,
+  getAuthNotifications,
+  getNotifications,
+  getPublicPrograms,
+  resubmitGraduateVerification,
+} from '../api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -54,6 +66,20 @@ const getNavItems = (role: string) => {
       icon: Users,
       roles: ['ADMIN'],
       section: 'Administración Global',
+    },
+    {
+      name: 'Verificación Egresados',
+      path: '/coordinator/verifications',
+      icon: ShieldCheck,
+      roles: ['ADMIN', 'COORDINATOR'],
+      section: role === 'COORDINATOR' ? 'Coordinación UPC' : 'Administración Global',
+    },
+    {
+      name: 'Encuestas Seguimiento',
+      path: '/admin/surveys',
+      icon: ClipboardList,
+      roles: ['ADMIN', 'COORDINATOR'],
+      section: role === 'COORDINATOR' ? 'Coordinación UPC' : 'Administración Global',
     },
     {
       name: 'Reporte Postulaciones',
@@ -256,6 +282,8 @@ export default function Layout({ children }: LayoutProps) {
 
   const pageTitles: Record<string, string> = {
     '/admin/dashboard': 'Dashboard Administrativo',
+    '/coordinator/verifications': 'Verificación Académica de Egresados · Coordinación UPC',
+    '/admin/surveys': 'Gestión de Encuestas de Seguimiento (MEN / OLE / CNA)',
     '/admin/analytics': 'Analítica BI Ejecutiva (Estilo Power BI)',
     '/company/dashboard': 'Dashboard Empresa',
     '/graduate/dashboard': 'Dashboard Egresado',
@@ -282,6 +310,37 @@ export default function Layout({ children }: LayoutProps) {
   const [loginAlerts, setLoginAlerts] = useState<any[]>([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
+  // Estado en vivo de verificación académica del egresado (Fase 6)
+  const [verificationStatus, setVerificationStatus] = useState<string>(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      return u?.verification_status || 'APPROVED';
+    } catch {
+      return 'APPROVED';
+    }
+  });
+  const [verificationNotes, setVerificationNotes] = useState<string | null>(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      return u?.verification_notes || null;
+    } catch {
+      return null;
+    }
+  });
+  const [showResubmitModal, setShowResubmitModal] = useState(false);
+  const [resubmitSaving, setResubmitSaving] = useState(false);
+  const [programsList, setProgramsList] = useState<{ id: number; name: string }[]>([]);
+  const [resubmitForm, setResubmitForm] = useState({
+    first_name: '',
+    last_name: '',
+    document_id: '',
+    program_id: 1,
+    graduation_year: new Date().getFullYear(),
+    degree_act_number: '',
+    diploma_number: '',
+    phone: '',
+  });
+
   useEffect(() => {
     localStorage.setItem('sidebarOpen', String(isSidebarOpen));
   }, [isSidebarOpen]);
@@ -292,14 +351,45 @@ export default function Layout({ children }: LayoutProps) {
   const roleName = user?.role_name || '';
   const navItems = getNavItems(roleName);
 
-  // WebSocket Connection
+  // Notificaciones en Tiempo Real (WebSocket en ALB/Fargate/EC2 o Polling ligero en AWS API Gateway + Lambda)
   useEffect(() => {
     if (!user || !user.id) return;
 
+    const envUrl = import.meta.env.VITE_MATCHMAKING_URL;
+    const baseUrl = (envUrl !== undefined && envUrl !== "") ? envUrl : window.location.origin;
+    const isServerlessHttpApi = baseUrl.includes('.execute-api.');
+
+    if (isServerlessHttpApi) {
+      if (user.role_name !== 'GRADUATE') return;
+      const seenIds = new Set<number>();
+      let firstLoad = true;
+      const pollMatches = () => {
+        getNotifications(user.id, true)
+          .then((res) => {
+            const items = res.data || [];
+            items.forEach((n) => {
+              if (!seenIds.has(n.id)) {
+                seenIds.add(n.id);
+                if (!firstLoad) {
+                  toast.success(`¡Nueva vacante sugerida! Compatibilidad: ${n.score}%`, {
+                    icon: '✨',
+                    duration: 5000,
+                  });
+                }
+              }
+            });
+            firstLoad = false;
+          })
+          .catch(() => {});
+      };
+      pollMatches();
+      const timer = setInterval(pollMatches, 30000);
+      return () => clearInterval(timer);
+    }
+
     let ws: WebSocket;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     const connectWs = () => {
-      const envUrl = import.meta.env.VITE_MATCHMAKING_URL;
-      const baseUrl = (envUrl !== undefined && envUrl !== "") ? envUrl : window.location.origin;
       const wsUrl = baseUrl.replace('http', 'ws') + `/matching/ws/${user.id}`;
       
       ws = new WebSocket(wsUrl);
@@ -320,13 +410,14 @@ export default function Layout({ children }: LayoutProps) {
 
       ws.onclose = () => {
         // Retry connection after 5 seconds
-        setTimeout(connectWs, 5000);
+        reconnectTimer = setTimeout(connectWs, 5000);
       };
     };
 
     connectWs();
 
     return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (ws) {
         ws.onclose = null;
         ws.close();
@@ -344,7 +435,85 @@ export default function Layout({ children }: LayoutProps) {
         }
       })
       .catch(() => {});
+
+    // Sincronizar estado de verificación académica desde Auth y ficha de Egresados
+    authApi
+      .get('/me')
+      .then((res) => {
+        const fresh = res.data;
+        if (fresh?.verification_status) {
+          setVerificationStatus(fresh.verification_status);
+          setVerificationNotes(fresh.verification_notes || null);
+          const merged = { ...user, ...fresh };
+          localStorage.setItem('user', JSON.stringify(merged));
+        }
+      })
+      .catch(() => {});
   }, [user?.id]);
+
+  const openResubmitVerificationModal = async () => {
+    setShowResubmitModal(true);
+    try {
+      const [progsRes, profRes] = await Promise.all([
+        getPublicPrograms().catch(() => ({ data: [] as { id: number; name: string }[] })),
+        graduatesApi.get('/profile').catch(() => ({ data: null as any })),
+      ]);
+      if (Array.isArray(progsRes.data) && progsRes.data.length > 0) {
+        setProgramsList(progsRes.data);
+      }
+      const p = profRes.data;
+      if (p) {
+        setResubmitForm({
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          document_id: p.document_id || '',
+          program_id: p.program_id || 1,
+          graduation_year: p.graduation_year || new Date().getFullYear(),
+          degree_act_number: p.degree_act_number || '',
+          diploma_number: p.diploma_number || '',
+          phone: p.phone || '',
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleResubmitVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resubmitForm.document_id.trim()) {
+      toast.error('Ingresa tu número de cédula.');
+      return;
+    }
+    if (!resubmitForm.degree_act_number.trim() && !resubmitForm.diploma_number.trim()) {
+      toast.error('Ingresa tu número de acta de grado o número de diploma.');
+      return;
+    }
+    try {
+      setResubmitSaving(true);
+      await resubmitGraduateVerification({
+        ...resubmitForm,
+        document_id: resubmitForm.document_id.trim(),
+        degree_act_number: resubmitForm.degree_act_number.trim() || undefined,
+        diploma_number: resubmitForm.diploma_number.trim() || undefined,
+        phone: resubmitForm.phone.trim() || undefined,
+      });
+      setVerificationStatus('PENDING_VERIFICATION');
+      setVerificationNotes(null);
+      if (user) {
+        localStorage.setItem(
+          'user',
+          JSON.stringify({ ...user, verification_status: 'PENDING_VERIFICATION', verification_notes: null })
+        );
+      }
+      setShowResubmitModal(false);
+      toast.success('Datos de grado actualizados y enviados nuevamente a Coordinación UPC.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'No se pudo reenviar la verificación.');
+    } finally {
+      setResubmitSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -774,7 +943,13 @@ export default function Layout({ children }: LayoutProps) {
               
               {/* badge */}
               <span className="px-2.5 py-1 text-[9px] font-bold tracking-widest rounded-full uppercase" style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--accent-primary)' }}>
-                 {roleName === 'ADMIN' ? 'ADMINISTRACIÓN' : (roleName === 'COMPANY' ? 'EMPRESA' : 'EGRESADO')}
+                 {roleName === 'ADMIN'
+                   ? 'ADMINISTRACIÓN'
+                   : roleName === 'COORDINATOR'
+                     ? 'COORDINACIÓN UPC'
+                     : roleName === 'COMPANY'
+                       ? 'EMPRESA'
+                       : 'EGRESADO'}
               </span>
             </div>
 
@@ -806,7 +981,7 @@ export default function Layout({ children }: LayoutProps) {
                 <ShieldAlert className="w-4 h-4" />
               </Link>
 
-              {roleName === 'GRADUATE' && <NotificationsBell />}
+              {(roleName === 'GRADUATE' || roleName === 'COORDINATOR') && <NotificationsBell />}
 
               {roleName === 'ADMIN' && (
                 <Link
@@ -850,6 +1025,163 @@ export default function Layout({ children }: LayoutProps) {
               pb-10
             "
           >
+            {/* Banner de Estado de Verificación Académica (PENDING_VERIFICATION / REJECTED) */}
+            {roleName === 'GRADUATE' && verificationStatus !== 'APPROVED' && (
+              <div
+                className={`mb-6 p-4 rounded-2xl shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border ${
+                  verificationStatus === 'REJECTED'
+                    ? 'bg-rose-50 text-rose-900 border-rose-200 dark:bg-rose-950/50 dark:text-rose-100 dark:border-rose-800'
+                    : 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-800'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      verificationStatus === 'REJECTED'
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200'
+                    }`}
+                  >
+                    {verificationStatus === 'REJECTED' ? (
+                      <AlertTriangle className="w-5 h-5" />
+                    ) : (
+                      <Clock className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">
+                      {verificationStatus === 'REJECTED'
+                        ? 'Observación de Coordinación UPC en tu verificación de título'
+                        : 'Cuenta en revisión por Coordinación de Egresados UPC (PENDING_VERIFICATION)'}
+                    </p>
+                    <p className="text-xs opacity-90 mt-0.5 leading-relaxed">
+                      {verificationStatus === 'REJECTED'
+                        ? `Motivo reportado: "${verificationNotes || 'Verifica tu número de cédula y acta o diploma.'}" Corrige tus datos para reenviar la solicitud.`
+                        : 'Puedes completar tu hoja de vida mientras el Coordinador valida tu cédula y acta/diploma. Postulaciones, encuestas oficiales, networking y mensajería directa se habilitarán automáticamente al aprobarse.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openResubmitVerificationModal}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+                    verificationStatus === 'REJECTED'
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  {verificationStatus === 'REJECTED' ? 'Corregir y reenviar' : 'Ver / Actualizar acta'}
+                </button>
+              </div>
+            )}
+
+            {/* Modal para corregir o actualizar datos de verificación académica */}
+            <Modal isOpen={showResubmitModal} onClose={() => setShowResubmitModal(false)} maxWidth="max-w-lg">
+              <form onSubmit={handleResubmitVerification}>
+                <div className="p-6 border-b border-[var(--border-color)]">
+                  <h3 className="text-lg font-bold text-ink">Datos de Acreditación Académica UPC</h3>
+                  <p className="text-xs text-ink-secondary mt-1">
+                    Verifica que tus nombres, cédula, programa y número de acta o diploma coincidan con tu título oficial.
+                  </p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Nombres *</label>
+                      <input
+                        type="text"
+                        required
+                        value={resubmitForm.first_name}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, first_name: e.target.value })}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Apellidos *</label>
+                      <input
+                        type="text"
+                        required
+                        value={resubmitForm.last_name}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, last_name: e.target.value })}
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Cédula / Documento *</label>
+                      <input
+                        type="text"
+                        required
+                        value={resubmitForm.document_id}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, document_id: e.target.value })}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Año de Grado *</label>
+                      <input
+                        type="number"
+                        min={1976}
+                        max={new Date().getFullYear() + 1}
+                        required
+                        value={resubmitForm.graduation_year}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, graduation_year: Number(e.target.value) })}
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                  {programsList.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Programa Académico UPC *</label>
+                      <select
+                        value={resubmitForm.program_id}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, program_id: Number(e.target.value) })}
+                        className="input w-full"
+                      >
+                        {programsList.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">N° Acta de Grado</label>
+                      <input
+                        type="text"
+                        value={resubmitForm.degree_act_number}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, degree_act_number: e.target.value })}
+                        placeholder="Ej. ACTA-2023-148"
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">N° de Diploma</label>
+                      <input
+                        type="text"
+                        value={resubmitForm.diploma_number}
+                        onChange={(e) => setResubmitForm({ ...resubmitForm, diploma_number: e.target.value })}
+                        placeholder="Ej. DIP-98412"
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-color)]">
+                    <button type="button" onClick={() => setShowResubmitModal(false)} className="btn-ghost">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={resubmitSaving} className="btn-primary inline-flex items-center gap-2">
+                      {resubmitSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Enviar a Coordinación
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </Modal>
+
             {/* Banner de Alertas Notificaciones al Ingresar el Egresado */}
             {roleName === 'GRADUATE' && loginAlerts.length > 0 && !bannerDismissed && (
               <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white shadow-xl flex items-center justify-between gap-4 animate-fade-in border border-emerald-400/30">

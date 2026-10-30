@@ -23,6 +23,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
     verification_token = Column(String(255), nullable=True)
+    verification_status = Column(String(30), default="APPROVED")
+    verification_notes = Column(Text, nullable=True)
     password_reset_pin = Column(String(6), nullable=True)
     pin_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

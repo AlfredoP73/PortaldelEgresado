@@ -64,6 +64,24 @@ class _SurveysTabState extends State<SurveysTab> {
     if (_activeSurvey == null) return;
     final id = (_activeSurvey!['id'] as num).toInt();
 
+    final rawQuestions = (_activeSurvey!['questions_json'] ?? _activeSurvey!['questions']) as List? ?? [];
+    for (int i = 0; i < rawQuestions.length; i++) {
+      final q = rawQuestions[i];
+      if (q is Map && q['required'] != false) {
+        final qId = (q['id'] ?? 'q_$i').toString();
+        final val = _answers[qId];
+        if (val == null || val.toString().trim().isEmpty || (val is List && val.isEmpty)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Por favor responde la pregunta #${i + 1}'),
+              backgroundColor: AppTheme.statusRechazado,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() => _isSubmitting = true);
     try {
       await ApiClient.instance.post('/modulo1/surveys/$id/response', data: _answers);
@@ -75,7 +93,7 @@ class _SurveysTabState extends State<SurveysTab> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('¡Encuesta institucional M01 enviada con éxito! Gracias por tu participación.'),
+            content: Text('¡Encuesta institucional OLE/CNA enviada con éxito! Gracias por tu participación.'),
             backgroundColor: AppTheme.primaryColor,
           ),
         );
@@ -110,12 +128,12 @@ class _SurveysTabState extends State<SurveysTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Encuestas de Seguimiento a Egresados (M01)',
+            'Encuestas de Seguimiento a Egresados (OLE / CNA)',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.primaryText),
           ),
           const SizedBox(height: 4),
           Text(
-            'Instrumentos de acreditación y seguimiento institucional de la Universidad Popular del Cesar.',
+            'Instrumentos de acreditación y seguimiento longitudinal (Momentos M0, M1, M3 y M5) de la UPC.',
             style: TextStyle(fontSize: 12.5, color: context.secondaryText),
           ),
           const SizedBox(height: 14),
@@ -140,6 +158,7 @@ class _SurveysTabState extends State<SurveysTab> {
               children: _surveys.map((survey) {
                 final id = (survey['id'] as num).toInt();
                 final done = _completedMap[id] == true;
+                final momentCode = (survey['moment_code'] ?? 'M1').toString();
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -156,18 +175,21 @@ class _SurveysTabState extends State<SurveysTab> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppTheme.brand50,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(
-                              done ? Icons.check_circle_rounded : Icons.assignment_outlined,
-                              color: AppTheme.primaryColor,
-                              size: 20,
+                            child: Text(
+                              momentCode,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.primaryColor,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               survey['title']?.toString() ?? 'Encuesta Institucional',
@@ -220,7 +242,8 @@ class _SurveysTabState extends State<SurveysTab> {
   }
 
   Widget _buildActiveSurveyForm(BuildContext context) {
-    final questions = (_activeSurvey!['questions'] as List? ?? [])
+    final rawList = (_activeSurvey!['questions_json'] ?? _activeSurvey!['questions']) as List? ?? [];
+    final questions = rawList
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
@@ -264,12 +287,24 @@ class _SurveysTabState extends State<SurveysTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (q['section'] != null && q['section'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          q['section'].toString().toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
                     Text(
                       '${idx + 1}. $qText',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: context.primaryText),
                     ),
                     const SizedBox(height: 8),
-                    if (qType == 'radio' && options.isNotEmpty)
+                    if ((qType == 'radio' || qType == 'scale' || qType == 'select') && options.isNotEmpty)
                       ...options.map((opt) {
                         final selected = _answers[qId] == opt;
                         return InkWell(
@@ -307,8 +342,57 @@ class _SurveysTabState extends State<SurveysTab> {
                           ),
                         );
                       })
+                    else if (qType == 'checkbox' && options.isNotEmpty)
+                      ...options.map((opt) {
+                        final currentList = (_answers[qId] is List) ? List<String>.from(_answers[qId]) : <String>[];
+                        final selected = currentList.contains(opt);
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (selected) {
+                                currentList.remove(opt);
+                              } else {
+                                currentList.add(opt);
+                              }
+                              _answers[qId] = currentList;
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: selected ? AppTheme.brand50 : context.mutedColor,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: selected ? AppTheme.primaryColor : context.borderColor,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  selected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                  size: 18,
+                                  color: selected ? AppTheme.primaryColor : context.secondaryText,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    opt,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                      color: context.primaryText,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      })
                     else
                       TextField(
+                        maxLines: qType == 'textarea' ? 3 : 1,
                         onChanged: (v) => _answers[qId] = v,
                         decoration: AppTheme.inputDecoration(
                           context,
@@ -335,4 +419,3 @@ class _SurveysTabState extends State<SurveysTab> {
     );
   }
 }
-

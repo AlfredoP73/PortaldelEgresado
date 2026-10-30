@@ -13,8 +13,34 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _documentIdController = TextEditingController();
+  final _graduationYearController = TextEditingController(text: DateTime.now().year.toString());
+  final _degreeActController = TextEditingController();
+  final _diplomaController = TextEditingController();
+  final _phoneController = TextEditingController();
 
-  int _registerStep = 1; // 1: Credenciales, 2: Privacidad
+  List<Map<String, dynamic>> _programs = const [
+    {'id': 1, 'name': 'Ingeniería de Sistemas'},
+    {'id': 2, 'name': 'Ingeniería Ambiental'},
+    {'id': 3, 'name': 'Ingeniería Electrónica'},
+    {'id': 4, 'name': 'Enfermería'},
+    {'id': 5, 'name': 'Microbiología'},
+    {'id': 6, 'name': 'Instrumentación Quirúrgica'},
+    {'id': 7, 'name': 'Administración de Empresas'},
+    {'id': 8, 'name': 'Contaduría Pública'},
+    {'id': 9, 'name': 'Economía'},
+    {'id': 10, 'name': 'Comercio Internacional'},
+    {'id': 11, 'name': 'Derecho'},
+    {'id': 12, 'name': 'Sociología'},
+    {'id': 13, 'name': 'Psicología'},
+    {'id': 14, 'name': 'Licenciatura en Matemáticas'},
+    {'id': 15, 'name': 'Licenciatura en Lengua Castellana e Inglés'},
+  ];
+  int _selectedProgramId = 1;
+
+  int _registerStep = 1; // 1: Credenciales + Datos de Grado, 2: Privacidad
   static const int _roleId = 3; // 3 = Egresado UPC (Exclusivo en app móvil)
   bool _obscurePassword = true;
   bool _acceptPrivacy = false;
@@ -23,9 +49,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _loadPrograms();
+  }
+
+  Future<void> _loadPrograms() async {
+    try {
+      final res = await ApiClient.instance.get('/modulo1/public/programs');
+      if (res.data is List && (res.data as List).isNotEmpty && mounted) {
+        final loaded = (res.data as List)
+            .whereType<Map>()
+            .map((e) => {'id': e['id'] as int, 'name': e['name'].toString()})
+            .toList();
+        if (loaded.isNotEmpty) {
+          setState(() {
+            _programs = loaded;
+            _selectedProgramId = loaded.first['id'] as int;
+          });
+        }
+      }
+    } catch (_) {
+      // Usa lista oficial local si la red aún no responde
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _documentIdController.dispose();
+    _graduationYearController.dispose();
+    _degreeActController.dispose();
+    _diplomaController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -46,13 +105,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_registerStep == 1) {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      final documentId = _documentIdController.text.trim();
+      final gradYear = int.tryParse(_graduationYearController.text.trim());
+      final actNum = _degreeActController.text.trim();
+      final dipNum = _diplomaController.text.trim();
 
-      if (email.isEmpty) {
-        setState(() => _errorMessage = 'Ingresa tu correo institucional para continuar.');
+      if (email.isEmpty || !email.contains('@')) {
+        setState(() => _errorMessage = 'Ingresa un correo electrónico válido (Gmail, Hotmail, Outlook, etc.).');
         return;
       }
-      if (!email.toLowerCase().endsWith('@unicesar.edu.co')) {
-        setState(() => _errorMessage = 'Debes ingresar tu correo institucional @unicesar.edu.co');
+      if (firstName.isEmpty || lastName.isEmpty) {
+        setState(() => _errorMessage = 'Ingresa tus nombres y apellidos completos.');
+        return;
+      }
+      if (documentId.isEmpty) {
+        setState(() => _errorMessage = 'Ingresa tu número de cédula o documento.');
+        return;
+      }
+      if (gradYear == null || gradYear < 1976 || gradYear > DateTime.now().year + 1) {
+        setState(() => _errorMessage = 'Ingresa un año de graduación válido.');
+        return;
+      }
+      if (actNum.isEmpty && dipNum.isEmpty) {
+        setState(() => _errorMessage = 'Ingresa tu número de acta de grado o número de diploma.');
         return;
       }
       if (password.length < 8 || _passwordStrength < 2) {
@@ -73,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           });
         }
       } on DioException catch (e) {
-        String msg = 'No se pudo conectar con el servidor institucional.';
+        String msg = 'No se pudo conectar con el servidor.';
         if (e.response?.data != null && e.response?.data is Map) {
           msg = e.response?.data['detail']?.toString() ?? msg;
         }
@@ -82,7 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } catch (e) {
         if (mounted) {
-          setState(() => _errorMessage = 'Error al validar el correo institucional: $e');
+          setState(() => _errorMessage = 'Error al validar el correo: $e');
         }
       } finally {
         if (mounted) setState(() => _isLoading = false);
@@ -102,8 +179,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final email = _emailController.text.trim();
-    if (!email.toLowerCase().endsWith('@unicesar.edu.co')) {
-      setState(() => _errorMessage = 'Debes registrarte con tu correo institucional @unicesar.edu.co');
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _errorMessage = 'Ingresa un correo electrónico válido.');
       return;
     }
 
@@ -117,6 +194,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'email': email,
         'password': _passwordController.text,
         'role_id': _roleId,
+        'first_name': _firstNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'document_id': _documentIdController.text.trim(),
+        'program_id': _selectedProgramId,
+        'graduation_year': int.tryParse(_graduationYearController.text.trim()) ?? DateTime.now().year,
+        'degree_act_number': _degreeActController.text.trim().isEmpty ? null : _degreeActController.text.trim(),
+        'diploma_number': _diplomaController.text.trim().isEmpty ? null : _diplomaController.text.trim(),
+        'phone': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
         'accept_privacy_policy': _acceptPrivacy,
         'authorize_data_treatment': _authorizeData,
       });
@@ -335,7 +420,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         const Text(
-                                          'Registro Exclusivo de Egresados UPC',
+                                          'Registro Abierto de Egresados UPC',
                                           style: TextStyle(
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w800,
@@ -344,7 +429,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Ingresa tu correo institucional @unicesar.edu.co para validar tu titulación. Las empresas aliadas gestionan sus vacantes en el portal web.',
+                                          'Puedes usar cualquier correo (Gmail, Hotmail, Outlook o institucional). El Coordinador UPC verificará tu cédula y acta o diploma.',
                                           style: TextStyle(
                                             fontSize: 11.5,
                                             color: context.secondaryText,
@@ -360,7 +445,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SizedBox(height: 16),
 
                             Text(
-                              'CORREO INSTITUCIONAL (@UNICESAR.EDU.CO)',
+                              'CORREO ELECTRÓNICO (PERSONAL O INSTITUCIONAL)',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -376,10 +461,139 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               style: TextStyle(color: context.primaryText, fontSize: 15),
                               decoration: AppTheme.inputDecoration(
                                 context,
-                                label: 'Correo institucional',
-                                hint: 'usuario@unicesar.edu.co',
+                                label: 'Correo electrónico',
+                                hint: 'ejemplo@gmail.com o @hotmail.com',
                                 icon: Icons.mail_outline_rounded,
                               ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            Text(
+                              'DATOS DE ACREDITACIÓN PARA COORDINACIÓN UPC',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
+                                color: context.secondaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _firstNameController,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'Nombres *',
+                                      hint: 'Carlos',
+                                      icon: Icons.person_outline_rounded,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _lastNameController,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'Apellidos *',
+                                      hint: 'Zuleta',
+                                      icon: Icons.badge_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _documentIdController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'Cédula *',
+                                      hint: '1065842910',
+                                      icon: Icons.credit_card_rounded,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _graduationYearController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'Año grado *',
+                                      hint: '2024',
+                                      icon: Icons.calendar_today_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<int>(
+                              value: _selectedProgramId,
+                              isExpanded: true,
+                              decoration: AppTheme.inputDecoration(
+                                context,
+                                label: 'Programa Académico UPC *',
+                                hint: 'Selecciona tu programa',
+                                icon: Icons.school_outlined,
+                              ),
+                              items: _programs
+                                  .map(
+                                    (p) => DropdownMenuItem<int>(
+                                      value: p['id'] as int,
+                                      child: Text(
+                                        p['name'].toString(),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontSize: 13.5, color: context.primaryText),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (val) {
+                                if (val != null) setState(() => _selectedProgramId = val);
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _degreeActController,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'N° Acta de Grado *',
+                                      hint: 'ACTA-2024-120',
+                                      icon: Icons.verified_outlined,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _diplomaController,
+                                    style: TextStyle(color: context.primaryText, fontSize: 14),
+                                    decoration: AppTheme.inputDecoration(
+                                      context,
+                                      label: 'o N° Diploma',
+                                      hint: 'DIP-98412',
+                                      icon: Icons.workspace_premium_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 16),
 
@@ -521,14 +735,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         const SizedBox(height: 4),
                                         const Row(
                                           children: [
-                                            Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10B981)),
+                                            Icon(Icons.schedule_rounded, size: 13, color: Color(0xFFD97706)),
                                             SizedBox(width: 4),
-                                            Text(
-                                              'Verificado en censo oficial UPC',
-                                              style: TextStyle(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: Color(0xFF047857),
+                                            Expanded(
+                                              child: Text(
+                                                'Quedará pendiente de verificación por Coordinación UPC',
+                                                style: TextStyle(
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFFB45309),
+                                                ),
                                               ),
                                             ),
                                           ],

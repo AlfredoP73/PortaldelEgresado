@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel, EmailStr, HttpUrl
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -87,6 +87,13 @@ class GraduateBase(BaseModel):
     alert_min_score: Optional[int] = 75
     mentor_opt_in: Optional[bool] = False
     directory_visible: Optional[bool] = True
+    document_id: Optional[str] = None
+    degree_act_number: Optional[str] = None
+    diploma_number: Optional[str] = None
+    verification_status: Optional[str] = "APPROVED"
+    verification_notes: Optional[str] = None
+    verified_by_user_id: Optional[int] = None
+    verified_at: Optional[datetime] = None
 
 class GraduateCreate(GraduateBase):
     user_id: Optional[int] = None
@@ -108,13 +115,39 @@ class GraduateUpdate(BaseModel):
     alert_min_score: Optional[int] = None
     mentor_opt_in: Optional[bool] = None
     directory_visible: Optional[bool] = None
+    document_id: Optional[str] = None
+    degree_act_number: Optional[str] = None
+    diploma_number: Optional[str] = None
     
     # Extra fields sent by mobile app that we can safely ignore
-    document_id: Optional[str] = None
     phone_number: Optional[str] = None
     address: Optional[str] = None
     bio: Optional[str] = None
     document_type: Optional[str] = None
+
+
+class ProgramPublicOut(BaseModel):
+    id: int
+    name: str
+    faculty_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ResubmitVerificationRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    document_id: str
+    program_id: int
+    graduation_year: int
+    degree_act_number: Optional[str] = None
+    diploma_number: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class CoordinatorVerificationDecisionRequest(BaseModel):
+    notes: Optional[str] = None
 
 class SavedSearchBase(BaseModel):
     name: str
@@ -309,12 +342,36 @@ class AdminGraduateCreate(BaseModel):
 class SurveyBase(BaseModel):
     title: str
     description: Optional[str] = None
+    moment_code: Optional[str] = "M1"
+    category: Optional[str] = "Empleabilidad y Pertinencia (OLE/CNA)"
+    target_program_id: Optional[int] = None
+    target_graduation_year: Optional[int] = None
+    is_mandatory: Optional[bool] = False
+    closes_at: Optional[date] = None
     questions_json: list
     is_active: bool = True
+
+class SurveyCreate(SurveyBase):
+    pass
+
+class SurveyUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    moment_code: Optional[str] = None
+    category: Optional[str] = None
+    target_program_id: Optional[int] = None
+    target_graduation_year: Optional[int] = None
+    is_mandatory: Optional[bool] = None
+    closes_at: Optional[date] = None
+    questions_json: Optional[list] = None
+    is_active: Optional[bool] = None
 
 class Survey(SurveyBase):
     id: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    responses_count: Optional[int] = 0
+    target_program_name: Optional[str] = None
 
     class Config:
         from_attributes = True

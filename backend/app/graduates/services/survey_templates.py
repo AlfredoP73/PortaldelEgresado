@@ -1,0 +1,333 @@
+"""
+Plantillas oficiales de Encuestas de Seguimiento a Graduados (Colombia)
+Alineadas con el Observatorio Laboral para la Educación (OLE - MEN),
+lineamientos de Acreditación de Alta Calidad del CNA y seguimiento institucional UPC.
+"""
+
+OFFICIAL_SURVEY_TEMPLATES = [
+    {
+        "key": "OLE_M0",
+        "moment_code": "M0",
+        "category": "Satisfacción y Expectativas al Grado (OLE / CNA)",
+        "title": "Encuesta Momento 0 (M0) — Recién Graduados: Calidad Académica y Expectativas",
+        "description": (
+            "Instrumento oficial del Observatorio Laboral para la Educación (MEN/OLE) y autoevaluación "
+            "institucional UPC aplicado al momento de obtener el título profesional."
+        ),
+        "is_mandatory": True,
+        "questions_json": [
+            {
+                "id": "m0_q1_situacion",
+                "section": "Módulo 1: Situación Ocupacional al Graduarse",
+                "question": "¿Cuál es su situación laboral actual al momento de recibir su grado?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Trabajando como empleado dependiente",
+                    "Trabajando como independiente / prestación de servicios",
+                    "Emprendedor con empresa o negocio propio",
+                    "Desempleado en búsqueda activa de empleo",
+                    "Dedicado exclusivamente a estudios o preparación académica",
+                ],
+            },
+            {
+                "id": "m0_q2_satisfaccion_programa",
+                "section": "Módulo 2: Percepción de Calidad Institucional (CNA)",
+                "question": "En una escala de 1 a 5, ¿qué tan satisfecho(a) se encuentra con la calidad académica y formación integral recibida en su programa de la UPC?",
+                "type": "scale",
+                "required": True,
+                "options": ["1 - Muy insatisfecho", "2 - Insatisfecho", "3 - Neutral", "4 - Satisfecho", "5 - Muy satisfecho"],
+            },
+            {
+                "id": "m0_q3_docentes_infra",
+                "section": "Módulo 2: Percepción de Calidad Institucional (CNA)",
+                "question": "¿Cómo califica el acompañamiento docente, laboratorios y recursos bibliográficos/tecnológicos durante su carrera?",
+                "type": "radio",
+                "required": True,
+                "options": ["Excelente", "Bueno", "Aceptable", "Por mejorar"],
+            },
+            {
+                "id": "m0_q4_competencias_fortalecer",
+                "section": "Módulo 3: Pertinencia Curricular",
+                "question": "¿Cuáles competencias considera que el plan de estudios debería fortalecer para responder mejor al mercado laboral? (Puede elegir varias)",
+                "type": "checkbox",
+                "required": True,
+                "options": [
+                    "Prácticas empresariales y casos reales",
+                    "Dominio del idioma inglés (Bilingüismo)",
+                    "Herramientas digitales, IA y tecnología aplicada",
+                    "Emprendimiento, innovación y gestión de proyectos",
+                    "Habilidades blandas (liderazgo, comunicación, negociación)",
+                    "Investigación aplicada",
+                ],
+            },
+            {
+                "id": "m0_q5_expectativa_posgrado",
+                "section": "Módulo 4: Educación Continuada y Posgrados",
+                "question": "¿Qué nivel de formación complementaria o posgradual proyecta iniciar en los próximos 2 años?",
+                "type": "select",
+                "required": True,
+                "options": [
+                    "Especialización",
+                    "Maestría",
+                    "Diplomado o certificación internacional",
+                    "Formación en segunda lengua",
+                    "Por ahora no planeo cursar estudios adicionales",
+                ],
+            },
+            {
+                "id": "m0_q6_sugerencias",
+                "section": "Módulo 4: Mejoramiento Continuo",
+                "question": "¿Qué sugerencia o aporte dejaría a la Universidad Popular del Cesar para fortalecer su programa académico?",
+                "type": "textarea",
+                "required": False,
+                "options": [],
+            },
+        ],
+    },
+    {
+        "key": "OLE_M1",
+        "moment_code": "M1",
+        "category": "Inserción Laboral y Pertinencia (OLE - 1 Año)",
+        "title": "Encuesta Momento 1 (M1) — Inserción Laboral y Pertinencia al Primer Año",
+        "description": (
+            "Seguimiento longitudinal OLE/MEN al primer año de graduación para medir tasa de ocupación, "
+            "tiempo de inserción al primer empleo, rango salarial (IBC) y afinidad con la carrera."
+        ),
+        "is_mandatory": True,
+        "questions_json": [
+            {
+                "id": "m1_q1_ocupacion",
+                "section": "Módulo 1: Condición Laboral Actual",
+                "question": "Actualmente, ¿cuál es su actividad u ocupación principal?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Empleado en empresa privada",
+                    "Empleado o contratista en entidad pública",
+                    "Profesional independiente / Freelance",
+                    "Empresario / Dueño de negocio propio",
+                    "En búsqueda activa de empleo",
+                    "Estudiando tiempo completo / Otra actividad",
+                ],
+            },
+            {
+                "id": "m1_q2_tiempo_primer_empleo",
+                "section": "Módulo 1: Condición Laboral Actual",
+                "question": "Después de graduarse, ¿cuánto tiempo transcurrió hasta conseguir su primer empleo profesional?",
+                "type": "select",
+                "required": True,
+                "options": [
+                    "Ya trabajaba antes de graduarme",
+                    "Menos de 3 meses",
+                    "Entre 3 y 6 meses",
+                    "Entre 6 y 12 meses",
+                    "Más de 12 meses",
+                    "Aún no me he vinculado laboralmente",
+                ],
+            },
+            {
+                "id": "m1_q3_tipo_contrato",
+                "section": "Módulo 2: Calidad del Empleo e Ingresos (IBC)",
+                "question": "Si se encuentra laborando, ¿qué tipo de contrato o vinculación tiene actualmente?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Contrato a término indefinido",
+                    "Contrato a término fijo",
+                    "Contrato de prestación de servicios (OPS)",
+                    "Obra o labor / Temporal",
+                    "Actividad independiente / Emprendimiento propio",
+                    "No aplica (actualmente sin empleo)",
+                ],
+            },
+            {
+                "id": "m1_q4_rango_salarial",
+                "section": "Módulo 2: Calidad del Empleo e Ingresos (IBC)",
+                "question": "¿En qué rango se ubica su ingreso mensual promedio en Salarios Mínimos Legales Vigentes (SMLV)?",
+                "type": "select",
+                "required": True,
+                "options": [
+                    "Menos de 1 SMLV",
+                    "Entre 1 y 2 SMLV",
+                    "Más de 2 y hasta 3 SMLV",
+                    "Más de 3 y hasta 4 SMLV",
+                    "Más de 4 y hasta 6 SMLV",
+                    "Más de 6 SMLV",
+                    "No aplica / Sin ingresos laborales actuales",
+                ],
+            },
+            {
+                "id": "m1_q5_relacion_carrera",
+                "section": "Módulo 3: Pertinencia Académica",
+                "question": "¿Qué tan relacionado está su trabajo actual con el programa académico del cual egresó en la UPC?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Directamente relacionado con mi profesión",
+                    "Parcialmente relacionado (áreas afines)",
+                    "No tiene relación con lo que estudié",
+                    "No aplica",
+                ],
+            },
+            {
+                "id": "m1_q6_utilidad_conocimientos",
+                "section": "Módulo 3: Pertinencia Académica",
+                "question": "Califique de 1 a 5 qué tan útiles han sido los conocimientos adquiridos en la UPC para su desempeño laboral real:",
+                "type": "scale",
+                "required": True,
+                "options": ["1 - Nada útiles", "2 - Poco útiles", "3 - Moderadamente útiles", "4 - Muy útiles", "5 - Totalmente determinantes"],
+            },
+            {
+                "id": "m1_q7_canales_busqueda",
+                "section": "Módulo 4: Vinculación Institucional",
+                "question": "¿A través de qué canal principal consiguió su empleo actual o busca oportunidades?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Portal de Empleo / Bolsa Institucional UPC",
+                    "Redes profesionales (LinkedIn, Computrabajo, El Empleo)",
+                    "Red de contactos personales o docentes",
+                    "Práctica profesional previa en la misma empresa",
+                    "Convocatoria pública / Concurso de méritos (CNSC)",
+                ],
+            },
+        ],
+    },
+    {
+        "key": "OLE_M3",
+        "moment_code": "M3",
+        "category": "Consolidación Profesional y Movilidad (3 Años)",
+        "title": "Encuesta Momento 3 (M3) — Consolidación Laboral y Formación Continua (3 Años)",
+        "description": (
+            "Medición intermedia a los 3 años de egreso para evaluar crecimiento salarial, ascensos, "
+            "modalidad de trabajo y actualización tecnológica/posgradual."
+        ),
+        "is_mandatory": False,
+        "questions_json": [
+            {
+                "id": "m3_q1_evolucion",
+                "section": "Módulo 1: Movilidad y Crecimiento Profesional",
+                "question": "Durante los últimos 3 años desde su graduación, ¿ha tenido ascensos o mejoras significativas en sus condiciones laborales?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Sí, ascenso de cargo y mejora salarial",
+                    "Sí, cambio a una mejor empresa o sector",
+                    "Me mantengo estable en condiciones similares",
+                    "He experimentado inestabilidad o desempleo reciente",
+                ],
+            },
+            {
+                "id": "m3_q2_modalidad",
+                "section": "Módulo 1: Movilidad y Crecimiento Profesional",
+                "question": "¿Bajo qué modalidad y alcance geográfico desempeña su actividad laboral actual?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Presencial en el Cesar / Región Caribe",
+                    "Presencial en otra región de Colombia o el exterior",
+                    "Híbrido (presencial + remoto)",
+                    "100% Remoto para empresa nacional",
+                    "100% Remoto para empresa internacional",
+                    "No aplica",
+                ],
+            },
+            {
+                "id": "m3_q3_posgrados_cursados",
+                "section": "Módulo 2: Trayectoria Posgradual",
+                "question": "Seleccione los estudios posteriores al pregrado que ya culminó o cursa actualmente:",
+                "type": "checkbox",
+                "required": True,
+                "options": [
+                    "Especialización",
+                    "Maestría",
+                    "Doctorado",
+                    "Certificaciones técnicas / industria",
+                    "Diplomados de actualización",
+                    "Ninguno hasta el momento",
+                ],
+            },
+            {
+                "id": "m3_q4_satisfaccion_vinculo",
+                "section": "Módulo 3: Relación con la UPC",
+                "question": "De 1 a 5, ¿cómo evalúa la comunicación, eventos y servicios de seguimiento al egresado de la UPC?",
+                "type": "scale",
+                "required": True,
+                "options": ["1 - Deficiente", "2 - Regular", "3 - Aceptable", "4 - Bueno", "5 - Excelente"],
+            },
+        ],
+    },
+    {
+        "key": "OLE_M5",
+        "moment_code": "M5",
+        "category": "Impacto Social, Liderazgo y Emprendimiento (OLE - 5 Años)",
+        "title": "Encuesta Momento 5 (M5) — Impacto Profesional, Posgrados y Liderazgo (5 Años)",
+        "description": (
+            "Evaluación de impacto a mediano plazo exigida por el MEN/OLE y el CNA a los 5 años de grado: "
+            "cargos directivos, generación de empresa, producción intelectual e impacto regional."
+        ),
+        "is_mandatory": False,
+        "questions_json": [
+            {
+                "id": "m5_q1_nivel_cargo",
+                "section": "Módulo 1: Liderazgo y Posicionamiento",
+                "question": "A 5 años de su graduación, ¿qué nivel de responsabilidad tiene su rol profesional principal?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Directivo / Gerencial / Coordinación de equipos",
+                    "Profesional Senior / Especialista / Consultor",
+                    "Docente universitario / Investigador",
+                    "Fundador / Socio de empresa propia",
+                    "Profesional operativo / Analista",
+                    "Actualmente sin actividad laboral",
+                ],
+            },
+            {
+                "id": "m5_q2_emprendimiento",
+                "section": "Módulo 2: Emprendimiento y Generación de Empleo",
+                "question": "¿Ha creado empresa formalizada o emprendimiento activo después de su grado?",
+                "type": "radio",
+                "required": True,
+                "options": [
+                    "Sí, empresa formalizada que genera 5 o más empleos",
+                    "Sí, empresa o negocio que genera entre 1 y 4 empleos",
+                    "Sí, actividad independiente unipersonal",
+                    "No he creado empresa propia",
+                ],
+            },
+            {
+                "id": "m5_q3_reconocimientos",
+                "section": "Módulo 3: Impacto Social y Académico (Factor Egresados CNA)",
+                "question": "¿Ha obtenido alguno de los siguientes logros o participaciones destacadas? (Selección múltiple)",
+                "type": "checkbox",
+                "required": True,
+                "options": [
+                    "Premios, distinciones gremiales o reconocimientos públicos",
+                    "Publicaciones científicas, libros o ponencias",
+                    "Liderazgo en proyectos sociales o comunitarios en la región",
+                    "Participación como mentor, conferencista o par académico",
+                    "Ninguno de los anteriores por ahora",
+                ],
+            },
+            {
+                "id": "m5_q4_recomendaria_upc",
+                "section": "Módulo 4: Sentido de Pertenencia y Rediseño Curricular",
+                "question": "De 1 a 5, ¿qué tan probable es que recomiende estudiar su programa en la Universidad Popular del Cesar?",
+                "type": "scale",
+                "required": True,
+                "options": ["1 - Nada probable", "2 - Poco probable", "3 - Neutral", "4 - Muy probable", "5 - Totalmente seguro"],
+            },
+            {
+                "id": "m5_q5_rediseno_curricular",
+                "section": "Módulo 4: Sentido de Pertenencia y Rediseño Curricular",
+                "question": "Desde su experiencia de 5 años en el sector real, ¿qué cambios estratégicos recomienda para actualizar la malla curricular de su programa?",
+                "type": "textarea",
+                "required": False,
+                "options": [],
+            },
+        ],
+    },
+]
+

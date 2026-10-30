@@ -23,7 +23,8 @@ def require_roles(*roles):
             ROLE_MAP = {
                 1: "ADMIN",
                 2: "COMPANY",
-                3: "GRADUATE"
+                3: "GRADUATE",
+                4: "COORDINATOR",
             }
             
             role_id = user.get("role_id")

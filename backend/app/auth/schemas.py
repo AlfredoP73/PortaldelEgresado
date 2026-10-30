@@ -2,7 +2,9 @@ from pydantic import BaseModel, EmailStr, model_validator
 from datetime import datetime
 from typing import Optional, List, Any
 
-ALLOWED_GRADUATE_EMAIL_DOMAINS = ["unicesar.edu.co"]
+# Registro abierto multi-dominio: se permite cualquier proveedor de correo válido
+# (gmail.com, hotmail.com, outlook.com, yahoo.com, unicesar.edu.co, etc.)
+ALLOWED_GRADUATE_EMAIL_DOMAINS: list[str] = []
 
 # --- Request bodies ---
 
@@ -18,19 +20,40 @@ class RegisterRequest(BaseModel):
     accept_privacy_policy: bool
     authorize_data_treatment: bool
 
+    # Campos de acreditación académica para Registro Abierto de Egresados (role_id == 3)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    document_id: Optional[str] = None
+    program_id: Optional[int] = None
+    graduation_year: Optional[int] = None
+    degree_act_number: Optional[str] = None
+    diploma_number: Optional[str] = None
+    phone: Optional[str] = None
+
     @model_validator(mode='after')
     def validate_graduate_email(self):
-        if self.role_id == 3: # GRADUATE
-            domain = self.email.split('@')[-1].lower()
-            if domain not in ALLOWED_GRADUATE_EMAIL_DOMAINS:
-                raise ValueError("Debes registrarte con tu correo institucional @unicesar.edu.co")
-        
         if not self.accept_privacy_policy:
             raise ValueError("Debes aceptar el aviso de privacidad para registrarte.")
         if not self.authorize_data_treatment:
             raise ValueError("Debes autorizar el tratamiento de tus datos personales.")
-            
+
         return self
+
+
+class AdminCreateUserRequest(BaseModel):
+    email: EmailStr
+    password: str
+    role_id: int = 2
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    program_id: Optional[int] = None
+    graduation_year: Optional[int] = None
+
+
+class InternalUserVerificationUpdate(BaseModel):
+    verification_status: str  # PENDING_VERIFICATION | APPROVED | REJECTED
+    verification_notes: Optional[str] = None
+    full_name: Optional[str] = None
 
 
 class ImpersonateRequest(BaseModel):
@@ -51,6 +74,8 @@ class UserInfo(BaseModel):
     role_name: str
     is_active: bool = True
     email_verified: bool = False
+    verification_status: Optional[str] = "APPROVED"
+    verification_notes: Optional[str] = None
     privacy_policy_accepted: bool = False
     data_treatment_authorized: bool = False
 
@@ -156,6 +181,7 @@ class ValidateGraduateEmailRequest(BaseModel):
 
 class ValidateGraduateEmailResponse(BaseModel):
     valid: bool = True
+    pre_imported: bool = False
     message: str
     email: str
 

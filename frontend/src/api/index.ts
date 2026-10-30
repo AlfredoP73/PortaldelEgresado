@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
 // En producción (desplegado), VITE_*_URL no está definida → usar rutas relativas
 // que Nginx redirige al backend gateway. En desarrollo, usar puertos directos.
@@ -281,5 +281,68 @@ export const getGraduateEducation = (userId: number) =>
 
 export const getGraduateExperience = (userId: number) =>
   graduatesApi.get(`/graduates/${userId}/experience`);
+
+// ── Gestión Administrativa de Encuestas de Seguimiento (MEN / OLE / CNA) ────
+export const getSurveyTemplates = () =>
+  graduatesApi.get('/admin/surveys/templates');
+
+export const getAdminSurveys = () =>
+  graduatesApi.get('/admin/surveys');
+
+export const createAdminSurvey = (data: any) =>
+  graduatesApi.post('/admin/surveys', data);
+
+export const updateAdminSurvey = (surveyId: number, data: any) =>
+  graduatesApi.put(`/admin/surveys/${surveyId}`, data);
+
+export const toggleAdminSurvey = (surveyId: number) =>
+  graduatesApi.patch(`/admin/surveys/${surveyId}/toggle`);
+
+export const duplicateAdminSurvey = (surveyId: number) =>
+  graduatesApi.post(`/admin/surveys/${surveyId}/duplicate`);
+
+export const deleteAdminSurvey = (surveyId: number) =>
+  graduatesApi.delete(`/admin/surveys/${surveyId}`);
+
+export const getAdminSurveyResults = (surveyId: number) =>
+  graduatesApi.get(`/admin/surveys/${surveyId}/results`);
+
+// ── Fase 6: Registro Abierto Multi-Dominio + Verificación COORDINATOR ────────
+export const getPublicPrograms = () =>
+  graduatesApi.get<{ id: number; name: string; faculty_id?: number }[]>('/public/programs');
+
+export const resubmitGraduateVerification = (data: {
+  first_name?: string;
+  last_name?: string;
+  document_id: string;
+  program_id: number;
+  graduation_year: number;
+  degree_act_number?: string;
+  diploma_number?: string;
+  phone?: string;
+}) => graduatesApi.post('/profile/resubmit-verification', data);
+
+export const getCoordinatorVerifications = (params?: {
+  status?: string;
+  program_id?: number;
+  graduation_year?: number;
+  q?: string;
+}) => graduatesApi.get('/coordinator/verifications', { params });
+
+export const approveGraduateVerification = (userId: number, notes?: string) =>
+  graduatesApi.post(`/coordinator/verifications/${userId}/approve`, { notes });
+
+export const rejectGraduateVerification = (userId: number, notes: string) =>
+  graduatesApi.post(`/coordinator/verifications/${userId}/reject`, { notes });
+
+export const adminCreateUser = (data: {
+  email: string;
+  password: string;
+  role_id: number;
+  first_name?: string;
+  last_name?: string;
+  program_id?: number;
+  graduation_year?: number;
+}) => authApi.post('/admin/users', data);
 
 export default api;

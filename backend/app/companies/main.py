@@ -101,7 +101,10 @@ def ensure_companies_schema():
                 """))
         except Exception as e:
             print(f"Schema check warning in companies: {e}")
-    threading.Thread(target=_run, daemon=True).start()
+    if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        _run()
+    else:
+        threading.Thread(target=_run, daemon=True).start()
 
 @app.get("/")
 def health_check():

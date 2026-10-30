@@ -6,7 +6,8 @@ from app.auth.utils.auth_utils import get_current_user
 ROLE_MAP = {
     1: "ADMIN",
     2: "COMPANY",
-    3: "GRADUATE"
+    3: "GRADUATE",
+    4: "COORDINATOR"
 }
 
 class RoleChecker:

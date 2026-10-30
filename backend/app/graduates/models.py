@@ -35,6 +35,13 @@ class Graduate(Base):
     alert_min_score = Column(Integer, default=75)
     mentor_opt_in = Column(Boolean, default=False)
     directory_visible = Column(Boolean, default=True)
+    document_id = Column(String(40), nullable=True, index=True)
+    degree_act_number = Column(String(60), nullable=True)
+    diploma_number = Column(String(60), nullable=True)
+    verification_status = Column(String(30), default="APPROVED")
+    verification_notes = Column(Text, nullable=True)
+    verified_by_user_id = Column(Integer, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
 
     experiences = relationship("WorkExperience", back_populates="graduate")
     academic_histories = relationship("AcademicHistory", back_populates="graduate")
@@ -145,9 +152,16 @@ class Survey(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    moment_code = Column(String(20), default="M1")  # M0, M1, M3, M5, TEMATICA
+    category = Column(String(120), default="Empleabilidad y Pertinencia (OLE/CNA)")
+    target_program_id = Column(Integer, nullable=True)
+    target_graduation_year = Column(Integer, nullable=True)
+    is_mandatory = Column(Boolean, default=False)
+    closes_at = Column(Date, nullable=True)
     questions_json = Column(JSON, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 class SurveyResponse(Base):
     __tablename__ = "survey_responses"

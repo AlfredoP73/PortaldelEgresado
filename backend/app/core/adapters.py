@@ -53,12 +53,51 @@ class MatchmakingPort(ABC):
     def trigger_recalculate(self, graduate_id: Optional[int] = None, job_offer_id: Optional[int] = None) -> bool:
         pass
 
+
+class SQSMatchmakingAdapter(MatchmakingPort):
+    """Adaptador Serverless para publicar recálculos de afinidad en Amazon SQS."""
+    def __init__(self, queue_url: Optional[str] = None):
+        self.queue_url = queue_url or os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
+        self.region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+
+    def trigger_recalculate(self, graduate_id: Optional[int] = None, job_offer_id: Optional[int] = None) -> bool:
+        if not self.queue_url:
+            return False
+        payload = {}
+        if graduate_id is not None:
+            payload["graduate_id"] = graduate_id
+        if job_offer_id is not None:
+            payload["job_offer_id"] = job_offer_id
+        if not payload:
+            return False
+
+        try:
+            import boto3
+            sqs = boto3.client("sqs", region_name=self.region)
+            sqs.send_message(
+                QueueUrl=self.queue_url,
+                MessageBody=json.dumps(payload),
+            )
+            return True
+        except Exception as e:
+            print(f"Error publishing to Amazon SQS: {e}")
+            return False
+
+
 class RabbitMQMatchmakingAdapter(MatchmakingPort):
     def __init__(self):
         self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+        self.sqs_queue_url = os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
 
     @circuit(failure_threshold=5, recovery_timeout=60)
     def trigger_recalculate(self, graduate_id: Optional[int] = None, job_offer_id: Optional[int] = None) -> bool:
+        # En arquitectura Serverless AWS (SQS configurado), usar Amazon SQS automáticamente
+        if self.sqs_queue_url:
+            return SQSMatchmakingAdapter(self.sqs_queue_url).trigger_recalculate(
+                graduate_id=graduate_id,
+                job_offer_id=job_offer_id,
+            )
+
         payload = {}
         if graduate_id is not None:
             payload["graduate_id"] = graduate_id
@@ -87,6 +126,16 @@ class RabbitMQMatchmakingAdapter(MatchmakingPort):
             print(f"Error publishing to RabbitMQ: {e}")
             return False
 
+
+def get_matchmaking_adapter() -> MatchmakingPort:
+    sqs_url = os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
+    if sqs_url:
+        return SQSMatchmakingAdapter(sqs_url)
+    return RabbitMQMatchmakingAdapter()
+
+
+INTER_SERVICE_TIMEOUT = float(os.getenv("INTER_SERVICE_TIMEOUT", "15.0"))
+
 # ── Inter-Service HTTP Communication Ports & Adapters ──
 
 class GraduatesServicePort(ABC):
@@ -105,37 +154,49 @@ class GraduatesServicePort(ABC):
     @abstractmethod
     def get_all_saved_searches(self) -> list: pass
 
+    @abstractmethod
+    def upsert_pending_graduate(self, payload: dict) -> dict: pass
+
 class HttpGraduatesAdapter(GraduatesServicePort):
     def __init__(self):
         self.base_url = os.getenv("GRADUATES_URL", "http://graduates:8000")
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_graduates(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/graduates", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/graduates", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_graduate(self, graduate_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/graduates/{graduate_id}", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_graduate(self, graduate_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates/{graduate_id}", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_graduate_ids(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_saved_searches(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/saved-searches", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/saved-searches", timeout=INTER_SERVICE_TIMEOUT)
+        resp.raise_for_status()
+        return resp.json()
+
+    def upsert_pending_graduate(self, payload: dict) -> dict:
+        resp = httpx.post(
+            f"{self.base_url}/api/internal/graduates/register-pending",
+            json=payload,
+            timeout=INTER_SERVICE_TIMEOUT,
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -206,7 +267,7 @@ class UpcJobBoardAdapter(ExternalJobBoardPort):
     def fetch_jobs(self, params: dict) -> list:
         if not self.is_enabled():
             return []
-        resp = httpx.get(f"{self.base_url}/jobs", params=params, headers=self._headers(), timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/jobs", params=params, headers=self._headers(), timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         items = data.get("items", data) if isinstance(data, dict) else data
@@ -220,7 +281,7 @@ class UpcJobBoardAdapter(ExternalJobBoardPort):
     def forward_application(self, payload: dict) -> Optional[dict]:
         if not self.is_enabled():
             return None
-        resp = httpx.post(f"{self.base_url}/applications", json=payload, headers=self._headers(), timeout=5.0)
+        resp = httpx.post(f"{self.base_url}/applications", json=payload, headers=self._headers(), timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
@@ -231,7 +292,7 @@ class UpcJobBoardAdapter(ExternalJobBoardPort):
         resp = httpx.get(
             f"{self.base_url}/applications/graduate/{graduate_id}",
             headers=self._headers(),
-            timeout=5.0
+            timeout=INTER_SERVICE_TIMEOUT
         )
         resp.raise_for_status()
         data = resp.json()
@@ -245,31 +306,31 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_companies(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/companies", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/companies", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_companies_directory(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/companies-directory", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/companies-directory", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_applications(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/applications", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_job_applications(self, job_offer_id: int) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications/job/{job_offer_id}", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/applications/job/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
         
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_jobs(self, params: dict) -> list | dict:
-        resp = httpx.get(f"{self.base_url}/api/internal/jobs", params=params, timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/jobs", params=params, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         local_data = resp.json()
 
@@ -295,7 +356,7 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def apply_for_job(self, payload: dict) -> dict:
-        resp = httpx.post(f"{self.base_url}/api/internal/applications/apply", json=payload, timeout=5.0)
+        resp = httpx.post(f"{self.base_url}/api/internal/applications/apply", json=payload, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         app_result = resp.json()
 
@@ -312,7 +373,7 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_my_applications(self, graduate_id: int) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications/graduate/{graduate_id}", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/applications/graduate/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         local_apps = resp.json()
 
@@ -331,19 +392,19 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_programs(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/programs", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/programs", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_job(self, job_offer_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs/{job_offer_id}", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_job_ids(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs", timeout=5.0)
+        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
@@ -357,15 +418,62 @@ class AuthServicePort(ABC):
     @abstractmethod
     def create_conversation(self, context_type: str, participant_ids: list, context_id: int = None) -> dict: pass
 
+    @abstractmethod
+    def get_users_map(self) -> dict: pass
+
+    @abstractmethod
+    def update_user_verification(self, user_id: int, verification_status: str, verification_notes: str = None, full_name: str = "") -> dict: pass
+
 class HttpAuthAdapter(AuthServicePort):
     def __init__(self):
         self.base_url = os.getenv("AUTH_URL", "http://auth:8000")
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def create_user(self, payload: dict) -> dict:
-        resp = httpx.post(f"{self.base_url}/api/internal/users", json=payload, timeout=5.0)
+        resp = httpx.post(f"{self.base_url}/api/internal/users", json=payload, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
+
+    def get_users_map(self) -> dict:
+        try:
+            resp = httpx.get(f"{self.base_url}/api/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
+            if resp.status_code == 404:
+                resp = httpx.get(f"{self.base_url}/api/auth/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"Safe fallback in get_users_map: {e}")
+            return {}
+
+    def update_user_verification(
+        self,
+        user_id: int,
+        verification_status: str,
+        verification_notes: str = None,
+        full_name: str = "",
+    ) -> dict:
+        body = {
+            "verification_status": verification_status,
+            "verification_notes": verification_notes,
+            "full_name": full_name,
+        }
+        try:
+            resp = httpx.put(
+                f"{self.base_url}/api/internal/users/{user_id}/verification",
+                json=body,
+                timeout=INTER_SERVICE_TIMEOUT,
+            )
+            if resp.status_code == 404:
+                resp = httpx.put(
+                    f"{self.base_url}/api/auth/internal/users/{user_id}/verification",
+                    json=body,
+                    timeout=INTER_SERVICE_TIMEOUT,
+                )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"Safe fallback in update_user_verification: {e}")
+            return {"status": "error", "detail": str(e)}
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def send_notification(self, user_id: int, title: str, message: str, type: str = "system", payload: dict = None, dedup_key: str = None) -> dict:
@@ -378,9 +486,9 @@ class HttpAuthAdapter(AuthServicePort):
             "dedup_key": dedup_key
         }
         try:
-            resp = httpx.post(f"{self.base_url}/api/auth/internal/notifications", json=body, timeout=5.0)
+            resp = httpx.post(f"{self.base_url}/api/auth/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
             if resp.status_code == 404:
-                resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=5.0)
+                resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -395,9 +503,9 @@ class HttpAuthAdapter(AuthServicePort):
             "participant_ids": participant_ids
         }
         try:
-            resp = httpx.post(f"{self.base_url}/api/auth/internal/conversations", json=body, timeout=5.0)
+            resp = httpx.post(f"{self.base_url}/api/auth/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
             if resp.status_code == 404:
-                resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=5.0)
+                resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:

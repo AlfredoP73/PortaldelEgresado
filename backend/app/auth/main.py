@@ -40,6 +40,23 @@ app.include_router(privacy_router)
 def startup_db_check():
     try:
         with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status VARCHAR(30) DEFAULT 'APPROVED';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_notes TEXT;"))
+            conn.execute(text("UPDATE users SET verification_status = 'APPROVED' WHERE verification_status IS NULL;"))
+            conn.execute(text("INSERT INTO roles (id, name) VALUES (4, 'COORDINATOR') ON CONFLICT (id) DO NOTHING;"))
+            conn.execute(text("SELECT setval('roles_id_seq', GREATEST((SELECT COALESCE(MAX(id), 4) FROM roles), 4));"))
+            conn.execute(text("""
+                INSERT INTO users (email, password_hash, role_id, is_active, email_verified, verification_status)
+                VALUES (
+                    'coordinador@unicesar.edu.co',
+                    '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba',
+                    4,
+                    TRUE,
+                    TRUE,
+                    'APPROVED'
+                )
+                ON CONFLICT (email) DO NOTHING;
+            """))
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS payload JSON;"))
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;"))
             conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS dedup_key VARCHAR(150);"))

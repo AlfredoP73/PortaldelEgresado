@@ -54,7 +54,7 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
         if not user.verification_token and not user.email_verified:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tu cuenta de egresado fue importada por la universidad y está inactiva. Ve a 'Regístrate gratis' con tu correo institucional para activar tu cuenta.",
+                detail="Tu cuenta de egresado fue importada por la universidad y está inactiva. Ve a 'Regístrate gratis' para activarla.",
             )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -84,7 +84,8 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
     data_payload = {
         "sub": user.email,
         "id": user.id,
-        "role_id": user.role_id
+        "role_id": user.role_id,
+        "verification_status": getattr(user, "verification_status", None) or "APPROVED",
     }
     token = create_access_token(data=data_payload)
     
@@ -94,50 +95,90 @@ def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = 
     return schemas.TokenResponse(
         access_token=token,
         token_type="bearer",
-        user=schemas.UserInfo(
-            id=user.id,
-            email=user.email,
-            role_id=user.role_id,
-            role_name=user.role.name,
-            is_active=user.is_active,
-            email_verified=user.email_verified,
-            privacy_policy_accepted=user.privacy_policy_accepted,
-            data_treatment_authorized=user.data_treatment_authorized,
-        ),
+        user=_build_user_info(user),
     )
 
 def validate_graduate_email(email: str, db: Session) -> dict:
-    """Verifica si un correo institucional pertenece al censo oficial de egresados precargado en la base de datos."""
+    """
+    Valida disponibilidad del correo para registro abierto de egresado (multi-dominio:
+    gmail.com, hotmail.com, outlook.com, yahoo.com, unicesar.edu.co, etc.).
+    """
     email_clean = email.strip().lower()
-    if not email_clean.endswith("@unicesar.edu.co"):
+    if "@" not in email_clean or "." not in email_clean.split("@")[-1]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Debes ingresar tu correo institucional @unicesar.edu.co"
+            detail="Ingresa una dirección de correo electrónico válida.",
         )
 
     user = db.query(models.User).filter(func.lower(models.User.email) == email_clean).first()
-    if not user or user.role_id != 3:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC. Si eres egresado, solicita tu importación en la Oficina de Seguimiento a Egresados."
-        )
-
-    if user.is_active and user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Tu cuenta de egresado ya se encuentra activa. Por favor inicia sesión directamente."
-        )
+    if user:
+        if user.role_id != 3:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este correo electrónico ya está registrado con otro perfil en el portal.",
+            )
+        if user.is_active and user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Ya existe una cuenta de egresado activa con este correo. Por favor inicia sesión directamente.",
+            )
+        return {
+            "valid": True,
+            "pre_imported": True,
+            "message": "Correo pre-registrado encontrado. Completa tus datos de grado para solicitar la verificación del Coordinador.",
+            "email": user.email,
+        }
 
     return {
         "valid": True,
-        "message": "Egresado verificado en la base de datos oficial de la UPC.",
-        "email": user.email
+        "pre_imported": False,
+        "message": "Correo disponible para registro abierto. El Coordinador verificará tu acta o diploma.",
+        "email": email_clean,
     }
+
+
+def _notify_coordinators_of_pending_graduate(
+    db: Session,
+    graduate_user_id: int,
+    full_name: str,
+    email: str,
+    document_id: str | None,
+    act_or_diploma: str | None,
+):
+    """Notifica en tiempo real (campana in-app) a todos los COORDINATOR y ADMIN sobre un nuevo registro pendiente."""
+    try:
+        reviewers = db.query(models.User).filter(models.User.role_id.in_([1, 4]), models.User.is_active == True).all()
+        for rev in reviewers:
+            dedup = f"grad_pending_{graduate_user_id}_rev_{rev.id}"
+            exists = db.query(models.Notification).filter(
+                models.Notification.user_id == rev.id,
+                models.Notification.dedup_key == dedup,
+            ).first()
+            if not exists:
+                db.add(models.Notification(
+                    user_id=rev.id,
+                    title="Nueva verificación de egresado pendiente",
+                    message=f"{full_name} ({email}) registró C.C. {document_id or 'N/A'} · Acta/Diploma {act_or_diploma or 'N/A'}.",
+                    type="VERIFICATION_REQUEST",
+                    payload={"graduate_user_id": graduate_user_id, "email": email},
+                    dedup_key=dedup,
+                    is_read=False,
+                ))
+        db.commit()
+    except Exception as e:
+        print(f"Notice: no se pudo notificar a coordinadores: {e}")
+        db.rollback()
 
 
 def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "unknown") -> dict:
     email_clean = body.email.strip().lower()
     existing_user = db.query(models.User).filter(func.lower(models.User.email) == email_clean).first()
+
+    if body.role_id not in (2, 3):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El registro público solo está habilitado para Egresados y Empresas Aliadas.",
+        )
 
     if not db.query(models.Role).filter(models.Role.id == body.role_id).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -145,69 +186,142 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
 
     verification_token = str(uuid.uuid4())
 
-    # Si se intenta registrar como EGRESADO (role_id == 3), DEBE existir previamente
-    # en la base de datos (inyectado en el despliegue o importado desde Excel por la UPC).
+    # ── Registro Abierto Multi-Dominio de EGRESADO (role_id == 3) + Estado PENDING_VERIFICATION ──
     if body.role_id == 3:
-        if not existing_user or existing_user.role_id != 3:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tu correo institucional no se encuentra en la base de datos oficial de egresados de la UPC. Si eres egresado, solicita tu importación en la Oficina de Seguimiento a Egresados."
-            )
-
-        # Verificar también en el microservicio de Egresados que exista su registro en la tabla graduates
-        try:
-            from app.core.adapters import HttpGraduatesAdapter
-            grad_profile = HttpGraduatesAdapter().get_graduate(existing_user.id)
-            if not grad_profile:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Tu correo no registra ficha de egresado en el sistema. Comunícate con la Oficina de Egresados."
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Warning: No se pudo verificar perfil en microservicio Graduates: {e}")
-
-        if existing_user.is_active and existing_user.email_verified:
+        if existing_user and existing_user.role_id != 3:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Tu cuenta de egresado ya se encuentra activa. Por favor inicia sesión."
+                detail="Este correo electrónico ya está registrado con otro rol en el sistema.",
+            )
+        if existing_user and existing_user.is_active and existing_user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Ya existe una cuenta de egresado activa con este correo. Por favor inicia sesión.",
             )
 
-        existing_user.password_hash = get_password_hash(body.password)
-        existing_user.is_active = False
-        existing_user.email_verified = False
-        existing_user.verification_token = verification_token
-        existing_user.privacy_policy_accepted = body.accept_privacy_policy
-        existing_user.data_treatment_authorized = body.authorize_data_treatment
-        existing_user.consent_version = "v1.0"
-        existing_user.consent_date = func.now()
-        existing_user.consent_ip = client_ip
+        first_name = (body.first_name or "").strip()
+        last_name = (body.last_name or "").strip()
+        document_id = (body.document_id or "").strip()
+        degree_act_number = (body.degree_act_number or "").strip()
+        diploma_number = (body.diploma_number or "").strip()
+        phone = (body.phone or "").strip() or None
+
+        # Validar datos obligatorios de acreditación académica para revisión del COORDINATOR
+        if not first_name or not last_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes ingresar tus nombres y apellidos completos tal como aparecen en tu diploma.",
+            )
+        if not document_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes ingresar tu número de cédula o documento de identidad.",
+            )
+        if not body.program_id or not body.graduation_year:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes seleccionar tu programa académico y año de graduación.",
+            )
+        if not degree_act_number and not diploma_number:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debes ingresar tu número de acta de grado o número de diploma.",
+            )
+
+        if existing_user:
+            target_user = existing_user
+            target_user.password_hash = get_password_hash(body.password)
+            target_user.is_active = False
+            target_user.email_verified = False
+            target_user.verification_status = "PENDING_VERIFICATION"
+            target_user.verification_notes = None
+            target_user.verification_token = verification_token
+            target_user.privacy_policy_accepted = body.accept_privacy_policy
+            target_user.data_treatment_authorized = body.authorize_data_treatment
+            target_user.consent_version = "v1.0"
+            target_user.consent_date = func.now()
+            target_user.consent_ip = client_ip
+        else:
+            target_user = models.User(
+                email=email_clean,
+                password_hash=get_password_hash(body.password),
+                role_id=3,
+                is_active=False,
+                email_verified=False,
+                verification_status="PENDING_VERIFICATION",
+                verification_notes=None,
+                verification_token=verification_token,
+                privacy_policy_accepted=body.accept_privacy_policy,
+                data_treatment_authorized=body.authorize_data_treatment,
+                consent_version="v1.0",
+                consent_date=func.now(),
+                consent_ip=client_ip,
+            )
+            db.add(target_user)
 
         db.commit()
-        db.refresh(existing_user)
+        db.refresh(target_user)
+
+        # Crear o actualizar la ficha del egresado en graduates_db con estado PENDING_VERIFICATION
+        try:
+            from app.core.adapters import HttpGraduatesAdapter
+            HttpGraduatesAdapter().upsert_pending_graduate({
+                "user_id": target_user.id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "document_id": document_id,
+                "program_id": body.program_id,
+                "graduation_year": body.graduation_year,
+                "degree_act_number": degree_act_number or None,
+                "diploma_number": diploma_number or None,
+                "phone": phone,
+                "verification_status": "PENDING_VERIFICATION",
+            })
+        except Exception as e:
+            print(f"Error creando ficha PENDING_VERIFICATION en Graduates: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="No se pudo registrar tu ficha académica en el módulo de Egresados. Intenta nuevamente en unos segundos.",
+            )
 
         log_audit_action(
             db,
-            user_id=existing_user.id,
-            action="GRADUATE_ACTIVATION_REQUEST",
-            details={"role_id": existing_user.role_id, "pre_imported": True},
-            ip_address=client_ip
+            user_id=target_user.id,
+            action="GRADUATE_OPEN_REGISTRATION",
+            details={
+                "role_id": 3,
+                "document_id": document_id,
+                "program_id": body.program_id,
+                "graduation_year": body.graduation_year,
+                "degree_act_number": degree_act_number,
+                "diploma_number": diploma_number,
+            },
+            ip_address=client_ip,
+        )
+
+        _notify_coordinators_of_pending_graduate(
+            db=db,
+            graduate_user_id=target_user.id,
+            full_name=f"{first_name} {last_name}",
+            email=target_user.email,
+            document_id=document_id,
+            act_or_diploma=degree_act_number or diploma_number,
         )
 
         notifier = NotificationFactory.get_notifier("email")
-        notifier.send_verification(existing_user.email, verification_token)
+        notifier.send_verification(target_user.email, verification_token)
 
         return {
-            "message": "Hemos validado tus datos como egresado en el sistema. Te enviamos un correo de activación para habilitar tu cuenta.",
-            "user_id": existing_user.id
+            "message": "Solicitud registrada en estado PENDIENTE DE VERIFICACIÓN. Primero confirma tu correo desde el enlace enviado; luego el Coordinador UPC validará tu cédula y acta/diploma para habilitar las funciones sensibles.",
+            "user_id": target_user.id,
         }
 
-    # Caso Empresa (role_id == 2) u otro rol:
+    # Caso Empresa (role_id == 2):
     if existing_user:
         if not existing_user.email_verified or not existing_user.is_active:
             existing_user.password_hash = get_password_hash(body.password)
             existing_user.verification_token = verification_token
+            existing_user.verification_status = "APPROVED"
             existing_user.privacy_policy_accepted = body.accept_privacy_policy
             existing_user.data_treatment_authorized = body.authorize_data_treatment
             existing_user.consent_version = "v1.0"
@@ -232,6 +346,7 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
         role_id=body.role_id,
         is_active=False,
         email_verified=False,
+        verification_status="APPROVED",
         verification_token=verification_token,
         privacy_policy_accepted=body.accept_privacy_policy,
         data_treatment_authorized=body.authorize_data_treatment,
@@ -251,6 +366,68 @@ def register_user(body: schemas.RegisterRequest, db: Session, client_ip: str = "
     notifier.send_verification(new_user.email, verification_token)
 
     return {"message": "Usuario registrado exitosamente. Revisa tu correo para activar tu cuenta.", "user_id": new_user.id}
+
+
+def admin_create_user(
+    admin_user: models.User,
+    body: schemas.AdminCreateUserRequest,
+    db: Session,
+    client_ip: str = "unknown",
+) -> schemas.UserInfo:
+    """Permite al ADMIN crear cuentas activas inmediatamente (ADMIN, COMPANY, GRADUATE o COORDINATOR)."""
+    if admin_user.role_id != 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo administradores pueden crear usuarios internos.")
+
+    email_clean = body.email.strip().lower()
+    _validate_new_password(body.password)
+
+    if db.query(models.User).filter(func.lower(models.User.email) == email_clean).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ya existe un usuario con ese correo electrónico.")
+
+    role = db.query(models.Role).filter(models.Role.id == body.role_id).first()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El rol id={body.role_id} no existe.")
+
+    new_user = models.User(
+        email=email_clean,
+        password_hash=get_password_hash(body.password),
+        role_id=body.role_id,
+        is_active=True,
+        email_verified=True,
+        verification_status="APPROVED",
+        privacy_policy_accepted=True,
+        data_treatment_authorized=True,
+        consent_version="admin-provisioned",
+        consent_date=func.now(),
+        consent_ip=client_ip,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    if body.role_id == 3 and (body.first_name or body.last_name):
+        try:
+            from app.core.adapters import HttpGraduatesAdapter
+            HttpGraduatesAdapter().upsert_pending_graduate({
+                "user_id": new_user.id,
+                "first_name": (body.first_name or "Egresado").strip(),
+                "last_name": (body.last_name or "UPC").strip(),
+                "program_id": body.program_id or 1,
+                "graduation_year": body.graduation_year or datetime.utcnow().year,
+                "verification_status": "APPROVED",
+            })
+        except Exception as e:
+            print(f"Notice: admin_create_user graduate sync skipped: {e}")
+
+    log_audit_action(
+        db,
+        user_id=admin_user.id,
+        action="ADMIN_CREATE_USER",
+        target_id=str(new_user.id),
+        details={"role_id": body.role_id, "email": email_clean},
+        ip_address=client_ip,
+    )
+    return _build_user_info(new_user)
 
 def verify_email(token: str, db: Session) -> dict:
     """Verifica el email y activa la cuenta del usuario usando su token de verificación."""
@@ -298,7 +475,8 @@ def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, 
     data_payload = {
         "sub": target_user.email,
         "id": target_user.id,
-        "role_id": target_user.role_id
+        "role_id": target_user.role_id,
+        "verification_status": getattr(target_user, "verification_status", None) or "APPROVED",
     }
     new_token = create_access_token(data=data_payload)
     
@@ -308,36 +486,15 @@ def impersonate_user(body: schemas.ImpersonateRequest, admin_user: models.User, 
     return schemas.TokenResponse(
         access_token=new_token,
         token_type="bearer",
-        user=schemas.UserInfo(
-            id=target_user.id,
-            email=target_user.email,
-            role_id=target_user.role_id,
-            role_name=target_user.role.name,
-            is_active=target_user.is_active,
-            email_verified=target_user.email_verified,
-            privacy_policy_accepted=target_user.privacy_policy_accepted,
-            data_treatment_authorized=target_user.data_treatment_authorized,
-        ),
+        user=_build_user_info(target_user),
     )
 
 def get_all_users(admin_user: models.User, db: Session) -> list[schemas.UserInfo]:
     if admin_user.role_id != 1:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
         
-    users = db.query(models.User).all()
-    return [
-        schemas.UserInfo(
-            id=u.id,
-            email=u.email,
-            role_id=u.role_id,
-            role_name=u.role.name,
-            is_active=u.is_active,
-            email_verified=u.email_verified,
-            privacy_policy_accepted=u.privacy_policy_accepted,
-            data_treatment_authorized=u.data_treatment_authorized,
-        )
-        for u in users
-    ]
+    users = db.query(models.User).order_by(models.User.id.asc()).all()
+    return [_build_user_info(u) for u in users]
 
 def forgot_password(email: str, db: Session) -> dict:
     user = db.query(models.User).filter(models.User.email == email).first()
@@ -410,13 +567,6 @@ def _validate_new_email(user: models.User, new_email: str, db: Session) -> str:
     if taken:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Ya existe un usuario con ese email")
-    if user.role_id == 3:  # GRADUATE debe conservar el correo institucional
-        domain = new_email.split("@")[-1]
-        if domain not in schemas.ALLOWED_GRADUATE_EMAIL_DOMAINS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Un egresado debe usar su correo institucional @unicesar.edu.co",
-            )
     return new_email
 
 
@@ -428,13 +578,20 @@ def _build_user_info(user: models.User) -> schemas.UserInfo:
         role_name=user.role.name,
         is_active=user.is_active,
         email_verified=user.email_verified,
+        verification_status=getattr(user, "verification_status", None) or "APPROVED",
+        verification_notes=getattr(user, "verification_notes", None),
         privacy_policy_accepted=user.privacy_policy_accepted,
         data_treatment_authorized=user.data_treatment_authorized,
     )
 
 
 def _issue_token(user: models.User) -> str:
-    return create_access_token(data={"sub": user.email, "id": user.id, "role_id": user.role_id})
+    return create_access_token(data={
+        "sub": user.email,
+        "id": user.id,
+        "role_id": user.role_id,
+        "verification_status": getattr(user, "verification_status", None) or "APPROVED",
+    })
 
 
 def change_password(user: models.User, body: schemas.ChangePasswordRequest,
@@ -458,10 +615,10 @@ def change_password(user: models.User, body: schemas.ChangePasswordRequest,
 
 def change_email(user: models.User, body: schemas.ChangeEmailRequest,
                  db: Session, client_ip: str = "unknown") -> schemas.AccountUpdateResponse:
-    """Cambio del correo de acceso (solo empresas; exige la contraseña actual)."""
-    if user.role_id != 2:
+    """Cambio del correo de acceso (empresas y egresados; exige la contraseña actual)."""
+    if user.role_id not in (2, 3):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Solo las empresas pueden cambiar su correo de acceso")
+                            detail="No tienes permisos para cambiar este correo de acceso")
     if not verify_password(body.current_password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="La contraseña actual es incorrecta")

@@ -8,7 +8,8 @@ from app.auth.rbac import RoleChecker
 from app.graduates import schemas
 from app.graduates.services import misc_service
 
-require_graduate = RoleChecker(["GRADUATE"])
+require_graduate = RoleChecker(["GRADUATE", "ADMIN"])
+require_admin = RoleChecker(["ADMIN", "COORDINATOR"])
 
 router = APIRouter(
     prefix="/api/modulo1",
@@ -29,8 +30,8 @@ def get_my_applications(db: Session = Depends(get_db), current_user: dict = Depe
     return misc_service.get_my_applications(current_user, db)
 
 @router.get("/surveys", response_model=List[schemas.Survey], dependencies=[Depends(require_graduate)])
-def get_surveys(db: Session = Depends(get_db)):
-    return misc_service.get_surveys(db)
+def get_surveys(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return misc_service.get_surveys(db, current_user)
 
 @router.get("/surveys/{survey_id}/response", dependencies=[Depends(require_graduate)])
 def get_survey_response(survey_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -39,6 +40,39 @@ def get_survey_response(survey_id: int, db: Session = Depends(get_db), current_u
 @router.post("/surveys/{survey_id}/response", response_model=schemas.SurveyResponse, dependencies=[Depends(require_graduate)])
 def submit_survey_response(survey_id: int, answers: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return misc_service.submit_survey_response(survey_id, answers, current_user, db)
+
+# ── Administración y Configuración de Encuestas de Seguimiento (MEN / OLE / CNA) ──
+@router.get("/admin/surveys/templates", dependencies=[Depends(require_admin)])
+def get_survey_templates():
+    return misc_service.get_official_survey_templates()
+
+@router.get("/admin/surveys", response_model=List[schemas.Survey], dependencies=[Depends(require_admin)])
+def admin_list_surveys(db: Session = Depends(get_db)):
+    return misc_service.admin_list_surveys(db)
+
+@router.post("/admin/surveys", response_model=schemas.Survey, dependencies=[Depends(require_admin)])
+def admin_create_survey(payload: schemas.SurveyCreate, db: Session = Depends(get_db)):
+    return misc_service.admin_create_survey(payload, db)
+
+@router.put("/admin/surveys/{survey_id}", response_model=schemas.Survey, dependencies=[Depends(require_admin)])
+def admin_update_survey(survey_id: int, payload: schemas.SurveyUpdate, db: Session = Depends(get_db)):
+    return misc_service.admin_update_survey(survey_id, payload, db)
+
+@router.patch("/admin/surveys/{survey_id}/toggle", response_model=schemas.Survey, dependencies=[Depends(require_admin)])
+def admin_toggle_survey(survey_id: int, db: Session = Depends(get_db)):
+    return misc_service.admin_toggle_survey(survey_id, db)
+
+@router.post("/admin/surveys/{survey_id}/duplicate", response_model=schemas.Survey, dependencies=[Depends(require_admin)])
+def admin_duplicate_survey(survey_id: int, db: Session = Depends(get_db)):
+    return misc_service.admin_duplicate_survey(survey_id, db)
+
+@router.delete("/admin/surveys/{survey_id}", dependencies=[Depends(require_admin)])
+def admin_delete_survey(survey_id: int, db: Session = Depends(get_db)):
+    return misc_service.admin_delete_survey(survey_id, db)
+
+@router.get("/admin/surveys/{survey_id}/results", dependencies=[Depends(require_admin)])
+def admin_get_survey_results(survey_id: int, db: Session = Depends(get_db)):
+    return misc_service.admin_get_survey_results(survey_id, db)
 
 @router.get("/saved-jobs")
 def get_saved_jobs(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):

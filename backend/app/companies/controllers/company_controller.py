@@ -40,6 +40,7 @@ def delete_company(company_id: int, db: Session = Depends(get_db)):
 from app.companies.internal_router import internal_router
 from sqlalchemy.orm import joinedload
 
+@internal_router.get("/companies")
 @internal_router.get("/companies-directory")
 def get_companies_directory_internal(db: Session = Depends(get_db)):
     from app.companies import models

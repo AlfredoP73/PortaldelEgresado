@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { authApi } from '../../../api';
+import { authApi, adminCreateUser } from '../../../api';
 import { Search, Plus, Mail, ShieldAlert, PlayCircle, Loader2, Download, Upload, KeyRound, Eye, EyeOff } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
 import { exportToExcel, importFromExcel } from '../../../utils/excelUtils';
@@ -13,6 +13,7 @@ interface User {
   role_name: string;
   is_active?: boolean;
   email_verified?: boolean;
+  verification_status?: string;
 }
 
 export default function AdminUsers() {
@@ -147,19 +148,17 @@ export default function AdminUsers() {
     e.preventDefault();
     try {
       setSaving(true);
-      await authApi.post('/register', {
+      await adminCreateUser({
         email,
         password,
         role_id: roleId,
-        accept_privacy_policy: true,
-        authorize_data_treatment: true
       });
       setShowForm(false);
       setEmail('');
       setPassword('');
       setRoleId(2);
       fetchUsers();
-      toast.success('Usuario creado exitosamente');
+      toast.success('Usuario creado y activado exitosamente');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Error al crear usuario');
     } finally {
@@ -178,6 +177,8 @@ export default function AdminUsers() {
       // Redirigir dependiendo del rol para tener la vista correcta
       if (user.role_name === 'COMPANY') {
         window.location.href = '/companies';
+      } else if (user.role_name === 'COORDINATOR') {
+        window.location.href = '/coordinator/verifications';
       } else if (user.role_name === 'GRADUATE') {
         window.location.href = '/profile';
       } else {
@@ -248,9 +249,10 @@ export default function AdminUsers() {
           <div>
             <label className="block text-sm font-semibold text-ink-secondary mb-1">Rol del Usuario</label>
             <select value={roleId} onChange={e => setRoleId(Number(e.target.value))} className="input w-full">
-              <option value={1}>ADMIN (Administrador del Portal)</option>
+              <option value={4}>COORDINATOR (Coordinador de Verificación UPC)</option>
               <option value={2}>COMPANY (Empresa Aliada)</option>
               <option value={3}>GRADUATE (Egresado)</option>
+              <option value={1}>ADMIN (Administrador del Portal)</option>
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
@@ -327,6 +329,7 @@ export default function AdminUsers() {
               >
                 <option value="ALL">Todos los Roles</option>
                 <option value="ADMIN">Admin</option>
+                <option value="COORDINATOR">Coordinator</option>
                 <option value="COMPANY">Company</option>
                 <option value="GRADUATE">Graduate</option>
               </select>
@@ -360,6 +363,7 @@ export default function AdminUsers() {
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold ${
                         user.role_name === 'ADMIN' ? 'bg-red-100 text-red-800' :
+                        user.role_name === 'COORDINATOR' ? 'bg-purple-100 text-purple-800' :
                         user.role_name === 'COMPANY' ? 'bg-blue-100 text-blue-800' :
                         'bg-green-100 text-green-800'
                       }`}>

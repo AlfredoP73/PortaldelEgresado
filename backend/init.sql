@@ -25,6 +25,8 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE,
     email_verified BOOLEAN DEFAULT FALSE,
     verification_token VARCHAR(255),
+    verification_status VARCHAR(30) DEFAULT 'APPROVED',
+    verification_notes TEXT,
     password_reset_pin VARCHAR(10),
     pin_expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -90,7 +92,7 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO roles (name) VALUES ('ADMIN'), ('COMPANY'), ('GRADUATE');
+INSERT INTO roles (name) VALUES ('ADMIN'), ('COMPANY'), ('GRADUATE'), ('COORDINATOR');
 INSERT INTO users (email, password_hash, role_id, email_verified) VALUES 
 ('admin@portal.com', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 1, TRUE),
 ('empresa@ejemplo.com', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 2, TRUE),
@@ -287,6 +289,7 @@ INSERT INTO users (email, password_hash, role_id, email_verified) VALUES
 ('egresado191@unicesar.edu.co', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 3, TRUE),
 ('egresado192@unicesar.edu.co', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 3, TRUE),
 ('egresado193@unicesar.edu.co', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 3, TRUE);
+INSERT INTO users (email, password_hash, role_id, is_active, email_verified, verification_status) VALUES ('coordinador@unicesar.edu.co', '$2b$12$W/HM61gptgvPPlpJE3dGHeyYemYAD135TuJ50RZTVLox06R6kuEba', 4, TRUE, TRUE, 'APPROVED') ON CONFLICT (email) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
 -- GRADUATES DB
@@ -331,7 +334,14 @@ CREATE TABLE graduates (
     job_alerts_enabled BOOLEAN DEFAULT TRUE,
     alert_min_score INT DEFAULT 75,
     mentor_opt_in BOOLEAN DEFAULT FALSE,
-    directory_visible BOOLEAN DEFAULT TRUE
+    directory_visible BOOLEAN DEFAULT TRUE,
+    document_id VARCHAR(40),
+    degree_act_number VARCHAR(60),
+    diploma_number VARCHAR(60),
+    verification_status VARCHAR(30) DEFAULT 'APPROVED',
+    verification_notes TEXT,
+    verified_by_user_id INT,
+    verified_at TIMESTAMP
 );
 
 CREATE TABLE saved_searches (
@@ -442,9 +452,16 @@ CREATE TABLE surveys (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
+    moment_code VARCHAR(20) DEFAULT 'M1',
+    category VARCHAR(120) DEFAULT 'Empleabilidad y Pertinencia (OLE/CNA)',
+    target_program_id INT,
+    target_graduation_year INT,
+    is_mandatory BOOLEAN DEFAULT FALSE,
+    closes_at DATE,
     questions_json JSONB NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE survey_responses (

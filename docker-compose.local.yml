@@ -1,0 +1,221 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: portaldel_egresado_local_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  minio:
+    image: minio/minio:latest
+    container_name: portaldel_egresado_local_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_local:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: portaldel_egresado_local_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  auth:
+    build:
+      context: ./backend
+      dockerfile: ./app/auth/Dockerfile
+    container_name: portaldel_egresado_local_auth
+    restart: unless-stopped
+    command: uvicorn app.auth.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/auth_db
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-portal-upc-2026}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      GRADUATES_URL: http://graduates:8000
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-portal.egresados.upc@gmail.com}
+      SMTP_PASS: ${SMTP_PASS:-vmxlkvqzcpycsxlk}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-portal.egresados.upc@gmail.com}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  companies:
+    build:
+      context: ./backend
+      dockerfile: ./app/companies/Dockerfile
+    container_name: portaldel_egresado_local_companies
+    restart: unless-stopped
+    command: uvicorn app.companies.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/companies_db
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-portal-upc-2026}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      AUTH_URL: http://auth:8000
+      GRADUATES_URL: http://graduates:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-local-matchmaking-token-2026}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-llama-3.1-8b-instant}
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+
+  graduates:
+    build:
+      context: ./backend
+      dockerfile: ./app/graduates/Dockerfile
+    container_name: portaldel_egresado_local_graduates
+    restart: unless-stopped
+    command: uvicorn app.graduates.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/graduates_db
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-portal-upc-2026}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      AUTH_URL: http://auth:8000
+      COMPANIES_URL: http://companies:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-local-matchmaking-token-2026}
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-cvs}
+      S3_BUCKET_AVATARS: ${S3_BUCKET_AVATARS:-avatars}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-llama-3.1-8b-instant}
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      auth:
+        condition: service_started
+
+  dashboard:
+    build:
+      context: ./backend
+      dockerfile: ./app/dashboard/Dockerfile
+    container_name: portaldel_egresado_local_dashboard
+    restart: unless-stopped
+    command: uvicorn app.dashboard.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/auth_db
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-portal-upc-2026}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      AUTH_URL: http://auth:8000
+      COMPANIES_URL: http://companies:8000
+      GRADUATES_URL: http://graduates:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-llama-3.1-8b-instant}
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+      companies:
+        condition: service_started
+      graduates:
+        condition: service_started
+
+  matchmaking:
+    build:
+      context: ./backend
+      dockerfile: ./app/matchmaking/Dockerfile
+    container_name: portaldel_egresado_local_matchmaking
+    restart: unless-stopped
+    command: uvicorn app.matchmaking.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/matchmaking_db
+      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-portal-upc-2026}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      AUTH_URL: http://auth:8000
+      COMPANIES_URL: http://companies:8000
+      GRADUATES_URL: http://graduates:8000
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-local-matchmaking-token-2026}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-llama-3.1-8b-instant}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth:
+        condition: service_started
+
+  nginx:
+    image: nginx:alpine
+    container_name: portaldel_egresado_local_gateway
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/loading.html:/usr/share/nginx/html/loading.html:ro
+    depends_on:
+      - auth
+      - companies
+      - graduates
+      - dashboard
+      - matchmaking
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: portaldel_egresado_local_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      BACK_HOST: nginx
+    depends_on:
+      - nginx
+
+volumes:
+  pgdata_local:
+  minio_local:
+

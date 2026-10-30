@@ -28,6 +28,20 @@ def get_all_users(token: str = Depends(oauth2_scheme), db: Session = Depends(get
     return auth_service.get_all_users(admin_user, db)
 
 
+# ── POST /api/auth/admin/users (Solo ADMIN) ──────────────────────────────────
+@router.post("/admin/users", response_model=schemas.UserInfo, status_code=status.HTTP_201_CREATED)
+def admin_create_user(
+    request: Request,
+    body: schemas.AdminCreateUserRequest,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    """Permite a un ADMIN crear cuentas activas (ADMIN, COMPANY, GRADUATE, COORDINATOR)."""
+    admin_user = auth_service.get_user_from_token(token, db)
+    client_ip = request.client.host if request.client else "unknown"
+    return auth_service.admin_create_user(admin_user, body, db, client_ip)
+
+
 # ── POST /api/auth/impersonate ───────────────────────────────────────────────
 @router.post("/impersonate", response_model=schemas.TokenResponse)
 def impersonate(body: schemas.ImpersonateRequest, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -71,16 +85,7 @@ def resend_verification(body: schemas.ResendVerificationRequest, db: Session = D
 def get_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """Devuelve la info del usuario autenticado."""
     user = auth_service.get_user_from_token(token, db)
-    return schemas.UserInfo(
-        id=user.id,
-        email=user.email,
-        role_id=user.role_id,
-        role_name=user.role.name,
-        is_active=user.is_active,
-        email_verified=user.email_verified,
-        privacy_policy_accepted=user.privacy_policy_accepted,
-        data_treatment_authorized=user.data_treatment_authorized,
-    )
+    return auth_service._build_user_info(user)
 
 # ── POST /api/auth/forgot-password ───────────────────────────────────────────
 @router.post("/forgot-password", response_model=schemas.MessageResponse)
@@ -520,6 +525,11 @@ def create_or_get_conversation(
     db: Session = Depends(get_db)
 ):
     user = auth_service.get_user_from_token(token, db)
+    if user.role_id == 3 and (getattr(user, "verification_status", None) or "APPROVED") != "APPROVED":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta de egresado está pendiente de verificación por el Coordinador UPC. Una vez aprobada tu acta/diploma podrás iniciar conversaciones directas.",
+        )
     from app.auth.models import Conversation, ConversationParticipant
     
     if body.context_id:
@@ -694,3 +704,103 @@ def create_internal_conversation(body: schemas.ConversationCreate, db: Session =
         db.add(ConversationParticipant(conversation_id=new_conv.id, user_id=pid))
     db.commit()
     return {"id": new_conv.id, "status": "created"}
+
+
+@internal_router.get("/users/map")
+def get_users_map_internal(db: Session = Depends(get_db)):
+    """Mapa ligero de usuarios para enriquecer paneles internos (ej. Coordinador de Verificación)."""
+    from app.auth.models import User
+    users = db.query(User).all()
+    return {
+        str(u.id): {
+            "id": u.id,
+            "email": u.email,
+            "role_id": u.role_id,
+            "is_active": u.is_active,
+            "email_verified": u.email_verified,
+            "verification_status": getattr(u, "verification_status", None) or "APPROVED",
+            "verification_notes": getattr(u, "verification_notes", None),
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    }
+
+
+@internal_router.put("/users/{user_id}/verification")
+def update_user_verification_internal(
+    user_id: int,
+    body: schemas.InternalUserVerificationUpdate,
+    db: Session = Depends(get_db),
+):
+    """Sincroniza el estado de verificación (PENDING_VERIFICATION / APPROVED / REJECTED) y notifica al egresado."""
+    from app.auth.models import User, Notification, DeviceToken
+    from app.auth.services.push_service import send_multicast_push
+    from app.auth.services.email_service import send_graduate_verification_decision_email
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado en Auth")
+
+    new_status = (body.verification_status or "PENDING_VERIFICATION").upper()
+    if new_status not in ("PENDING_VERIFICATION", "APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="Estado de verificación inválido")
+
+    user.verification_status = new_status
+    user.verification_notes = body.verification_notes
+    db.commit()
+
+    full_name = (body.full_name or "").strip()
+    if new_status in ("APPROVED", "REJECTED"):
+        approved = new_status == "APPROVED"
+        notif_title = (
+            "¡Tu cuenta de Egresado UPC fue aprobada!"
+            if approved
+            else "Observación en la verificación de tu título"
+        )
+        notif_msg = (
+            "La Coordinación UPC validó tu acta/diploma. Ya tienes acceso completo a vacantes, encuestas, red y mensajería."
+            if approved
+            else f"El Coordinador registró una observación: {body.verification_notes or 'Revisa tu cédula y acta/diploma y vuelve a enviar.'}"
+        )
+        notif = Notification(
+            user_id=user.id,
+            title=notif_title,
+            message=notif_msg,
+            type="VERIFICATION_DECISION",
+            payload={"verification_status": new_status, "notes": body.verification_notes},
+            is_read=False,
+        )
+        db.add(notif)
+        db.commit()
+
+        tokens = [t.token for t in db.query(DeviceToken).filter(DeviceToken.user_id == user.id).all()]
+        if tokens:
+            send_multicast_push(
+                tokens=tokens,
+                title=notif_title,
+                body=notif_msg,
+                data={"type": "VERIFICATION_DECISION", "status": new_status},
+            )
+
+        send_graduate_verification_decision_email(
+            to_email=user.email,
+            full_name=full_name,
+            approved=approved,
+            notes=body.verification_notes,
+        )
+    elif new_status == "PENDING_VERIFICATION":
+        auth_service._notify_coordinators_of_pending_graduate(
+            db=db,
+            graduate_user_id=user.id,
+            full_name=full_name or user.email,
+            email=user.email,
+            document_id=None,
+            act_or_diploma="Reenvío de corrección",
+        )
+
+    return {
+        "status": "updated",
+        "user_id": user.id,
+        "verification_status": user.verification_status,
+        "verification_notes": user.verification_notes,
+    }

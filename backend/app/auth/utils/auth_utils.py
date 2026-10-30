@@ -66,9 +66,15 @@ def get_current_user(
         email: str = payload.get("sub")
         user_id = payload.get("id")
         role_id = payload.get("role_id")
+        verification_status = payload.get("verification_status", "APPROVED")
         if email is None or user_id is None or role_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
-    return {"id": user_id, "email": email, "role_id": role_id}
+    return {
+        "id": user_id,
+        "email": email,
+        "role_id": role_id,
+        "verification_status": verification_status,
+    }

@@ -52,10 +52,79 @@ def get_graduate_internal(graduate_id: int, db: Session = Depends(get_db)):
     
     return candidate_dict
 
-@internal_router.get("/graduates")
-def get_all_graduates_internal(db: Session = Depends(get_db)):
+@internal_router.post("/graduates/register-pending")
+def upsert_pending_graduate_internal(body: dict, db: Session = Depends(get_db)):
+    """Crea o actualiza la ficha del egresado en estado PENDING_VERIFICATION tras el registro abierto."""
     from app.graduates import models
-    graduates = db.query(models.Graduate).all()
+
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id es obligatorio")
+
+    ver_status = (body.get("verification_status") or "PENDING_VERIFICATION").upper()
+    is_approved = ver_status == "APPROVED"
+
+    prog_id = body.get("program_id") or 1
+    prog_exists = db.query(models.Program).filter(models.Program.id == prog_id).first()
+    if not prog_exists:
+        first_prog = db.query(models.Program).order_by(models.Program.id.asc()).first()
+        prog_id = first_prog.id if first_prog else 1
+
+    grad = db.query(models.Graduate).filter(models.Graduate.user_id == user_id).first()
+    if grad:
+        if body.get("first_name"):
+            grad.first_name = body["first_name"]
+        if body.get("last_name"):
+            grad.last_name = body["last_name"]
+        if body.get("document_id") is not None:
+            grad.document_id = body.get("document_id")
+        if body.get("program_id"):
+            grad.program_id = prog_id
+        if body.get("graduation_year"):
+            grad.graduation_year = int(body["graduation_year"])
+        if body.get("degree_act_number") is not None:
+            grad.degree_act_number = body.get("degree_act_number")
+        if body.get("diploma_number") is not None:
+            grad.diploma_number = body.get("diploma_number")
+        if body.get("phone") is not None:
+            grad.phone = body.get("phone")
+        grad.verification_status = ver_status
+        grad.verification_notes = None
+        grad.directory_visible = is_approved
+    else:
+        grad = models.Graduate(
+            user_id=user_id,
+            first_name=body.get("first_name") or "Egresado",
+            last_name=body.get("last_name") or "UPC",
+            document_id=body.get("document_id"),
+            program_id=prog_id,
+            graduation_year=int(body.get("graduation_year") or 2024),
+            degree_act_number=body.get("degree_act_number"),
+            diploma_number=body.get("diploma_number"),
+            phone=body.get("phone"),
+            verification_status=ver_status,
+            verification_notes=None,
+            directory_visible=is_approved,
+        )
+        db.add(grad)
+
+    db.commit()
+    db.refresh(grad)
+    return {
+        "user_id": grad.user_id,
+        "verification_status": grad.verification_status,
+        "program_id": grad.program_id,
+    }
+
+
+@internal_router.get("/graduates")
+def get_all_graduates_internal(include_unverified: bool = False, db: Session = Depends(get_db)):
+    from sqlalchemy import or_
+    from app.graduates import models
+    q = db.query(models.Graduate)
+    if not include_unverified:
+        q = q.filter(or_(models.Graduate.verification_status == "APPROVED", models.Graduate.verification_status.is_(None)))
+    graduates = q.all()
     results = []
     for g in graduates:
         g_dict = {k: v for k, v in g.__dict__.items() if not k.startswith('_')}
@@ -75,8 +144,11 @@ def get_all_saved_searches_internal(db: Session = Depends(get_db)):
 
 @internal_router.get("/matchmaking/graduates")
 def get_matchmaking_graduate_ids(db: Session = Depends(get_db)):
+    from sqlalchemy import or_
     from app.graduates import models
-    ids = db.query(models.Graduate.user_id).all()
+    ids = db.query(models.Graduate.user_id).filter(
+        or_(models.Graduate.verification_status == "APPROVED", models.Graduate.verification_status.is_(None))
+    ).all()
     return [r[0] for r in ids]
 
 @internal_router.get("/matchmaking/graduates/{graduate_id}")
@@ -134,6 +206,22 @@ def get_profile(db: Session = Depends(get_db), current_user: dict = Depends(get_
 @router.post("/profile", response_model=schemas.Graduate)
 def create_or_update_profile(profile: schemas.GraduateUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return graduate_service.create_or_update_profile(profile, current_user, db)
+
+
+@router.post("/profile/resubmit-verification", response_model=schemas.Graduate)
+def resubmit_verification(
+    body: schemas.ResubmitVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return graduate_service.resubmit_verification(body, current_user, db)
+
+
+@public_router.get("/public/programs", response_model=List[schemas.ProgramPublicOut])
+def get_public_programs(db: Session = Depends(get_db)):
+    """Catálogo público de programas académicos UPC para el formulario de registro abierto."""
+    from app.graduates.models import Program
+    return db.query(Program).order_by(Program.id.asc()).all()
 
 @router.post("/cv")
 def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -280,7 +368,10 @@ def get_alumni_directory(
     try:
         from sqlalchemy import or_
         from app.graduates.models import Graduate, WorkExperience, MentorProfile, Program
-        query = db.query(Graduate).filter(or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)))
+        query = db.query(Graduate).filter(
+            or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)),
+            or_(Graduate.verification_status == "APPROVED", Graduate.verification_status.is_(None)),
+        )
         if program_id:
             query = query.filter(Graduate.program_id == program_id)
         if graduation_year:
@@ -366,6 +457,7 @@ def create_or_update_mentor_profile(body: schemas.MentorProfileCreate, db: Sessi
 
 @router.post("/mentorships/request", response_model=schemas.MentorshipRequestResponse)
 def request_mentorship(body: schemas.MentorshipRequestCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    graduate_service.ensure_graduate_verified(current_user, db)
     from app.graduates.models import MentorshipRequest, Graduate
     from app.core.adapters import HttpAuthAdapter
     auth_adapter = HttpAuthAdapter()
@@ -663,6 +755,7 @@ def send_connection_request(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    graduate_service.ensure_graduate_verified(current_user, db)
     from app.graduates.models import GraduateConnection, Graduate
     my_id = current_user["id"]
     target_id = body.target_user_id
@@ -757,10 +850,11 @@ def get_network_suggestions(db: Session = Depends(get_db), current_user: dict = 
         my_skills = db.query(GraduateSkill).filter(GraduateSkill.graduate_id == me.user_id).all()
         my_skill_ids = {s.skill_id for s in my_skills}
 
-    # Query: egresados visibles, excluyendo yo y ya-conectados
+    # Query: egresados visibles y aprobados, excluyendo yo y ya-conectados
     candidates = db.query(Graduate).filter(
         Graduate.user_id != my_id,
-        or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None))
+        or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)),
+        or_(Graduate.verification_status == "APPROVED", Graduate.verification_status.is_(None)),
     ).limit(100).all()
 
     suggestions = []
@@ -944,3 +1038,187 @@ def get_connection_status(
         is_requester=(conn.requester_id == my_id),
         connection_id=conn.id
     )
+
+
+# ── PANEL DE VERIFICACIÓN DE EGRESADOS (ROL COORDINATOR / ADMIN) ─────────────
+@router.get("/coordinator/verifications")
+@require_roles("COORDINATOR", "ADMIN")
+def list_coordinator_verifications(
+    status: Optional[str] = None,
+    program_id: Optional[int] = None,
+    graduation_year: Optional[int] = None,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    from datetime import datetime
+    from app.graduates.models import Graduate, Program
+    from app.core.adapters import HttpAuthAdapter
+
+    programs_map = {p.id: p.name for p in db.query(Program).all()}
+    users_map = HttpAuthAdapter().get_users_map()
+
+    all_grads = db.query(Graduate).order_by(Graduate.user_id.desc()).all()
+
+    summary = {
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        "total": len(all_grads),
+    }
+
+    items = []
+    search_clean = (q or "").strip().lower()
+    status_filter = (status or "ALL").strip().upper()
+
+    for g in all_grads:
+        v_status = (getattr(g, "verification_status", None) or "APPROVED").upper()
+        if v_status == "PENDING_VERIFICATION":
+            summary["pending"] += 1
+        elif v_status == "REJECTED":
+            summary["rejected"] += 1
+        else:
+            summary["approved"] += 1
+
+        if status_filter not in ("ALL", "") and v_status != status_filter:
+            continue
+        if program_id and g.program_id != program_id:
+            continue
+        if graduation_year and g.graduation_year != graduation_year:
+            continue
+
+        u_info = users_map.get(str(g.user_id), {})
+        email = u_info.get("email") or f"usuario_{g.user_id}@portal"
+        full_name = f"{g.first_name or ''} {g.last_name or ''}".strip()
+        doc_id = getattr(g, "document_id", None) or ""
+        act_num = getattr(g, "degree_act_number", None) or ""
+        dip_num = getattr(g, "diploma_number", None) or ""
+        prog_name = programs_map.get(g.program_id, f"Programa #{g.program_id}")
+
+        if search_clean:
+            haystack = f"{full_name} {email} {doc_id} {act_num} {dip_num} {prog_name}".lower()
+            if search_clean not in haystack:
+                continue
+
+        items.append({
+            "user_id": g.user_id,
+            "email": email,
+            "email_verified": bool(u_info.get("email_verified", False)),
+            "is_active": bool(u_info.get("is_active", False)),
+            "created_at": u_info.get("created_at"),
+            "first_name": g.first_name,
+            "last_name": g.last_name,
+            "document_id": getattr(g, "document_id", None),
+            "program_id": g.program_id,
+            "program_name": prog_name,
+            "graduation_year": g.graduation_year,
+            "degree_act_number": getattr(g, "degree_act_number", None),
+            "diploma_number": getattr(g, "diploma_number", None),
+            "phone": g.phone,
+            "cv_url": g.cv_url,
+            "verification_status": v_status,
+            "verification_notes": getattr(g, "verification_notes", None),
+            "verified_by_user_id": getattr(g, "verified_by_user_id", None),
+            "verified_at": g.verified_at.isoformat() if getattr(g, "verified_at", None) else None,
+        })
+
+    # Ordenar priorizando PENDING_VERIFICATION primero, luego REJECTED, luego APPROVED
+    priority = {"PENDING_VERIFICATION": 0, "REJECTED": 1, "APPROVED": 2}
+    items.sort(key=lambda x: (priority.get(x["verification_status"], 3), -x["user_id"]))
+
+    return {
+        "summary": summary,
+        "programs": [{"id": pid, "name": pname} for pid, pname in sorted(programs_map.items())],
+        "items": items,
+    }
+
+
+@router.post("/coordinator/verifications/{target_user_id}/approve")
+@require_roles("COORDINATOR", "ADMIN")
+def approve_graduate_verification(
+    target_user_id: int,
+    body: schemas.CoordinatorVerificationDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    from datetime import datetime
+    from app.graduates.models import Graduate
+    from app.core.adapters import HttpAuthAdapter, get_matchmaking_adapter
+
+    grad = db.query(Graduate).filter(Graduate.user_id == target_user_id).first()
+    if not grad:
+        raise HTTPException(status_code=404, detail="Ficha de egresado no encontrada")
+
+    grad.verification_status = "APPROVED"
+    grad.verification_notes = (body.notes or "").strip() or None
+    grad.directory_visible = True
+    grad.verified_by_user_id = current_user["id"]
+    grad.verified_at = datetime.utcnow()
+    db.commit()
+    db.refresh(grad)
+
+    full_name = f"{grad.first_name or ''} {grad.last_name or ''}".strip()
+    HttpAuthAdapter().update_user_verification(
+        user_id=target_user_id,
+        verification_status="APPROVED",
+        verification_notes=grad.verification_notes,
+        full_name=full_name,
+    )
+
+    try:
+        get_matchmaking_adapter().trigger_recalculate(graduate_id=target_user_id)
+    except Exception as e:
+        print(f"Notice: matchmaking trigger after coordinator approve failed: {e}")
+
+    return {
+        "message": f"Egresado {full_name} aprobado exitosamente.",
+        "user_id": grad.user_id,
+        "verification_status": grad.verification_status,
+    }
+
+
+@router.post("/coordinator/verifications/{target_user_id}/reject")
+@require_roles("COORDINATOR", "ADMIN")
+def reject_graduate_verification(
+    target_user_id: int,
+    body: schemas.CoordinatorVerificationDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    from datetime import datetime
+    from app.graduates.models import Graduate
+    from app.core.adapters import HttpAuthAdapter
+
+    notes = (body.notes or "").strip()
+    if not notes:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes especificar el motivo u observación para que el egresado pueda corregir sus datos.",
+        )
+
+    grad = db.query(Graduate).filter(Graduate.user_id == target_user_id).first()
+    if not grad:
+        raise HTTPException(status_code=404, detail="Ficha de egresado no encontrada")
+
+    grad.verification_status = "REJECTED"
+    grad.verification_notes = notes
+    grad.directory_visible = False
+    grad.verified_by_user_id = current_user["id"]
+    grad.verified_at = datetime.utcnow()
+    db.commit()
+    db.refresh(grad)
+
+    full_name = f"{grad.first_name or ''} {grad.last_name or ''}".strip()
+    HttpAuthAdapter().update_user_verification(
+        user_id=target_user_id,
+        verification_status="REJECTED",
+        verification_notes=notes,
+        full_name=full_name,
+    )
+
+    return {
+        "message": f"Solicitud de {full_name} marcada con observación.",
+        "user_id": grad.user_id,
+        "verification_status": grad.verification_status,
+        "verification_notes": grad.verification_notes,
+    }
