@@ -55,10 +55,14 @@ class MatchmakingPort(ABC):
 
 
 class SQSMatchmakingAdapter(MatchmakingPort):
-    """Adaptador Serverless para publicar recálculos de afinidad en Amazon SQS."""
+    """Adaptador 100% Serverless (Dual-Stack IPv4/IPv6) para publicar recálculos de afinidad en Amazon SQS."""
     def __init__(self, queue_url: Optional[str] = None):
-        self.queue_url = queue_url or os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
+        raw_url = queue_url or os.getenv("SQS_MATCHMAKING_QUEUE_URL", "").strip()
         self.region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+        if raw_url and os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+            # Usar endpoint Dual-Stack (.api.aws) compatible con IPv6 Egress-Only Internet Gateway (0 NAT Gateways)
+            raw_url = raw_url.replace(f"sqs.{self.region}.amazonaws.com", f"sqs.{self.region}.api.aws")
+        self.queue_url = raw_url
 
     def trigger_recalculate(self, graduate_id: Optional[int] = None, job_offer_id: Optional[int] = None) -> bool:
         if not self.queue_url:
@@ -73,7 +77,12 @@ class SQSMatchmakingAdapter(MatchmakingPort):
 
         try:
             import boto3
-            sqs = boto3.client("sqs", region_name=self.region)
+            from botocore.config import Config
+            sqs = boto3.client(
+                "sqs",
+                region_name=self.region,
+                config=Config(use_dualstack_endpoint=True),
+            )
             sqs.send_message(
                 QueueUrl=self.queue_url,
                 MessageBody=json.dumps(payload),
@@ -134,7 +143,9 @@ def get_matchmaking_adapter() -> MatchmakingPort:
     return RabbitMQMatchmakingAdapter()
 
 
-INTER_SERVICE_TIMEOUT = float(os.getenv("INTER_SERVICE_TIMEOUT", "15.0"))
+INTER_SERVICE_TIMEOUT = float(
+    os.getenv("INTER_SERVICE_TIMEOUT", "25.0" if os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "15.0")
+)
 
 # ── Inter-Service HTTP Communication Ports & Adapters ──
 

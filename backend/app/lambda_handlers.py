@@ -16,6 +16,7 @@ import io
 import json
 import os
 import re
+import time
 import urllib.parse
 from urllib.parse import urlparse
 
@@ -31,6 +32,27 @@ def _parse_db_url(db_url: str) -> dict:
         "password": urllib.parse.unquote(parsed.password or ""),
         "dbname": (parsed.path or "/postgres").lstrip("/") or "postgres",
     }
+
+
+def _connect_pg(cfg: dict, dbname: str, timeout: int = 25):
+    """Conecta a Amazon Aurora PostgreSQL Serverless v2 absorbiendo la reanudación desde 0.0 ACUs."""
+    import psycopg2
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return psycopg2.connect(
+                host=cfg["host"],
+                port=cfg["port"],
+                user=cfg["user"],
+                password=cfg["password"],
+                dbname=dbname,
+                connect_timeout=timeout,
+            )
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(2.5)
+    raise last_exc
 
 
 def _init_rds_from_sql() -> dict:
@@ -57,14 +79,7 @@ def _init_rds_from_sql() -> dict:
         raw_sql = f.read()
 
     # 1. Conectar a la BD administrativa 'postgres' y verificar si ya fue sembrada
-    admin_conn = psycopg2.connect(
-        host=cfg["host"],
-        port=cfg["port"],
-        user=cfg["user"],
-        password=cfg["password"],
-        dbname="postgres",
-        connect_timeout=15,
-    )
+    admin_conn = _connect_pg(cfg, "postgres")
     admin_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     existing_dbs = set()
     with admin_conn.cursor() as cur:
@@ -78,14 +93,7 @@ def _init_rds_from_sql() -> dict:
 
     # Verificar si auth_db ya tiene la tabla users poblada (idempotencia)
     already_seeded = False
-    check_conn = psycopg2.connect(
-        host=cfg["host"],
-        port=cfg["port"],
-        user=cfg["user"],
-        password=cfg["password"],
-        dbname="auth_db",
-        connect_timeout=15,
-    )
+    check_conn = _connect_pg(cfg, "auth_db")
     check_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     with check_conn.cursor() as cur:
         cur.execute("SELECT to_regclass('public.users');")
@@ -112,14 +120,7 @@ def _init_rds_from_sql() -> dict:
             if not sql_text:
                 continue
 
-            conn = psycopg2.connect(
-                host=cfg["host"],
-                port=cfg["port"],
-                user=cfg["user"],
-                password=cfg["password"],
-                dbname=target_db,
-                connect_timeout=15,
-            )
+            conn = _connect_pg(cfg, target_db)
             conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             try:
                 with conn.cursor() as cur:
@@ -129,14 +130,7 @@ def _init_rds_from_sql() -> dict:
                 conn.close()
 
     # Garantizar rol COORDINATOR, usuario coordinador@unicesar.edu.co y columnas Fase 6 en auth_db
-    auth_conn = psycopg2.connect(
-        host=cfg["host"],
-        port=cfg["port"],
-        user=cfg["user"],
-        password=cfg["password"],
-        dbname="auth_db",
-        connect_timeout=15,
-    )
+    auth_conn = _connect_pg(cfg, "auth_db")
     auth_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     try:
         with auth_conn.cursor() as cur:
@@ -161,14 +155,7 @@ def _init_rds_from_sql() -> dict:
         auth_conn.close()
 
     # Sembrar encuestas longitudinales oficiales MEN / OLE / CNA (M0, M1, M5) y tablas nuevas en graduates_db
-    grad_conn = psycopg2.connect(
-        host=cfg["host"],
-        port=cfg["port"],
-        user=cfg["user"],
-        password=cfg["password"],
-        dbname="graduates_db",
-        connect_timeout=15,
-    )
+    grad_conn = _connect_pg(cfg, "graduates_db")
     grad_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     try:
         with grad_conn.cursor() as cur:
@@ -336,14 +323,7 @@ def cv_processor_handler(event, context):
             continue
 
         cfg = _parse_db_url(db_url)
-        conn = psycopg2.connect(
-            host=cfg["host"],
-            port=cfg["port"],
-            user=cfg["user"],
-            password=cfg["password"],
-            dbname=cfg["dbname"],
-            connect_timeout=10,
-        )
+        conn = _connect_pg(cfg, cfg["dbname"])
         try:
             grad_user_id = None
             added_skills = []
@@ -378,9 +358,11 @@ def cv_processor_handler(event, context):
                             )
 
             if grad_user_id and sqs_url:
-                sqs = boto3.client("sqs", region_name=region)
+                from botocore.config import Config
+                dualstack_sqs_url = sqs_url.replace(f"sqs.{region}.amazonaws.com", f"sqs.{region}.api.aws")
+                sqs = boto3.client("sqs", region_name=region, config=Config(use_dualstack_endpoint=True))
                 sqs.send_message(
-                    QueueUrl=sqs_url,
+                    QueueUrl=dualstack_sqs_url,
                     MessageBody=json.dumps({"graduate_id": grad_user_id}),
                 )
 
