@@ -41,6 +41,7 @@ app.include_router(event_router)
 app.include_router(internal_router)
 
 
+import os
 import threading
 from sqlalchemy import text
 from app.database import engine

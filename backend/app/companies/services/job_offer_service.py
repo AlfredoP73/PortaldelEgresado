@@ -45,6 +45,13 @@ def create_job_offer(body: schemas.JobOfferCreate, current_user: dict, db: Sessi
     return db_offer
 
 def get_job_offers(skip: int, limit: int, current_user: dict, db: Session):
+    from sqlalchemy.orm import joinedload, selectinload
+    q = db.query(models.JobOffer).options(
+        joinedload(models.JobOffer.company).joinedload(models.Company.sector),
+        joinedload(models.JobOffer.company).joinedload(models.Company.city),
+        joinedload(models.JobOffer.program),
+        selectinload(models.JobOffer.skills),
+    )
     if current_user["role_id"] == 1: # ADMIN
-        return db.query(models.JobOffer).offset(skip).limit(limit).all()
-    return db.query(models.JobOffer).filter(models.JobOffer.company_id == current_user["id"]).offset(skip).limit(limit).all()
+        return q.offset(skip).limit(limit).all()
+    return q.filter(models.JobOffer.company_id == current_user["id"]).offset(skip).limit(limit).all()

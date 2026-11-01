@@ -16,17 +16,33 @@ class Database:
 
     def _init_db(self):
         self.database_url = os.getenv("DATABASE_URL", "postgresql://postgres:password@db:5432/egresados_db")
-        use_null_pool = bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME") or os.getenv("DB_NULL_POOL") == "1")
-        if use_null_pool:
-            # En AWS Lambda + Amazon Aurora Serverless v2 (Scale-to-Zero / 0 ACUs):
-            # 1. NullPool cierra cada conexión al finalizar la invocación sin retener sockets congelados.
-            # 2. connect_timeout=25 + reintento automático absorben la reanudación de Aurora desde 0.0 ACUs (~10-15s).
+        force_null_pool = os.getenv("DB_NULL_POOL") == "1"
+        is_lambda = bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+        if force_null_pool:
             self.engine = create_engine(
                 self.database_url,
                 poolclass=NullPool,
                 connect_args={"connect_timeout": 25},
             )
+        elif is_lambda:
+            # Micro-pool para AWS Lambda + Aurora PostgreSQL:
+            # 1 conexión persistente por contenedor tibio evita pagar TCP + SCRAM-SHA-256 (~70ms) en cada invocación,
+            # mientras pool_pre_ping=True + pool_recycle=240 descartan transparentemente sockets inactivos.
+            self.engine = create_engine(
+                self.database_url,
+                pool_size=1,
+                max_overflow=2,
+                pool_pre_ping=True,
+                pool_recycle=240,
+                connect_args={"connect_timeout": 25},
+            )
+        else:
+            self.engine = create_engine(
+                self.database_url,
+                pool_pre_ping=True,
+            )
 
+        if is_lambda or force_null_pool:
             @event.listens_for(self.engine, "do_connect")
             def _aurora_serverless_wakeup_connect(dialect, conn_rec, cargs, cparams):
                 last_exc = None
@@ -36,13 +52,8 @@ class Database:
                     except Exception as exc:
                         last_exc = exc
                         if attempt < 2:
-                            time.sleep(2.0)
+                            time.sleep(1.5)
                 raise last_exc
-        else:
-            self.engine = create_engine(
-                self.database_url,
-                pool_pre_ping=True,
-            )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
 db_instance = Database()

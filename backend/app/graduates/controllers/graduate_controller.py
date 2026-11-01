@@ -118,22 +118,56 @@ def upsert_pending_graduate_internal(body: dict, db: Session = Depends(get_db)):
 
 
 @internal_router.get("/graduates")
-def get_all_graduates_internal(include_unverified: bool = False, db: Session = Depends(get_db)):
+def get_all_graduates_internal(
+    include_unverified: bool = False,
+    summary_only: bool = False,
+    db: Session = Depends(get_db),
+):
     from sqlalchemy import or_
+    from sqlalchemy.orm import selectinload
     from app.graduates import models
     q = db.query(models.Graduate)
+    if summary_only:
+        q = q.options(selectinload(models.Graduate.skills))
+    else:
+        q = q.options(
+            selectinload(models.Graduate.experiences),
+            selectinload(models.Graduate.academic_histories),
+            selectinload(models.Graduate.certifications),
+            selectinload(models.Graduate.skills),
+            selectinload(models.Graduate.projects),
+        )
     if not include_unverified:
         q = q.filter(or_(models.Graduate.verification_status == "APPROVED", models.Graduate.verification_status.is_(None)))
     graduates = q.all()
     results = []
     for g in graduates:
-        g_dict = {k: v for k, v in g.__dict__.items() if not k.startswith('_')}
-        g_dict['experiences'] = [{k: v for k, v in exp.__dict__.items() if not k.startswith('_')} for exp in g.experiences]
-        g_dict['academic_histories'] = [{k: v for k, v in edu.__dict__.items() if not k.startswith('_')} for edu in g.academic_histories]
-        g_dict['certifications'] = [{k: v for k, v in cert.__dict__.items() if not k.startswith('_')} for cert in g.certifications]
-        g_dict['skills'] = [{"skill_id": sk.skill_id, "skill_name": sk.skill.name if hasattr(sk, 'skill') and sk.skill else f"Skill {sk.skill_id}", "proficiency_level": sk.proficiency_level} for sk in g.skills]
-        g_dict['projects'] = [{k: v for k, v in proj.__dict__.items() if not k.startswith('_')} for proj in getattr(g, 'projects', [])]
-        results.append(g_dict)
+        skills_serialized = [
+            {
+                "skill_id": sk.skill_id,
+                "skill_name": sk.skill.name if hasattr(sk, "skill") and sk.skill else f"Skill {sk.skill_id}",
+                "proficiency_level": sk.proficiency_level,
+            }
+            for sk in g.skills
+        ]
+        if summary_only:
+            results.append({
+                "user_id": g.user_id,
+                "first_name": g.first_name,
+                "last_name": g.last_name,
+                "program_id": g.program_id,
+                "graduation_year": g.graduation_year,
+                "verification_status": g.verification_status,
+                "skills": skills_serialized,
+            })
+        else:
+            g_dict = {k: v for k, v in g.__dict__.items() if not k.startswith('_')}
+            g_dict['experiences'] = [{k: v for k, v in exp.__dict__.items() if not k.startswith('_')} for exp in g.experiences]
+            g_dict['academic_histories'] = [{k: v for k, v in edu.__dict__.items() if not k.startswith('_')} for edu in g.academic_histories]
+            g_dict['certifications'] = [{k: v for k, v in cert.__dict__.items() if not k.startswith('_')} for cert in g.certifications]
+            g_dict['skills'] = skills_serialized
+            g_dict['projects'] = [{k: v for k, v in proj.__dict__.items() if not k.startswith('_')} for proj in getattr(g, 'projects', [])]
+            results.append(g_dict)
     return results
 
 @internal_router.get("/saved-searches")
@@ -367,8 +401,12 @@ def get_alumni_directory(
 ):
     try:
         from sqlalchemy import or_
+        from sqlalchemy.orm import selectinload
         from app.graduates.models import Graduate, WorkExperience, MentorProfile, Program
-        query = db.query(Graduate).filter(
+        query = db.query(Graduate).options(
+            selectinload(Graduate.experiences),
+            selectinload(Graduate.skills),
+        ).filter(
             or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)),
             or_(Graduate.verification_status == "APPROVED", Graduate.verification_status.is_(None)),
         )
@@ -389,11 +427,20 @@ def get_alumni_directory(
             programs_map = {p.id: p.name for p in db.query(Program).all()}
         except Exception:
             programs_map = {}
+
+        mentor_ids = [g.user_id for g in graduates if g.mentor_opt_in]
+        mentor_map = {}
+        if mentor_ids:
+            mentor_map = {
+                mp.graduate_id: mp
+                for mp in db.query(MentorProfile).filter(MentorProfile.graduate_id.in_(mentor_ids)).all()
+            }
         
         results = []
         for g in graduates:
-            latest_exp = db.query(WorkExperience).filter(WorkExperience.graduate_id == g.user_id).order_by(WorkExperience.start_date.desc()).first()
-            mentor_p = db.query(MentorProfile).filter(MentorProfile.graduate_id == g.user_id).first() if g.mentor_opt_in else None
+            exps = sorted(g.experiences, key=lambda x: x.start_date or "", reverse=True) if g.experiences else []
+            latest_exp = exps[0] if exps else None
+            mentor_p = mentor_map.get(g.user_id) if g.mentor_opt_in else None
             
             skills_list = []
             if hasattr(g, 'skills') and g.skills:
@@ -851,7 +898,10 @@ def get_network_suggestions(db: Session = Depends(get_db), current_user: dict = 
         my_skill_ids = {s.skill_id for s in my_skills}
 
     # Query: egresados visibles y aprobados, excluyendo yo y ya-conectados
-    candidates = db.query(Graduate).filter(
+    from sqlalchemy.orm import selectinload
+    candidates = db.query(Graduate).options(
+        selectinload(Graduate.skills),
+    ).filter(
         Graduate.user_id != my_id,
         or_(Graduate.directory_visible == True, Graduate.directory_visible.is_(None)),
         or_(Graduate.verification_status == "APPROVED", Graduate.verification_status.is_(None)),
@@ -866,7 +916,7 @@ def get_network_suggestions(db: Session = Depends(get_db), current_user: dict = 
         score = 0
         if me and grad.program_id and me.program_id and grad.program_id == me.program_id:
             score += 40
-        their_skills = db.query(GraduateSkill).filter(GraduateSkill.graduate_id == grad.user_id).all()
+        their_skills = list(grad.skills or [])
         their_skill_ids = {s.skill_id for s in their_skills}
         common = len(my_skill_ids & their_skill_ids)
         score += min(common * 10, 40)
@@ -875,12 +925,12 @@ def get_network_suggestions(db: Session = Depends(get_db), current_user: dict = 
         if grad.profile_summary:
             score += 5
 
-        # Obtener nombres de skills
-        skill_names = []
-        for sk in their_skills[:5]:
-            skill = db.query(Skill).filter(Skill.id == sk.skill_id).first()
-            if skill:
-                skill_names.append(skill.name)
+        # Obtener nombres de skills (ya cargados por lazy="joined" en GraduateSkill.skill)
+        skill_names = [
+            sk.skill.name
+            for sk in their_skills[:5]
+            if hasattr(sk, "skill") and sk.skill
+        ]
 
         # Connection status
         conn_status = "NONE"

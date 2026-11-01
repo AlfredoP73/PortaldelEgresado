@@ -1,5 +1,7 @@
 from fastapi import HTTPException
 import httpx
+import time
+from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -9,21 +11,44 @@ from app.core.adapters import HttpGraduatesAdapter, HttpCompaniesAdapter
 graduates_adapter = HttpGraduatesAdapter()
 companies_adapter = HttpCompaniesAdapter()
 
+_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+_DASH_MEM_CACHE: dict[str, tuple[float, dict]] = {}
+_DASH_CACHE_TTL = 20.0
+
+
+def _cache_get(key: str):
+    item = _DASH_MEM_CACHE.get(key)
+    if item and item[0] > time.monotonic():
+        return item[1]
+    return None
+
+
+def _cache_set(key: str, val: dict, ttl: float = _DASH_CACHE_TTL):
+    _DASH_MEM_CACHE[key] = (time.monotonic() + ttl, val)
+    return val
+
+
+def _safe_call(fn, *args, default=None, label: str = ""):
+    try:
+        return fn(*args)
+    except Exception as e:
+        if label:
+            print(f"Warning: {label} failed: {e}")
+        return [] if default is None else default
+
+
 def get_dashboard(db, program_id: int = None, year: int = None):
-    try:
-        graduates = graduates_adapter.get_all_graduates()
-    except Exception as e:
-        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
-        graduates = []
-    try:
-        applications = companies_adapter.get_all_applications()
-    except Exception as e:
-        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
-        applications = []
-    try:
-        programs_data = companies_adapter.get_programs()
-    except Exception:
-        programs_data = []
+    ck = f"admin_dash:{program_id}:{year}"
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+
+    f_grads = _EXECUTOR.submit(_safe_call, graduates_adapter.get_all_graduates, True, label="graduates_adapter.get_all_graduates")
+    f_apps = _EXECUTOR.submit(_safe_call, companies_adapter.get_all_applications, label="companies_adapter.get_all_applications")
+    f_progs = _EXECUTOR.submit(_safe_call, companies_adapter.get_programs)
+    graduates = f_grads.result()
+    applications = f_apps.result()
+    programs_data = f_progs.result()
         
     program_map = {p["id"]: p["name"] for p in programs_data} if programs_data else {}
     
@@ -83,7 +108,7 @@ def get_dashboard(db, program_id: int = None, year: int = None):
     
     application_status = [{"status": k, "count": v} for k, v in status_counts.items()]
 
-    return {
+    return _cache_set(ck, {
         "summary": {
             "total_graduates": total_graduates,
             "employment_rate": round(employment_rate, 2),
@@ -94,24 +119,16 @@ def get_dashboard(db, program_id: int = None, year: int = None):
         "industries": industries,
         "salary_by_program": salary_by_program,
         "application_status": application_status
-    }
+    })
 
 def get_company_dashboard(db, company_id: int):
-    try:
-        applications = companies_adapter.get_all_applications()
-    except Exception as e:
-        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
-        applications = []
+    f_apps = _EXECUTOR.submit(_safe_call, companies_adapter.get_all_applications, label="companies_adapter.get_all_applications")
+    f_grads = _EXECUTOR.submit(_safe_call, graduates_adapter.get_all_graduates, True, label="graduates_adapter.get_all_graduates")
+    f_progs = _EXECUTOR.submit(_safe_call, companies_adapter.get_programs)
+    applications = f_apps.result()
+    graduates = f_grads.result()
+    programs_data = f_progs.result()
     my_apps = [a for a in applications if a.get("job_offer", {}).get("company_id") == company_id]
-    try:
-        graduates = graduates_adapter.get_all_graduates()
-    except Exception as e:
-        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
-        graduates = []
-    try:
-        programs_data = companies_adapter.get_programs()
-    except:
-        programs_data = []
     
     grad_map = {g["user_id"]: g for g in graduates}
     program_map = {p["id"]: p["name"] for p in programs_data} if programs_data else {}
@@ -161,15 +178,10 @@ def get_company_dashboard(db, company_id: int):
     }
 
 def get_graduate_dashboard(db, graduate_id: int):
-    try:
-        my_apps = companies_adapter.get_my_applications(graduate_id)
-    except Exception as e:
-        print(f"Warning: companies_adapter.get_my_applications failed: {e}")
-        my_apps = []
-    try:
-        all_jobs = companies_adapter.get_jobs({})
-    except:
-        all_jobs = []
+    f_apps = _EXECUTOR.submit(_safe_call, companies_adapter.get_my_applications, graduate_id, label="companies_adapter.get_my_applications")
+    f_jobs = _EXECUTOR.submit(_safe_call, companies_adapter.get_jobs, {})
+    my_apps = f_apps.result()
+    all_jobs = f_jobs.result()
     
     total_apps = len(my_apps)
     interviews = sum(1 for a in my_apps if a.get("status") == "ENTREVISTADO")
@@ -227,29 +239,23 @@ def get_graduate_dashboard(db, graduate_id: int):
 
 
 def get_executive_analytics(db, program_id: int = None, year_min: int = None, year_max: int = None, modality: str = None):
-    try:
-        graduates = graduates_adapter.get_all_graduates()
-    except Exception as e:
-        print(f"Warning: graduates_adapter.get_all_graduates failed: {e}")
-        graduates = []
-    try:
-        applications = companies_adapter.get_all_applications()
-    except Exception as e:
-        print(f"Warning: companies_adapter.get_all_applications failed: {e}")
-        applications = []
-    try:
-        programs_data = companies_adapter.get_programs()
-    except Exception:
-        programs_data = []
-    try:
-        companies_data = companies_adapter.get_all_companies()
-    except Exception:
-        companies_data = []
-    try:
-        jobs_resp = companies_adapter.get_jobs({})
-        all_jobs = jobs_resp.get("items", jobs_resp) if isinstance(jobs_resp, dict) else (jobs_resp if isinstance(jobs_resp, list) else [])
-    except Exception:
-        all_jobs = []
+    ck = f"exec_bi:{program_id}:{year_min}:{year_max}:{modality}"
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+
+    f_grads = _EXECUTOR.submit(_safe_call, graduates_adapter.get_all_graduates, True, label="graduates_adapter.get_all_graduates")
+    f_apps = _EXECUTOR.submit(_safe_call, companies_adapter.get_all_applications, label="companies_adapter.get_all_applications")
+    f_progs = _EXECUTOR.submit(_safe_call, companies_adapter.get_programs)
+    f_comps = _EXECUTOR.submit(_safe_call, companies_adapter.get_all_companies)
+    f_jobs = _EXECUTOR.submit(_safe_call, companies_adapter.get_jobs, {})
+
+    graduates = f_grads.result()
+    applications = f_apps.result()
+    programs_data = f_progs.result()
+    companies_data = f_comps.result()
+    jobs_resp = f_jobs.result()
+    all_jobs = jobs_resp.get("items", jobs_resp) if isinstance(jobs_resp, dict) else (jobs_resp if isinstance(jobs_resp, list) else [])
 
     program_map = {p["id"]: p["name"] for p in programs_data}
     company_map = {c["user_id"]: c for c in companies_data}
@@ -500,7 +506,7 @@ def get_executive_analytics(db, program_id: int = None, year_min: int = None, ye
         for k, v in mod_counts.items()
     ]
 
-    return {
+    return _cache_set(ck, {
         "kpis": {
             "employment_rate": emp_rate,
             "employment_rate_delta": delta_emp,
@@ -532,7 +538,7 @@ def get_executive_analytics(db, program_id: int = None, year_min: int = None, ye
                 "modality": modality,
             },
         },
-    }
+    })
 
 
 DEFAULT_COHORT_PROGRAMS = [
@@ -585,10 +591,17 @@ def get_cohort_heatmap(
     year_min: int = None,
     year_max: int = None,
 ) -> dict:
-    try:
-        programs_raw = companies_adapter.get_programs()
-    except Exception:
-        programs_raw = []
+    ck = f"cohort_hm:{audience}:{program_id}:{year_min}:{year_max}"
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+
+    f_progs = _EXECUTOR.submit(_safe_call, companies_adapter.get_programs)
+    f_grads = _EXECUTOR.submit(_safe_call, graduates_adapter.get_all_graduates, True)
+    f_apps = _EXECUTOR.submit(_safe_call, companies_adapter.get_all_applications)
+    programs_raw = f_progs.result()
+    graduates = f_grads.result()
+    applications = f_apps.result()
 
     programs = (
         [{"id": int(p["id"]), "name": str(p["name"])} for p in programs_raw if p.get("id") and p.get("name")]
@@ -611,15 +624,6 @@ def get_cohort_heatmap(
         all_years = [y for y in all_years if y <= int(year_max)]
     if not all_years:
         all_years = [2021, 2022, 2023, 2024, 2025]
-
-    try:
-        graduates = graduates_adapter.get_all_graduates()
-    except Exception:
-        graduates = []
-    try:
-        applications = companies_adapter.get_all_applications()
-    except Exception:
-        applications = []
 
     real_grads_by_cell = defaultdict(list)
     for g in graduates:
@@ -692,7 +696,7 @@ def get_cohort_heatmap(
         {"sector": "Agroindustria y Energía", "avg_salary": 3210000, "hires": 116},
     ]
 
-    return {
+    return _cache_set(ck, {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "audience": audience,
         "programs": programs,
@@ -722,7 +726,7 @@ def get_cohort_heatmap(
         "metrics_notes": {
             "time_to_hire": "Días promedio entre la primera postulación registrada en el portal y la contratación efectiva."
         },
-    }
+    })
 
 
 def get_cohort_insights(

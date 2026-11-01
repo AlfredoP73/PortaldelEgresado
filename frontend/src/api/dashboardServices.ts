@@ -89,21 +89,60 @@ export interface GraduateDashboardData {
   }[]
 }
 
+const _dashboardInFlight = new Map<string, Promise<DashboardData>>()
+const _dashboardCache = new Map<string, { data: DashboardData; expiresAt: number }>()
+let _companyDashboardInFlight: Promise<CompanyDashboardData> | null = null
+let _graduateDashboardInFlight: Promise<GraduateDashboardData> | null = null
+
 export async function getDashboard(programId?: number, year?: number): Promise<DashboardData> {
+  const key = `${programId ?? 'all'}:${year ?? 'all'}`
+  const now = Date.now()
+  const cached = _dashboardCache.get(key)
+  if (cached && cached.expiresAt > now) {
+    return cached.data
+  }
+
+  const existing = _dashboardInFlight.get(key)
+  if (existing) {
+    return existing
+  }
+
   const params: Record<string, any> = {}
   if (programId) params.program_id = programId
   if (year) params.year = year
 
-  const response = await dashboardApi.get<DashboardData>('/dashboard', { params })
-  return response.data
+  const req = dashboardApi
+    .get<DashboardData>('/dashboard', { params })
+    .then((response) => {
+      _dashboardCache.set(key, { data: response.data, expiresAt: Date.now() + 15_000 })
+      return response.data
+    })
+    .finally(() => {
+      _dashboardInFlight.delete(key)
+    })
+
+  _dashboardInFlight.set(key, req)
+  return req
 }
 
 export async function getCompanyDashboard(): Promise<CompanyDashboardData> {
-  const response = await dashboardApi.get<CompanyDashboardData>('/company/dashboard')
-  return response.data
+  if (_companyDashboardInFlight) return _companyDashboardInFlight
+  _companyDashboardInFlight = dashboardApi
+    .get<CompanyDashboardData>('/company/dashboard')
+    .then((r) => r.data)
+    .finally(() => {
+      _companyDashboardInFlight = null
+    })
+  return _companyDashboardInFlight
 }
 
 export async function getGraduateDashboard(): Promise<GraduateDashboardData> {
-  const response = await dashboardApi.get<GraduateDashboardData>('/graduate/dashboard')
-  return response.data
+  if (_graduateDashboardInFlight) return _graduateDashboardInFlight
+  _graduateDashboardInFlight = dashboardApi
+    .get<GraduateDashboardData>('/graduate/dashboard')
+    .then((r) => r.data)
+    .finally(() => {
+      _graduateDashboardInFlight = null
+    })
+  return _graduateDashboardInFlight
 }

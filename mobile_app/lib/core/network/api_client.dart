@@ -6,13 +6,13 @@ class ApiClient {
   // ===========================================================================
   // ENDPOINTS IMPLANTADOS AUTOMÁTICAMENTE POR EL DESPLIEGUE (deploy.ps1 / deploy_s3.ps1)
   // ===========================================================================
-  static const String activeArchitecture = 'ARCH1_EC2_BACKEND';
-  static const String deployedHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
-  static const String authServiceHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
-  static const String graduatesServiceHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
-  static const String companiesServiceHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
-  static const String matchmakingServiceHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
-  static const String dashboardServiceHost = 'http://alb-portal-a-front-1030407465.us-east-1.elb.amazonaws.com';
+  static const String activeArchitecture = 'ARCH3_SERVERLESS_LAMBDA';
+  static const String deployedHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
+  static const String authServiceHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
+  static const String graduatesServiceHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
+  static const String companiesServiceHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
+  static const String matchmakingServiceHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
+  static const String dashboardServiceHost = 'https://33sioy7mff.execute-api.us-east-1.amazonaws.com';
   // ===========================================================================
 
   static String _normalizeHost(String raw) {

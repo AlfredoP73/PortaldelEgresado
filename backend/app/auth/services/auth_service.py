@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql import func
 from jose import JWTError, jwt
 import os
@@ -46,9 +46,13 @@ def log_audit_action(db: Session, user_id: int | None, action: str, target_id: s
 
 def authenticate_user(body: schemas.LoginRequest, db: Session, client_ip: str = "unknown") -> schemas.TokenResponse:
     email_clean = body.email.strip().lower()
-    user = db.query(models.User).filter(
-        func.lower(models.User.email) == email_clean,
+    user = db.query(models.User).options(joinedload(models.User.role)).filter(
+        models.User.email == email_clean,
     ).first()
+    if not user:
+        user = db.query(models.User).options(joinedload(models.User.role)).filter(
+            func.lower(models.User.email) == email_clean,
+        ).first()
 
     if user and user.role_id == 3 and (not user.is_active or not user.email_verified):
         if not user.verification_token and not user.email_verified:

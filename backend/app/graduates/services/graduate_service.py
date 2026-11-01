@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, UploadFile
 from typing import Optional
 import uuid
@@ -57,7 +57,13 @@ def admin_create_graduate(body: schemas.AdminGraduateCreate, db: Session):
     return new_grad
 
 def admin_get_all_graduates(db: Session):
-    return db.query(models.Graduate).all()
+    return db.query(models.Graduate).options(
+        selectinload(models.Graduate.experiences),
+        selectinload(models.Graduate.academic_histories),
+        selectinload(models.Graduate.certifications),
+        selectinload(models.Graduate.skills),
+        selectinload(models.Graduate.projects),
+    ).all()
 
 def ensure_graduate_verified(current_user: dict, db: Session) -> Optional[models.Graduate]:
     """

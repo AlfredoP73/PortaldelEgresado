@@ -143,15 +143,24 @@ def get_matchmaking_adapter() -> MatchmakingPort:
     return RabbitMQMatchmakingAdapter()
 
 
+import time
+
 INTER_SERVICE_TIMEOUT = float(
     os.getenv("INTER_SERVICE_TIMEOUT", "25.0" if os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "15.0")
 )
+
+# Cliente HTTP persistente con Keep-Alive para reutilizar sesiones TCP + TLS 1.3 entre invocaciones tibias de Lambda
+_HTTP_CLIENT = httpx.Client(
+    timeout=INTER_SERVICE_TIMEOUT,
+    limits=httpx.Limits(max_keepalive_connections=16, max_connections=32, keepalive_expiry=60.0),
+)
+_PROGRAMS_CACHE: dict = {"data": None, "expires_at": 0.0}
 
 # ── Inter-Service HTTP Communication Ports & Adapters ──
 
 class GraduatesServicePort(ABC):
     @abstractmethod
-    def get_all_graduates(self) -> list: pass
+    def get_all_graduates(self, summary_only: bool = False) -> list: pass
     
     @abstractmethod
     def get_graduate(self, graduate_id: int) -> Optional[dict]: pass
@@ -173,37 +182,38 @@ class HttpGraduatesAdapter(GraduatesServicePort):
         self.base_url = os.getenv("GRADUATES_URL", "http://graduates:8000")
 
     @circuit(failure_threshold=3, recovery_timeout=30)
-    def get_all_graduates(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/graduates", timeout=INTER_SERVICE_TIMEOUT)
+    def get_all_graduates(self, summary_only: bool = False) -> list:
+        params = {"summary_only": "true"} if summary_only else None
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/graduates", params=params, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_graduate(self, graduate_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_graduate(self, graduate_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/matchmaking/graduates/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_graduate_ids(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/matchmaking/graduates", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_saved_searches(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/saved-searches", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/saved-searches", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     def upsert_pending_graduate(self, payload: dict) -> dict:
-        resp = httpx.post(
+        resp = _HTTP_CLIENT.post(
             f"{self.base_url}/api/internal/graduates/register-pending",
             json=payload,
             timeout=INTER_SERVICE_TIMEOUT,
@@ -317,31 +327,31 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_companies(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/companies", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/companies", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_companies_directory(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/companies-directory", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/companies-directory", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_all_applications(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/applications", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_job_applications(self, job_offer_id: int) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications/job/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/applications/job/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
         
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_jobs(self, params: dict) -> list | dict:
-        resp = httpx.get(f"{self.base_url}/api/internal/jobs", params=params, timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/jobs", params=params, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         local_data = resp.json()
 
@@ -367,7 +377,7 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def apply_for_job(self, payload: dict) -> dict:
-        resp = httpx.post(f"{self.base_url}/api/internal/applications/apply", json=payload, timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.post(f"{self.base_url}/api/internal/applications/apply", json=payload, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         app_result = resp.json()
 
@@ -384,7 +394,7 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_my_applications(self, graduate_id: int) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/applications/graduate/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/applications/graduate/{graduate_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         local_apps = resp.json()
 
@@ -403,19 +413,25 @@ class HttpCompaniesAdapter(CompaniesServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_programs(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/programs", timeout=INTER_SERVICE_TIMEOUT)
+        now = time.monotonic()
+        if _PROGRAMS_CACHE["data"] is not None and _PROGRAMS_CACHE["expires_at"] > now:
+            return _PROGRAMS_CACHE["data"]
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/programs", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        _PROGRAMS_CACHE["data"] = data
+        _PROGRAMS_CACHE["expires_at"] = now + 60.0
+        return data
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_job(self, job_offer_id: int) -> Optional[dict]:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/matchmaking/jobs/{job_offer_id}", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def get_matchmaking_job_ids(self) -> list:
-        resp = httpx.get(f"{self.base_url}/api/internal/matchmaking/jobs", timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/matchmaking/jobs", timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
@@ -441,15 +457,15 @@ class HttpAuthAdapter(AuthServicePort):
 
     @circuit(failure_threshold=3, recovery_timeout=30)
     def create_user(self, payload: dict) -> dict:
-        resp = httpx.post(f"{self.base_url}/api/internal/users", json=payload, timeout=INTER_SERVICE_TIMEOUT)
+        resp = _HTTP_CLIENT.post(f"{self.base_url}/api/internal/users", json=payload, timeout=INTER_SERVICE_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
 
     def get_users_map(self) -> dict:
         try:
-            resp = httpx.get(f"{self.base_url}/api/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
+            resp = _HTTP_CLIENT.get(f"{self.base_url}/api/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
             if resp.status_code == 404:
-                resp = httpx.get(f"{self.base_url}/api/auth/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
+                resp = _HTTP_CLIENT.get(f"{self.base_url}/api/auth/internal/users/map", timeout=INTER_SERVICE_TIMEOUT)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -469,13 +485,13 @@ class HttpAuthAdapter(AuthServicePort):
             "full_name": full_name,
         }
         try:
-            resp = httpx.put(
+            resp = _HTTP_CLIENT.put(
                 f"{self.base_url}/api/internal/users/{user_id}/verification",
                 json=body,
                 timeout=INTER_SERVICE_TIMEOUT,
             )
             if resp.status_code == 404:
-                resp = httpx.put(
+                resp = _HTTP_CLIENT.put(
                     f"{self.base_url}/api/auth/internal/users/{user_id}/verification",
                     json=body,
                     timeout=INTER_SERVICE_TIMEOUT,
@@ -497,9 +513,9 @@ class HttpAuthAdapter(AuthServicePort):
             "dedup_key": dedup_key
         }
         try:
-            resp = httpx.post(f"{self.base_url}/api/auth/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
+            resp = _HTTP_CLIENT.post(f"{self.base_url}/api/auth/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
             if resp.status_code == 404:
-                resp = httpx.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
+                resp = _HTTP_CLIENT.post(f"{self.base_url}/api/internal/notifications", json=body, timeout=INTER_SERVICE_TIMEOUT)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -514,9 +530,9 @@ class HttpAuthAdapter(AuthServicePort):
             "participant_ids": participant_ids
         }
         try:
-            resp = httpx.post(f"{self.base_url}/api/auth/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
+            resp = _HTTP_CLIENT.post(f"{self.base_url}/api/auth/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
             if resp.status_code == 404:
-                resp = httpx.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
+                resp = _HTTP_CLIENT.post(f"{self.base_url}/api/internal/conversations", json=body, timeout=INTER_SERVICE_TIMEOUT)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:

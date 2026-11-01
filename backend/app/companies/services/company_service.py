@@ -18,10 +18,15 @@ def create_company(company: schemas.CompanyCreate, current_user: dict, db: Sessi
     return db_company
 
 def get_companies(skip: int, limit: int, current_user: dict, db: Session):
+    from sqlalchemy.orm import joinedload
+    q = db.query(models.Company).options(
+        joinedload(models.Company.sector),
+        joinedload(models.Company.city),
+    )
     if current_user["role_id"] == 1: # ADMIN
-        return db.query(models.Company).offset(skip).limit(limit).all()
+        return q.offset(skip).limit(limit).all()
     # COMPANY can only see themselves
-    return db.query(models.Company).filter(models.Company.user_id == current_user["id"]).all()
+    return q.filter(models.Company.user_id == current_user["id"]).all()
 
 def update_company_status(company_id: int, status_update: schemas.CompanyUpdateStatus, db: Session):
     db_company = db.query(models.Company).filter(models.Company.user_id == company_id).first()

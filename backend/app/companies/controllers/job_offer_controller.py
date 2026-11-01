@@ -30,8 +30,14 @@ from typing import Optional
 
 @internal_router.get("/jobs", response_model=List[schemas.JobOffer])
 def get_jobs_internal(skip: int = 0, limit: int = 100, q: Optional[str] = None, salary_min: Optional[int] = None, db: Session = Depends(get_db)):
+    from sqlalchemy.orm import joinedload, selectinload
     from app.companies import models
-    query = db.query(models.JobOffer).filter(models.JobOffer.status == models.JobOfferStatus.ACTIVE)
+    query = db.query(models.JobOffer).options(
+        joinedload(models.JobOffer.company).joinedload(models.Company.sector),
+        joinedload(models.JobOffer.company).joinedload(models.Company.city),
+        joinedload(models.JobOffer.program),
+        selectinload(models.JobOffer.skills),
+    ).filter(models.JobOffer.status == models.JobOfferStatus.ACTIVE)
     if q:
         query = query.filter(models.JobOffer.title.ilike(f"%{q}%"))
     if salary_min:
