@@ -113,7 +113,7 @@ export function ExecutiveAnalyticsDashboard() {
 
   useEffect(() => {
     api
-      .get('/catalogs/programs')
+      .get('/programs')
       .then((res: any) => {
         const list = res?.data ?? res;
         setPrograms(Array.isArray(list) ? list : []);

@@ -363,13 +363,13 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
 }) => {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [dataSourceMode] = useState<DataSourceMode>('real_db');
   const [layerMode, setLayerMode] = useState<PlanetLayerMode>('diaspora');
-  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('projection');
-  const [selectedHubId, setSelectedHubId] = useState<string>('spain-hub');
+  const [selectedHubId, setSelectedHubId] = useState<string>('valledupar-co');
   const [selectedCityName, setSelectedCityName] = useState<string | null>(null);
   const [isAutoRotating, setIsAutoRotating] = useState<boolean>(false);
-  const [zoom, setZoom] = useState<number>(1.15);
-  const [rotation, setRotation] = useState<{ lon: number; lat: number }>({ lon: -42, lat: 20 });
+  const [zoom, setZoom] = useState<number>(2.6);
+  const [rotation, setRotation] = useState<{ lon: number; lat: number }>({ lon: -73.5, lat: 8.5 });
   const [bodyHasDark, setBodyHasDark] = useState<boolean>(() =>
     typeof document !== 'undefined' && document.body.classList.contains('dark')
   );
@@ -1006,11 +1006,19 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
     isDraggingRef.current = false;
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    setZoom((prev) => Math.max(0.85, Math.min(4.2, Number((prev + delta).toFixed(2)))));
-  };
+  // React registra onWheel como listener pasivo, por lo que preventDefault() dispara el aviso
+  // "Unable to preventDefault inside passive event listener". Se registra de forma nativa con passive:false.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      setZoom((prev) => Math.max(0.85, Math.min(4.2, Number((prev + delta).toFixed(2)))));
+    };
+    canvas.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheelNative);
+  }, []);
 
   return (
     <div
@@ -1030,51 +1038,21 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
                 Geointeligencia 3D · Zoom por País y Ciudad
               </span>
 
-              {/* Data Source Badge & Switcher (Real DB vs Projection) */}
-              <div
-                className="inline-flex items-center gap-1 p-0.5 rounded-full border text-[11px]"
+              {/* Insignia de fuente de datos (solo datos reales de la BD) */}
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-extrabold"
                 style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border-color)' }}
               >
-                <button
-                  onClick={() => {
-                    setDataSourceMode('real_db');
-                    setSelectedHubId('valledupar-co');
-                    setRotation({ lon: -73.5, lat: 8.5 });
-                    setZoom(2.6);
-                  }}
-                  className={`px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                    dataSourceMode === 'real_db'
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'text-ink-secondary hover:text-ink'
-                  }`}
-                >
-                  <Database className="w-3 h-3" />
-                  Datos Reales BD ({rawRecords.length || totalActiveGraduates} reg.)
-                </button>
-                <button
-                  onClick={() => {
-                    setDataSourceMode('projection');
-                    setZoom(1.25);
-                  }}
-                  className={`px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                    dataSourceMode === 'projection'
-                      ? 'bg-sky-600 text-white shadow-2xs'
-                      : 'text-ink-secondary hover:text-ink'
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Proyección Global (10 Países)
-                </button>
-              </div>
+                <Database className="w-3 h-3" />
+                Datos Reales BD ({rawRecords.length || totalActiveGraduates} reg.)
+              </span>
             </div>
 
             <h3 className="text-lg font-black text-ink">
-              Planeta Interactivo 3D: Diáspora, Trabajo Remoto Global (Nearshore) y Salarios por Ciudad
+              Planeta Interactivo 3D: Diáspora, Trabajo Remoto y Salarios por Ciudad
             </h3>
             <p className="text-xs text-ink-secondary max-w-3xl">
-              {dataSourceMode === 'real_db'
-                ? 'Mostrando 100% los registros reales almacenados en PostgreSQL (Valledupar, Aguachica, Bogotá, Medellín y Barranquilla). Haz zoom para inspeccionar cada ciudad.'
-                : 'Modelo de proyección internacional para sustentación ejecutiva. Haz clic en cualquier país o usa los botones de Zoom (+ / -) para ampliar sus ciudades específicas.'}
+              Mostrando los registros reales almacenados en PostgreSQL (Valledupar, Aguachica, Bogotá, Medellín y Barranquilla). Haz zoom para inspeccionar cada ciudad.
             </p>
           </div>
 
@@ -1288,7 +1266,6 @@ export const GlobalAlumniPlanet: React.FC<GlobalAlumniPlanetProps> = ({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
             className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
           />
 

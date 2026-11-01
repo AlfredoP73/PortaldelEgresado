@@ -52,7 +52,7 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
-    const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(1);
+    const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4>(1);
     const [roleId, setRoleId] = useState(3);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
     const [registrationMessage, setRegistrationMessage] = useState('');
@@ -82,13 +82,46 @@ export default function Login() {
             .catch(() => {});
     }, [isRegistering, roleId]);
 
+    // Flujo de registro: Egresado = Perfil → Datos académicos → Credenciales → Privacidad; Empresa omite el paso 2
+    const registerFlow: (1 | 2 | 3 | 4)[] = roleId === 3 ? [1, 2, 3, 4] : [1, 3, 4];
+    const registerPos = registerFlow.indexOf(registerStep) + 1;
+    const registerTotal = registerFlow.length;
+    const LAST_STEP = 4;
+
+    const goPrevStep = () => {
+        setError('');
+        const i = registerFlow.indexOf(registerStep);
+        if (i > 0) setRegisterStep(registerFlow[i - 1]);
+    };
+
     const handleNextStep = async () => {
         setError('');
         if (registerStep === 1) {
-            setRegisterStep(2);
+            setRegisterStep(roleId === 3 ? 2 : 3);
             return;
         }
         if (registerStep === 2) {
+            if (!firstName.trim() || !lastName.trim()) {
+                setError('Ingresa tus nombres y apellidos tal como figuran en tu título universitario.');
+                return;
+            }
+            if (!documentId.trim()) {
+                setError('Ingresa tu número de cédula o documento de identidad.');
+                return;
+            }
+            const yr = Number(graduationYear);
+            if (!programId || !yr || yr < 1976 || yr > new Date().getFullYear() + 1) {
+                setError('Selecciona tu programa académico y un año de graduación válido.');
+                return;
+            }
+            if (!degreeActNumber.trim() && !diplomaNumber.trim()) {
+                setError('Ingresa tu número de acta de grado o número de diploma para verificación de Coordinación.');
+                return;
+            }
+            setRegisterStep(3);
+            return;
+        }
+        if (registerStep === 3) {
             if (!email.trim() || !email.includes('@')) {
                 setError('Ingresa un correo electrónico válido (Gmail, Hotmail, Outlook, institucional, etc.).');
                 return;
@@ -99,28 +132,10 @@ export default function Login() {
             }
 
             if (roleId === 3) {
-                if (!firstName.trim() || !lastName.trim()) {
-                    setError('Ingresa tus nombres y apellidos tal como figuran en tu título universitario.');
-                    return;
-                }
-                if (!documentId.trim()) {
-                    setError('Ingresa tu número de cédula o documento de identidad.');
-                    return;
-                }
-                const yr = Number(graduationYear);
-                if (!programId || !yr || yr < 1976 || yr > new Date().getFullYear() + 1) {
-                    setError('Selecciona tu programa académico y un año de graduación válido.');
-                    return;
-                }
-                if (!degreeActNumber.trim() && !diplomaNumber.trim()) {
-                    setError('Ingresa tu número de acta de grado o número de diploma para verificación de Coordinación.');
-                    return;
-                }
-
                 setLoading(true);
                 try {
                     await authApi.post('/validate-graduate-email', { email: email.trim() });
-                    setRegisterStep(3);
+                    setRegisterStep(4);
                 } catch (err: unknown) {
                     const apiErr = err as ApiError;
                     setError(apiErr.response?.data?.detail || 'No se pudo validar la disponibilidad del correo.');
@@ -130,7 +145,7 @@ export default function Login() {
                 return;
             }
 
-            setRegisterStep(3);
+            setRegisterStep(4);
         }
     };
     
@@ -138,7 +153,7 @@ export default function Login() {
         e.preventDefault();
         setError('');
         
-        if (isRegistering && registerStep < 3) {
+        if (isRegistering && registerStep < LAST_STEP) {
             await handleNextStep();
             return;
         }
@@ -411,43 +426,50 @@ export default function Login() {
                                             <p className="text-[12.5px] leading-snug text-[#6B7280] mt-1">
                                                 {isRegistering
                                                     ? registerStep === 1
-                                                        ? 'Paso 1 de 3 · Selecciona tu perfil institucional'
+                                                        ? `Paso ${registerPos} de ${registerTotal} · Selecciona tu perfil institucional`
                                                         : registerStep === 2
-                                                            ? 'Paso 2 de 3 · Configura tus credenciales de acceso'
-                                                            : 'Paso 3 de 3 · Privacidad y tratamiento de datos'
+                                                            ? `Paso ${registerPos} de ${registerTotal} · Datos personales y académicos`
+                                                            : registerStep === 3
+                                                                ? `Paso ${registerPos} de ${registerTotal} · Configura tus credenciales de acceso`
+                                                                : `Paso ${registerPos} de ${registerTotal} · Privacidad y tratamiento de datos`
                                                     : 'Ingresa tus credenciales para acceder al portal institucional.'}
                                             </p>
                                         </div>
                                     </div>
                                     {isRegistering && (
                                         <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 flex-shrink-0">
-                                            Etapa {registerStep}/3
+                                            Etapa {registerPos}/{registerTotal}
                                         </span>
                                     )}
                                 </div>
 
                                 {/* Step progress bar (register only) */}
                                 {isRegistering && (
-                                    <div className="grid grid-cols-3 gap-2 mt-4">
+                                    <div className={`grid ${registerTotal === 4 ? 'grid-cols-4' : 'grid-cols-3'} gap-2 mt-4`}>
                                         {[
-                                            { step: 1, title: '1. Perfil' },
-                                            { step: 2, title: '2. Credenciales' },
-                                            { step: 3, title: '3. Privacidad' },
-                                        ].map(({ step, title }) => {
+                                            { step: 1, title: 'Perfil' },
+                                            { step: 2, title: 'Datos' },
+                                            { step: 3, title: 'Credenciales' },
+                                            { step: 4, title: 'Privacidad' },
+                                        ]
+                                            .filter(({ step }) => registerFlow.includes(step as 1 | 2 | 3 | 4))
+                                            .map(({ step, title: baseTitle }) => {
+                                            const pos = registerFlow.indexOf(step as 1 | 2 | 3 | 4) + 1;
+                                            const title = `${pos}. ${baseTitle}`;
                                             const active = registerStep === step;
-                                            const completed = registerStep > step;
+                                            const completed = registerPos > pos;
                                             return (
                                                 <button
                                                     key={step}
                                                     type="button"
                                                     onClick={() => {
-                                                        if (step < registerStep) {
+                                                        if (pos < registerPos) {
                                                             setError('');
-                                                            setRegisterStep(step as 1 | 2 | 3);
+                                                            setRegisterStep(step as 1 | 2 | 3 | 4);
                                                         }
                                                     }}
-                                                    disabled={step > registerStep}
-                                                    className={`flex flex-col gap-1.5 text-left transition-all ${step < registerStep ? 'cursor-pointer' : 'cursor-default'}`}
+                                                    disabled={pos > registerPos}
+                                                    className={`flex flex-col gap-1.5 text-left transition-all ${pos < registerPos ? 'cursor-pointer' : 'cursor-default'}`}
                                                 >
                                                     <div className={`h-1.5 w-full rounded-full transition-all duration-300 ${
                                                         completed ? 'bg-brand-600' : active ? 'bg-brand-500' : 'bg-slate-100'
@@ -525,25 +547,9 @@ export default function Login() {
                                         </div>
                                     )}
 
-                                    {/* ── LOGIN NORMAL O ETAPA 2 (REGISTRO): CORREO + DATOS DE GRADO + CONTRASEÑA ── */}
-                                    {(!isRegistering || registerStep === 2) && (
+                                    {/* ── ETAPA 2 (REGISTRO · EGRESADO): DATOS PERSONALES Y ACADÉMICOS ── */}
+                                    {isRegistering && registerStep === 2 && roleId === 3 && (
                                         <div className="space-y-4 animate-fade-in-up">
-                                            {/* Email */}
-                                            <div className="space-y-1.5">
-                                                <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
-                                                    {isRegistering && roleId === 3 ? 'Correo electrónico (personal o institucional)' : 'Correo electrónico'}
-                                                </label>
-                                                <div className="relative">
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
-                                                        <Mail className="w-4 h-4" />
-                                                    </div>
-                                                    <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
-                                                        placeholder={isRegistering && roleId === 3 ? 'ejemplo@gmail.com o @hotmail.com' : 'correo@ejemplo.com'} value={email}
-                                                        onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-                                                </div>
-                                            </div>
-
-                                            {/* Campos de Verificación Académica para Egresado UPC */}
                                             {isRegistering && roleId === 3 && (
                                                 <div className="space-y-3 p-3.5 rounded-2xl bg-emerald-50/45 border border-emerald-200/70">
                                                     <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-brand-800 flex items-center gap-1.5">
@@ -659,6 +665,27 @@ export default function Login() {
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+                                    )}
+
+                                    {/* ── LOGIN NORMAL O ETAPA 3 (REGISTRO): CORREO + CONTRASEÑA ── */}
+                                    {(!isRegistering || registerStep === 3) && (
+                                        <div className="space-y-4 animate-fade-in-up">
+                                            {/* Email */}
+                                            <div className="space-y-1.5">
+                                                <label className="block text-[11px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                                    {isRegistering && roleId === 3 ? 'Correo electrónico (personal o institucional)' : 'Correo electrónico'}
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#9CA3AF]">
+                                                        <Mail className="w-4 h-4" />
+                                                    </div>
+                                                    <input type="email" style={fieldBase} onFocus={onFocus} onBlur={onBlur}
+                                                        placeholder={isRegistering && roleId === 3 ? 'ejemplo@gmail.com o @hotmail.com' : 'correo@ejemplo.com'} value={email}
+                                                        onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+                                                </div>
+                                            </div>
+
 
                                             {/* Password */}
                                             <div className="space-y-1.5">
@@ -723,8 +750,8 @@ export default function Login() {
                                         </div>
                                     )}
 
-                                    {/* ── ETAPA 3 (REGISTRO): AVISOS DE PRIVACIDAD Y TRATAMIENTO DE DATOS ── */}
-                                    {isRegistering && registerStep === 3 && (
+                                    {/* ── ETAPA 4 (REGISTRO): AVISOS DE PRIVACIDAD Y TRATAMIENTO DE DATOS ── */}
+                                    {isRegistering && registerStep === 4 && (
                                         <div className="space-y-4 animate-fade-in-up">
                                             <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-brand-50/70 border border-brand-100">
                                                 <div className="min-w-0">
@@ -735,7 +762,7 @@ export default function Login() {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setError(''); setRegisterStep(2); }}
+                                                    onClick={() => { setError(''); setRegisterStep(3); }}
                                                     className="text-[11px] font-bold text-brand-700 hover:underline flex-shrink-0 ml-2"
                                                 >
                                                     Cambiar correo
@@ -789,7 +816,7 @@ export default function Login() {
                                         {isRegistering && registerStep > 1 && (
                                             <button
                                                 type="button"
-                                                onClick={() => { setError(''); setRegisterStep((registerStep - 1) as 1 | 2); }}
+                                                onClick={goPrevStep}
                                                 className="px-5 py-3.5 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                                             >
                                                 Atrás
@@ -799,8 +826,8 @@ export default function Login() {
                                         <button type="submit"
                                             disabled={
                                                 loading ||
-                                                (isRegistering && registerStep === 2 && (strength < 2 || !email.trim())) ||
-                                                (isRegistering && registerStep === 3 && (!acceptPrivacy || !authorizeData))
+                                                (isRegistering && registerStep === 3 && (strength < 2 || !email.trim())) ||
+                                                (isRegistering && registerStep === 4 && (!acceptPrivacy || !authorizeData))
                                             }
                                             style={{
                                                 width: '100%', padding: '0.9rem', borderRadius: '14px',
@@ -810,8 +837,8 @@ export default function Login() {
                                                 border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
                                                 opacity: (
                                                     loading ||
-                                                    (isRegistering && registerStep === 2 && (strength < 2 || !email.trim())) ||
-                                                    (isRegistering && registerStep === 3 && (!acceptPrivacy || !authorizeData))
+                                                    (isRegistering && registerStep === 3 && (strength < 2 || !email.trim())) ||
+                                                    (isRegistering && registerStep === 4 && (!acceptPrivacy || !authorizeData))
                                                 ) ? 0.55 : 1,
                                                 transition: 'all 0.18s ease',
                                             }}
@@ -822,7 +849,7 @@ export default function Login() {
                                                 {loading ? (
                                                     <><Loader2 className="w-5 h-5 animate-spin" />{isRegistering ? 'Procesando...' : 'Iniciando sesión...'}</>
                                                 ) : isRegistering ? (
-                                                    registerStep < 3 ? (
+                                                    registerStep < LAST_STEP ? (
                                                         <>Continuar <ArrowRight className="w-4 h-4" /></>
                                                     ) : (
                                                         <>{roleId === 3 ? 'Verificar y activar cuenta' : 'Crear cuenta ahora'}</>
