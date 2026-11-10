@@ -12,9 +12,11 @@ env/
 .env.local
 .env.*.local
 
-# Archivos subidos en runtime
+# Archivos subidos en runtime y bundles de despliegue
 backend/uploads/
 aws/.build_lambda/
+aws/.build_beanstalk/
+*.zip
 
 # IDE
 .idea/

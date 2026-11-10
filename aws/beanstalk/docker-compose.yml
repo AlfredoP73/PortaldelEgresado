@@ -1,0 +1,289 @@
+# ==============================================================================
+# AWS Elastic Beanstalk (PaaS) - Docker Compose Unificado
+# Despliega: Frontend (Nginx + React SPA :80), API Gateway (:8080),
+# 5 Microservicios FastAPI, RabbitMQ y PostgreSQL 15 en contenedor (sin RDS)
+# Base de datos Database-per-Service inicializada con backend/init.sql:
+#   auth_db, companies_db, graduates_db, matchmaking_db
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Base de Datos Relacional en Contenedor (PostgreSQL 15 - Sin RDS)
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: portal_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${POSTGRES_DB:-portal_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d matchmaking_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 2. Broker de Mensajeria Asincrona (RabbitMQ)
+  # ----------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: portal_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 3. Microservicio de Autenticacion (Modulo 0 -> auth_db)
+  # ----------------------------------------------------------------------------
+  auth:
+    image: portal-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_auth_service
+    restart: always
+    command: ["python", "-m", "uvicorn", "app.auth.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password123@db:5432/auth_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_for_jwt_12345}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-internal-secret-token-for-microservices}
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-internal-secret-token-for-microservices}
+      GRADUATES_URL: http://graduates:8000
+      COMPANIES_URL: http://companies:8000
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-portal.egresados.upc@gmail.com}
+      SMTP_PASS: ${SMTP_PASS:-vmxlkvqzcpycsxlk}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-portal.egresados.upc@gmail.com}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 4. Microservicio de Empresas y Vacantes (Modulo 2 -> companies_db)
+  # ----------------------------------------------------------------------------
+  companies:
+    image: portal-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_companies_service
+    restart: always
+    command: ["python", "-m", "uvicorn", "app.companies.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password123@db:5432/companies_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_for_jwt_12345}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-internal-secret-token-for-microservices}
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-internal-secret-token-for-microservices}
+      AUTH_URL: http://auth:8000
+      GRADUATES_URL: http://graduates:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      AUTH_SERVICE_URL: http://auth:8000
+      GRADUATES_SERVICE_URL: http://graduates:8000
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      S3_BUCKET_DELIVERABLES: ${S3_BUCKET_DELIVERABLES:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-openai/gpt-oss-20b}
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 5. Microservicio de Egresados (Modulo 1 -> graduates_db)
+  # ----------------------------------------------------------------------------
+  graduates:
+    image: portal-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_graduates_service
+    restart: always
+    command: ["python", "-m", "uvicorn", "app.graduates.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password123@db:5432/graduates_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_for_jwt_12345}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-internal-secret-token-for-microservices}
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-internal-secret-token-for-microservices}
+      AUTH_URL: http://auth:8000
+      COMPANIES_URL: http://companies:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      AUTH_SERVICE_URL: http://auth:8000
+      COMPANIES_SERVICE_URL: http://companies:8000
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      S3_BUCKET_CVS: ${S3_BUCKET_CVS:-}
+      S3_BUCKET_AVATARS: ${S3_BUCKET_AVATARS:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-openai/gpt-oss-20b}
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+      companies:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 6. Microservicio de Dashboard Administrativo (Modulo 4 -> auth_db)
+  # ----------------------------------------------------------------------------
+  dashboard:
+    image: portal-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_dashboard_service
+    restart: always
+    command: ["python", "-m", "uvicorn", "app.dashboard.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password123@db:5432/auth_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_for_jwt_12345}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-internal-secret-token-for-microservices}
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-internal-secret-token-for-microservices}
+      AUTH_URL: http://auth:8000
+      GRADUATES_URL: http://graduates:8000
+      COMPANIES_URL: http://companies:8000
+      MATCHMAKING_URL: http://matchmaking:8000
+      AUTH_SERVICE_URL: http://auth:8000
+      GRADUATES_SERVICE_URL: http://graduates:8000
+      COMPANIES_SERVICE_URL: http://companies:8000
+      MATCHMAKING_SERVICE_URL: http://matchmaking:8000
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-openai/gpt-oss-20b}
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+      graduates:
+        condition: service_started
+      companies:
+        condition: service_started
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 7. Microservicio de Matchmaking IA (Modulo 3 -> matchmaking_db)
+  # ----------------------------------------------------------------------------
+  matchmaking:
+    image: portal-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_matchmaking_service
+    restart: always
+    command: ["python", "-m", "uvicorn", "app.matchmaking.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password123@db:5432/matchmaking_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_for_jwt_12345}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-internal-secret-token-for-microservices}
+      MATCHMAKING_INTERNAL_TOKEN: ${MATCHMAKING_INTERNAL_TOKEN:-internal-secret-token-for-microservices}
+      AUTH_URL: http://auth:8000
+      GRADUATES_URL: http://graduates:8000
+      COMPANIES_URL: http://companies:8000
+      AUTH_SERVICE_URL: http://auth:8000
+      GRADUATES_SERVICE_URL: http://graduates:8000
+      COMPANIES_SERVICE_URL: http://companies:8000
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_FAST_MODEL: ${GROQ_FAST_MODEL:-openai/gpt-oss-20b}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      auth:
+        condition: service_started
+      graduates:
+        condition: service_started
+      companies:
+        condition: service_started
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 8. API Gateway Interno (Nginx Reverse Proxy hacia los 5 Microservicios)
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: portal_api_gateway
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/loading.html:/usr/share/nginx/html/loading.html:ro
+    depends_on:
+      - auth
+      - companies
+      - graduates
+      - dashboard
+      - matchmaking
+    networks:
+      - portal_net
+
+  # ----------------------------------------------------------------------------
+  # 9. Frontend SPA (Nginx :80 expuesto al ALB de Elastic Beanstalk)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.beanstalk
+    container_name: portal_frontend_web
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      BACK_HOST: nginx
+    depends_on:
+      - nginx
+    networks:
+      - portal_net
+
+volumes:
+  pgdata:
+
+networks:
+  portal_net:
+    driver: bridge
